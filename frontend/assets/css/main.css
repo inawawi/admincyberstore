@@ -1,0 +1,414 @@
+/* ==========================================================================
+   BSI CYBER STORE - UNIVERSITAS BINA SARANA INFORMATIKA OFFICIAL THEME
+   Palette: UBSI Deep Navy (#003399), Royal Blue (#004aad), Tech Cyan (#0284c7),
+            Gold Emblem (#f59e0b), Light Crisp Canvas (#f8fafc / #ffffff)
+   ========================================================================== */
+
+:root {
+  --font-main: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', var(--font-main);
+
+  /* UBSI Brand Palette */
+  --ubsi-blue: #003399;
+  --ubsi-blue-dark: #002266;
+  --ubsi-royal: #004aad;
+  --ubsi-royal-hover: #1d4ed8;
+  --ubsi-cyan: #0284c7;
+  --ubsi-cyan-light: #e0f2fe;
+  --ubsi-gold: #f59e0b;
+  --ubsi-gold-light: #fef3c7;
+  --ubsi-red: #ef4444;
+
+  /* Theme Canvas Colors (Clean Light Aesthetic) */
+  --bg-darker: #f8fafc;
+  --bg-dark: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f0f7ff;
+  --bg-surface-glass: rgba(255, 255, 255, 0.94);
+
+  --border-subtle: #e2e8f0;
+  --border-glow: rgba(0, 74, 173, 0.25);
+  --border-active: #004aad;
+
+  /* Accent Mappings */
+  --accent-cyan: #004aad;
+  --accent-cyan-hover: #003399;
+  --accent-cyan-dim: rgba(0, 74, 173, 0.08);
+  --accent-purple: #4f46e5;
+  --accent-purple-dim: rgba(79, 70, 229, 0.08);
+  --accent-coral: #e11d48;
+  --accent-coral-dim: rgba(225, 29, 72, 0.08);
+  --accent-emerald: #10b981;
+  --accent-emerald-dim: rgba(16, 185, 129, 0.08);
+
+  /* High-Contrast Typography */
+  --text-white: #0f172a;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Shadows */
+  --glow-cyan: 0 4px 15px rgba(0, 74, 173, 0.25);
+  --glow-purple: 0 4px 15px rgba(79, 70, 229, 0.2);
+  --shadow-card: 0 4px 20px rgba(15, 23, 42, 0.06);
+  --shadow-card-hover: 0 12px 30px rgba(0, 51, 153, 0.12);
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  --container-max: 1280px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-main);
+  background-color: var(--bg-darker);
+  color: var(--text-primary);
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at 10% 10%, rgba(0, 51, 153, 0.03) 0%, transparent 40%),
+              radial-gradient(circle at 90% 80%, rgba(2, 132, 199, 0.04) 0%, transparent 40%),
+              var(--bg-darker);
+  background-attachment: fixed;
+  color: var(--text-primary);
+  line-height: 1.6;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ubsi-blue);
+}
+
+/* Typography Helpers */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  background: transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input, select, textarea {
+  font-family: inherit;
+  color: var(--text-primary);
+  outline: none;
+}
+
+/* Layout Utilities */
+.container {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}
+
+/* Clean Professional Card */
+.cyber-card {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.cyber-card:hover {
+  border-color: rgba(0, 74, 173, 0.4);
+  box-shadow: var(--shadow-card-hover);
+}
+
+/* Gradient Text */
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #003399 0%, #0284c7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-neon {
+  background: linear-gradient(135deg, #003399 0%, #1d4ed8 50%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.925rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #004aad 0%, #003399 100%);
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(0, 51, 153, 0.28);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #002266 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 51, 153, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: #eff6ff;
+  color: #004aad;
+  border: 1px solid #bfdbfe;
+  font-weight: 700;
+}
+
+.btn-secondary:hover {
+  border-color: #003399;
+  color: #003399;
+  background: #dbeafe;
+}
+
+.btn-outline {
+  background: transparent;
+  color: #004aad;
+  border: 1px solid #004aad;
+}
+
+.btn-outline:hover {
+  background: #004aad;
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(0, 74, 173, 0.3);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.badge-cyan {
+  background: #eff6ff;
+  color: #004aad;
+  border: 1px solid #bfdbfe;
+}
+
+.badge-coral {
+  background: #fef2f2;
+  color: #e11d48;
+  border: 1px solid #fecdd3;
+}
+
+.badge-purple {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.badge-emerald {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #a7f3d0;
+}
+
+/* Inputs */
+.input-cyber {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.input-cyber:focus {
+  border-color: #004aad;
+  box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.15);
+  background: #ffffff;
+}
+
+.input-cyber::placeholder {
+  color: var(--text-muted);
+}
+
+/* Skeleton Loading Animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Custom Grid helpers */
+.grid-products {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .grid-products {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .grid-products {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+  }
+}
+
+/* Common Icon Sizing Utilities */
+.w-3 { width: 0.75rem; }
+.h-3 { height: 0.75rem; }
+.w-3\.5, .w-3-5 { width: 0.875rem; }
+.h-3\.5, .h-3-5 { height: 0.875rem; }
+.w-4 { width: 1rem; }
+.h-4 { height: 1rem; }
+.w-5 { width: 1.25rem; }
+.h-5 { height: 1.25rem; }
+.w-6 { width: 1.5rem; }
+.h-6 { height: 1.5rem; }
+.w-7 { width: 1.75rem; }
+.h-7 { height: 1.75rem; }
+.w-8 { width: 2rem; }
+.h-8 { height: 2rem; }
+
+.inline-block { display: inline-block; }
+.mr-1 { margin-right: 0.25rem; }
+.mr-2 { margin-right: 0.5rem; }
+
+/* Spin Animation */
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Global Print Rules (Hides Navbars & Footers on Print) ─────────────────── */
+@media print {
+  /* Always hide navigation, announcements, drawers, and footers when printing */
+  .navbar-wrapper,
+  .top-announcement,
+  .footer-wrapper,
+  .cart-drawer-overlay,
+  .cart-drawer,
+  .no-print {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* When invoice modal is open or printing invoice, hide the whole background Nuxt app */
+  body.invoice-modal-open #__nuxt,
+  body.printing-invoice #__nuxt,
+  body:has(.invoice-modal-backdrop) #__nuxt {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+/* ─── Midtrans Snap Modal Overlay Fix ───────────────────────────────────────── */
+#snap-midtrans,
+iframe[id^="snap-"],
+.snap-midtrans {
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
+}
+
