@@ -1,0 +1,12 @@
+node_modules/
+.next/
+next-build/
+out/
+.env
+.env.local
+.env.*.local
+!.env.example
+coverage/
+*.log
+public/storage/*
+!public/storage/.gitkeep

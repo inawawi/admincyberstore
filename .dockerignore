@@ -1,0 +1,8 @@
+node_modules
+next-build
+.git
+.env*
+!.env.example
+npm-debug.log*
+public/storage/*
+!public/storage/.gitkeep

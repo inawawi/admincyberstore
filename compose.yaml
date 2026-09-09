@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_DATABASE: ${DB_DATABASE:-cyber_store_v1}
+      DB_USERNAME: ${DB_USERNAME:-root}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      AUTH_SECRET: ${AUTH_SECRET:?Isi AUTH_SECRET minimal 32 karakter}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      MEDIA_ROOT: /app/laravel-storage
+    command: ["sh", "-c", "npm run db:setup && npm start"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - ${LARAVEL_STORAGE_PATH:-../cyber_store_api/public/storage}:/app/laravel-storage

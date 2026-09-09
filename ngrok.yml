@@ -1,0 +1,7 @@
+version: "3"
+
+tunnels:
+  cyber-store:
+    proto: http
+    addr: 3100
+    host_header: rewrite
