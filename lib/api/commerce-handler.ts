@@ -106,17 +106,51 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
     assert(address.latitude !== null && address.longitude !== null, "Lokasi belum lengkap. Silakan pilih titik lokasi pada map terlebih dahulu.");
     const expedition = await row<AnyRow>("SELECT * FROM expeditions WHERE id = ? AND is_active = 1", [expeditionId]);
     if (!expedition) throw new ApiError(404, "Ekspedisi tidak ditemukan.");
-    const cart = await row<AnyRow>("SELECT * FROM carts WHERE user_id = ?", [userId]);
-    if (!cart) throw new ApiError(422, "Keranjang masih kosong.");
-    const selectedIds = Array.isArray(body.cart_item_ids) ? body.cart_item_ids.map(Number).filter(Number.isFinite) : [];
-    const whereSelected = selectedIds.length ? ` AND ci.id IN (${selectedIds.map(() => "?").join(",")})` : "";
-    const cartItems = await rows<AnyRow>(
-      `SELECT ci.*, p.name, p.price, p.stock, p.weight, p.is_active
-         FROM cart_items ci JOIN products p ON p.id = ci.product_id
-        WHERE ci.cart_id = ?${whereSelected}`,
-      [cart.id, ...selectedIds],
-    );
-    assert(cartItems.length, "Keranjang masih kosong.");
+    let cartItems: AnyRow[] = [];
+    const dbItemIdsToDelete: number[] = [];
+
+    if (Array.isArray(body.items) && body.items.length > 0) {
+      for (const rawItem of body.items as Array<Record<string, unknown>>) {
+        const prodId = asNumber(rawItem.product_id);
+        const qty = Math.max(1, asNumber(rawItem.quantity, 1));
+        if (prodId <= 0) continue;
+        const prod = await row<AnyRow>("SELECT id, name, price, stock, weight, is_active FROM products WHERE id = ?", [prodId]);
+        if (!prod) throw new ApiError(404, `Produk dengan ID ${prodId} tidak ditemukan.`);
+        cartItems.push({
+          id: asNumber(rawItem.id || 0),
+          product_id: prod.id,
+          name: prod.name,
+          price: prod.price,
+          stock: prod.stock,
+          weight: prod.weight,
+          is_active: prod.is_active,
+          quantity: qty,
+          size: rawItem.size ? String(rawItem.size).slice(0, 50) : null,
+          color: rawItem.color ? String(rawItem.color).slice(0, 50) : null,
+          nim: rawItem.nim ? String(rawItem.nim).slice(0, 30) : null,
+        } as AnyRow);
+        if (asNumber(rawItem.id) > 0) {
+          dbItemIdsToDelete.push(asNumber(rawItem.id));
+        }
+      }
+    } else {
+      const cart = await row<AnyRow>("SELECT * FROM carts WHERE user_id = ?", [userId]);
+      if (cart) {
+        const selectedIds = Array.isArray(body.cart_item_ids) ? body.cart_item_ids.map(Number).filter(Number.isFinite) : [];
+        const whereSelected = selectedIds.length ? ` AND ci.id IN (${selectedIds.map(() => "?").join(",")})` : "";
+        cartItems = await rows<AnyRow>(
+          `SELECT ci.*, p.name, p.price, p.stock, p.weight, p.is_active
+             FROM cart_items ci JOIN products p ON p.id = ci.product_id
+            WHERE ci.cart_id = ?${whereSelected}`,
+          [cart.id, ...selectedIds],
+        );
+        for (const item of cartItems) {
+          if (asNumber(item.id) > 0) dbItemIdsToDelete.push(asNumber(item.id));
+        }
+      }
+    }
+
+    assert(cartItems.length > 0, "Keranjang masih kosong.");
     for (const item of cartItems) {
       assert(item.is_active, `Produk ${item.name} saat ini sedang tidak aktif.`);
       assert(asNumber(item.stock) >= asNumber(item.quantity), `Stok produk ${item.name} hanya tersisa ${item.stock} unit.`);
@@ -167,10 +201,27 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
         [order.insertId, body.bank_code || null, grandTotal, new Date(Date.now() + 86_400_000), midtrans.transaction_id, midtrans.token, midtrans.redirect_url, nowSql(), nowSql()],
       );
       await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'pending_payment', 'Pesanan dibuat dan menunggu pembayaran.', ?, ?, ?)", [order.insertId, address.city, nowSql(), nowSql()]);
-      await tx.execute(`DELETE FROM cart_items WHERE id IN (${cartItems.map(() => "?").join(",")})`, cartItems.map((item) => item.id));
+      if (dbItemIdsToDelete.length > 0) {
+        await tx.execute(`DELETE FROM cart_items WHERE id IN (${dbItemIdsToDelete.map(() => "?").join(",")})`, dbItemIdsToDelete);
+      }
+      const userCart = await tx.row<AnyRow>("SELECT id FROM carts WHERE user_id = ?", [userId]);
+      if (userCart) {
+        const productIds = cartItems.map((ci) => ci.product_id);
+        if (productIds.length > 0) {
+          await tx.execute(`DELETE FROM cart_items WHERE cart_id = ? AND product_id IN (${productIds.map(() => "?").join(",")})`, [userCart.id, ...productIds]);
+        }
+      }
       return order.insertId;
     });
-    return { status: 201, data: { message: "Checkout berhasil.", order: await hydrateOrder(orderId) } };
+    return {
+      status: 201,
+      data: {
+        message: "Checkout berhasil.",
+        order: await hydrateOrder(orderId),
+        snap_token: midtrans.token,
+        snap_url: midtrans.redirect_url,
+      },
+    };
   }
 
   if (ctx.method === "GET" && path === "orders") {
