@@ -4,6 +4,8 @@ import { execute, row, rows, transaction } from "@/lib/db";
 import { ApiError, assert } from "@/lib/http";
 import { hashPassword } from "@/lib/auth";
 import { saveImage } from "@/lib/media";
+import { planProductGallery } from "@/lib/product-images";
+import type { TransactionDb } from "@/lib/db";
 import { asBoolean, asNumber, cleanNullable, nowSql, parseJsonArray, publicUrl, slugify } from "@/lib/utils";
 
 type AnyRow = RowDataPacket & Record<string, unknown>;
@@ -410,6 +412,48 @@ async function uploadMedia(fileOrString: unknown, folder: string): Promise<strin
   return null;
 }
 
+function normalizeProductImages(data: Record<string, unknown>) {
+  const hasImage = (value: unknown) => value instanceof File ? value.size > 0 : typeof value === "string" && !!value.trim();
+  for (const [key, value] of Object.entries(data)) {
+    if (key.startsWith("gallery_slot_") && (!/^gallery_slot_[2-6]$/.test(key) || Array.isArray(value))) {
+      throw new ApiError(422, "Maksimal 6 foto produk: 1 foto utama dan 5 foto galeri.");
+    }
+  }
+  const multi = (Array.isArray(data.multi_images) ? data.multi_images : [data.multi_images]).filter(hasImage);
+  if (multi.length > 6 || Array.isArray(data.main_photo_file)) {
+    throw new ApiError(422, "Maksimal 6 foto produk: 1 foto utama dan 5 foto galeri.");
+  }
+  if (!multi.length) return data;
+  const normalized: Record<string, unknown> = { ...data, main_photo_file: multi[0], replace_product_images: true };
+  for (let slot = 2; slot <= 6; slot++) normalized[`gallery_slot_${slot}`] = multi[slot - 1];
+  return normalized;
+}
+
+async function saveProductGallery(tx: TransactionDb, productId: number, data: Record<string, unknown>) {
+  const existing = await tx.rows<AnyRow>(
+    "SELECT id, image FROM product_images WHERE product_id = ? ORDER BY sort_order, id FOR UPDATE", [productId],
+  );
+  const uploads: Array<string | null> = [];
+  for (let slot = 2; slot <= 6; slot++) uploads.push(await uploadMedia(data[`gallery_slot_${slot}`], "products"));
+  const deletedIds = String(data.delete_gallery_image_ids || "").split(",").map(Number);
+  const gallery = planProductGallery(
+    existing.map((img) => ({ id: Number(img.id), image: String(img.image) })),
+    uploads, deletedIds, asBoolean(data.replace_product_images),
+  );
+  const retainedIds = gallery.flatMap((img) => img.id === undefined ? [] : [img.id]);
+  await tx.execute(
+    `DELETE FROM product_images WHERE product_id = ?${retainedIds.length ? ` AND id NOT IN (${retainedIds.map(() => "?").join(",")})` : ""}`,
+    [productId, ...retainedIds],
+  );
+  for (const [index, img] of gallery.entries()) {
+    if (img.id !== undefined) {
+      await tx.execute("UPDATE product_images SET sort_order = ? WHERE product_id = ? AND id = ?", [index + 1, productId, img.id]);
+    } else {
+      await tx.execute("INSERT INTO product_images (product_id, image, sort_order, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())", [productId, img.image, index + 1]);
+    }
+  }
+}
+
 export async function listResource(
   key: string,
   paramsOrSearch?: { search?: string; status?: string; page?: number; perPage?: number; productId?: string; type?: string; cancelStatus?: string } | string,
@@ -443,6 +487,18 @@ export async function listResource(
   const [totalRow] = await rows<AnyRow>(query.count, query.values);
   const total = Number(totalRow?.total || 0);
   const data = await rows<AnyRow>(`${query.select} LIMIT ? OFFSET ?`, [...query.values, perPage, offset]);
+  if (key === "products" && data.length) {
+    const images = await rows<AnyRow>(
+      `SELECT * FROM product_images WHERE product_id IN (${data.map(() => "?").join(",")}) ORDER BY sort_order, id`,
+      data.map((product) => Number(product.id)),
+    );
+    for (const product of data) {
+      product.main_photo_url = publicUrl(product.main_photo);
+      product.images = images
+        .filter((image) => Number(image.product_id) === Number(product.id))
+        .map((image) => ({ ...image, image_url: publicUrl(image.image) }));
+    }
+  }
   return { data, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
@@ -587,6 +643,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
 
   if (key === "products") {
     const name = String(data.name || "").trim();
+    data = normalizeProductImages(data);
     assert(name, "Nama produk wajib diisi.");
     const price = asNumber(data.price);
     assert(price > 0, "Harga produk tidak valid.");
@@ -630,36 +687,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
       );
       const newId = res.insertId;
 
-      // Handle gallery slot uploads (gallery_slot_2 through gallery_slot_6)
-      for (let slot = 2; slot <= 6; slot++) {
-        const slotFile = data[`gallery_slot_${slot}`];
-        if (slotFile) {
-          const uploaded = await uploadMedia(slotFile, "products");
-          if (uploaded) {
-            await tx.execute(
-              `INSERT INTO product_images (product_id, image, sort_order, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
-              [newId, uploaded, slot - 1]
-            );
-          }
-        }
-      }
-
-      // Handle multi images dropzone upload
-      if (data.multi_images) {
-        const files = Array.isArray(data.multi_images) ? data.multi_images : [data.multi_images];
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
-          if (f) {
-            const uploaded = await uploadMedia(f, "products");
-            if (uploaded) {
-              await tx.execute(
-                `INSERT INTO product_images (product_id, image, sort_order, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
-                [newId, uploaded, i + 1]
-              );
-            }
-          }
-        }
-      }
+      await saveProductGallery(tx, newId, data);
 
       if (stock > 0) {
         await tx.execute(
@@ -795,6 +823,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
 
   if (key === "products") {
     const existing = await row<AnyRow>("SELECT * FROM products WHERE id = ?", [id]);
+    data = normalizeProductImages(data);
     if (!existing) throw new ApiError(404, "Produk tidak ditemukan.");
 
     const name = data.name !== undefined ? String(data.name).trim() : String(existing.name);
@@ -829,6 +858,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
 
     // Main photo handling
     let mainPhoto = (existing.main_photo || null) as string | null;
+    if (asBoolean(data.remove_main_photo)) mainPhoto = null;
     if (data.main_photo_file) {
       const uploaded = await uploadMedia(data.main_photo_file, "products");
       if (uploaded) mainPhoto = uploaded;
@@ -863,51 +893,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
         ]
       );
 
-      // Handle deleted gallery images
-      if (data.delete_gallery_image_ids) {
-        const idsToDelete = String(data.delete_gallery_image_ids)
-          .split(",")
-          .map((s) => Number(s.trim()))
-          .filter((n) => !isNaN(n) && n > 0);
-        if (idsToDelete.length > 0) {
-          const placeholders = idsToDelete.map(() => "?").join(",");
-          await tx.execute(
-            `DELETE FROM product_images WHERE product_id = ? AND id IN (${placeholders})`,
-            [id, ...idsToDelete]
-          );
-        }
-      }
-
-      // Handle gallery slot uploads (gallery_slot_2 through gallery_slot_6)
-      for (let slot = 2; slot <= 6; slot++) {
-        const slotFile = data[`gallery_slot_${slot}`];
-        if (slotFile) {
-          const uploaded = await uploadMedia(slotFile, "products");
-          if (uploaded) {
-            await tx.execute(
-              `INSERT INTO product_images (product_id, image, sort_order, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
-              [id, uploaded, slot - 1]
-            );
-          }
-        }
-      }
-
-      // Handle multi images dropzone upload
-      if (data.multi_images) {
-        const files = Array.isArray(data.multi_images) ? data.multi_images : [data.multi_images];
-        for (let i = 0; i < files.length; i++) {
-          const f = files[i];
-          if (f) {
-            const uploaded = await uploadMedia(f, "products");
-            if (uploaded) {
-              await tx.execute(
-                `INSERT INTO product_images (product_id, image, sort_order, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())`,
-                [id, uploaded, i + 1]
-              );
-            }
-          }
-        }
-      }
+      await saveProductGallery(tx, id, data);
 
       if (stockDiff !== 0) {
         const type = stockDiff > 0 ? "in" : "out";

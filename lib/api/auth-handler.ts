@@ -184,17 +184,63 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
     return { data: { message: "Password berhasil diperbarui. Silakan masuk dengan password baru Anda." } };
   }
 
-  if (ctx.method === "POST" && path === "auth/google") {
-    const idToken = stringValue(body, "id_token");
-    assert(idToken, "ID token Google wajib diisi.");
+  if ((ctx.method === "POST" && path === "auth/google") || (ctx.method === "GET" && path === "auth/google/callback")) {
     let google: Record<string, unknown>;
-    if (idToken === "mock_google_token" && process.env.NODE_ENV !== "production") {
-      google = { sub: `mock-${Date.now()}`, email: body.email, name: body.name || "Mock Google User", email_verified: true };
+
+    if (ctx.method === "GET" && path === "auth/google/callback") {
+      // Authorization Code Flow: tukarkan code -> token Google
+      const code = ctx.url.searchParams.get("code");
+      assert(code, "Authorization code Google tidak ditemukan.");
+
+      const clientId = process.env.GOOGLE_CLIENT_ID || env.googleClientIds[0] || "";
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+      const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3001/auth/google/callback";
+
+      assert(clientId && clientSecret, "Konfigurasi Google OAuth belum lengkap di server.");
+
+      // Tukar code dengan token
+      const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code,
+          client_id: clientId,
+          client_secret: clientSecret,
+          redirect_uri: redirectUri,
+          grant_type: "authorization_code",
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!tokenRes.ok) {
+        const errBody = await tokenRes.text();
+        console.error("[Google OAuth] Token exchange failed:", errBody);
+        throw new ApiError(422, "Gagal menukarkan authorization code dengan token Google.");
+      }
+
+      const tokenData = await tokenRes.json() as Record<string, unknown>;
+      const idToken = String(tokenData.id_token || "");
+      assert(idToken, "Google tidak mengembalikan id_token. Pastikan scope openid diaktifkan.");
+
+      // Verifikasi id_token
+      const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`, {
+        signal: AbortSignal.timeout(7_000),
+      });
+      if (!verifyRes.ok) throw new ApiError(422, "Token Google tidak valid atau telah kedaluwarsa.");
+      google = await verifyRes.json() as Record<string, unknown>;
     } else {
-      const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`, { signal: AbortSignal.timeout(7_000) });
-      if (!response.ok) throw new ApiError(422, "Token Google tidak valid atau telah kedaluwarsa.");
-      google = await response.json() as Record<string, unknown>;
+      // ID Token Flow (POST auth/google dengan id_token)
+      const idToken = stringValue(body, "id_token");
+      assert(idToken, "ID token Google wajib diisi.");
+      if (idToken === "mock_google_token" && process.env.NODE_ENV !== "production") {
+        google = { sub: `mock-${Date.now()}`, email: body.email, name: body.name || "Mock Google User", email_verified: true };
+      } else {
+        const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`, { signal: AbortSignal.timeout(7_000) });
+        if (!response.ok) throw new ApiError(422, "Token Google tidak valid atau telah kedaluwarsa.");
+        google = await response.json() as Record<string, unknown>;
+      }
     }
+
     const email = String(google.email || "").toLowerCase();
     const googleId = String(google.sub || "");
     assert(email && googleId, "Data email atau Google ID tidak ditemukan di dalam token.");

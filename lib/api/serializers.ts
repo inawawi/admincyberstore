@@ -37,7 +37,7 @@ export function serializeProduct<T extends Record<string, unknown>>(value: T) {
   if (product.main_photo) product.main_photo_url = publicUrl(product.main_photo);
   if (product.size_chart) product.size_chart_url = publicUrl(product.size_chart);
   if (Array.isArray(product.images)) {
-    product.images = product.images.map((image) => {
+    product.images = product.images.slice(0, 5).map((image) => {
       const output = { ...(image as Record<string, unknown>) };
       output.image_url = publicUrl(output.image);
       return output;

@@ -4422,6 +4422,18 @@ function ProductFormSections({
   const [mainPhotoPreview, setMainPhotoPreview] = useState<string>(
     String(row?.main_photo_url || "")
   );
+  const mainPhotoInput = useRef<HTMLInputElement>(null);
+  const galleryInputs = useRef<Array<HTMLInputElement | null>>([]);
+  const [removeMainPhoto, setRemoveMainPhoto] = useState(false);
+  const [replaceProductImages, setReplaceProductImages] = useState(false);
+  const [imageUploadError, setImageUploadError] = useState("");
+
+  function setInputFile(input: HTMLInputElement | null, file?: File) {
+    if (!input) return;
+    const transfer = new DataTransfer();
+    if (file) transfer.items.add(file);
+    input.files = transfer.files;
+  }
 
   // 5 Gallery slots state (for Slots 2 to 6)
   const initialActiveGallery = existingGalleryImages.filter(
@@ -4489,25 +4501,30 @@ function ProductFormSections({
 
   function handleMultiImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
+    if (files.length > 6) {
+      setImageUploadError("Maksimal 6 foto produk. Silakan pilih ulang hingga 6 foto.");
+      e.target.value = "";
+      return;
+    }
     if (!files.length) return;
-
-    if (files[0]) {
-      setMainPhotoPreview(URL.createObjectURL(files[0]));
-    }
-    const remainingFiles = files.slice(1, 6);
-    if (remainingFiles.length) {
-      setGalleryPreviews((prev) => {
-        const next = [...prev];
-        remainingFiles.forEach((f, idx) => {
-          if (idx < 5) next[idx] = URL.createObjectURL(f);
-        });
-        return next;
-      });
-    }
+    setImageUploadError("");
+    setReplaceProductImages(true);
+    setInputFile(mainPhotoInput.current, files[0]);
+    setMainPhotoPreview(URL.createObjectURL(files[0]));
+    setRemoveMainPhoto(false);
+    setGalleryPreviews(Array.from({ length: 5 }, (_, idx) => {
+      const file = files[idx + 1];
+      setInputFile(galleryInputs.current[idx], file);
+      return file ? URL.createObjectURL(file) : "";
+    }));
+    setDeletedGalleryIds(existingGalleryImages.map((img) => img.id));
+    e.target.value = "";
   }
 
   function handleSlotImageChange(slotIdx: number, file: File | null) {
     if (!file) return;
+    const existing = existingGalleryImages[slotIdx];
+    if (existing) setDeletedGalleryIds((prev) => [...new Set([...prev, existing.id])]);
     const url = URL.createObjectURL(file);
     setGalleryPreviews((prev) => {
       const next = [...prev];
@@ -4517,6 +4534,7 @@ function ProductFormSections({
   }
 
   function handleSlotImageRemove(slotIdx: number) {
+    setInputFile(galleryInputs.current[slotIdx]);
     setGalleryPreviews((prev) => {
       const next = [...prev];
       next[slotIdx] = "";
@@ -4599,12 +4617,12 @@ function ProductFormSections({
         <div className="multi-upload-dropzone">
           <div className="dropzone-folder-icon">📁</div>
           <strong>Upload Banyak Foto Sekaligus (Drag & Drop)</strong>
-          <p>Pilih atau tarik hingga 6 gambar sekaligus. Foto akan otomatis mengisi Gambar 1 (Utama) hingga Gambar 6.</p>
+          <p>Pilih hingga 6 gambar sekaligus untuk mengganti seluruh foto produk. Foto pertama menjadi Gambar 1 (Utama).</p>
+          {imageUploadError && <p role="alert">{imageUploadError}</p>}
           <label className="primary-button dropzone-upload-btn">
             📁 Pilih Banyak Foto Sekaligus
             <input
               type="file"
-              name="multi_images"
               accept="image/jpeg,image/png,image/webp"
               multiple
               className="hidden-file-input"
@@ -4631,11 +4649,15 @@ function ProductFormSections({
                 <input
                   type="file"
                   name="main_photo_file"
+                  ref={mainPhotoInput}
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden-file-input"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) setMainPhotoPreview(URL.createObjectURL(file));
+                    if (file) {
+                      setMainPhotoPreview(URL.createObjectURL(file));
+                      setRemoveMainPhoto(false);
+                    }
                   }}
                 />
               </label>
@@ -4643,7 +4665,11 @@ function ProductFormSections({
                 <button
                   type="button"
                   className="danger-button subtle-button slot-btn slot-hapus-btn"
-                  onClick={() => setMainPhotoPreview("")}
+                  onClick={() => {
+                    setMainPhotoPreview("");
+                    setInputFile(mainPhotoInput.current);
+                    setRemoveMainPhoto(true);
+                  }}
                 >
                   🗑 Hapus
                 </button>
@@ -4651,6 +4677,8 @@ function ProductFormSections({
             </div>
           </div>
 
+          <input type="hidden" name="remove_main_photo" value={String(removeMainPhoto)} />
+          <input type="hidden" name="replace_product_images" value={String(replaceProductImages)} />
           {/* Slots 2 to 6: Gambar 2 s/d Gambar 6 */}
           {[2, 3, 4, 5, 6].map((slotIndex) => {
             const slotIdx = slotIndex - 2;
@@ -4673,6 +4701,7 @@ function ProductFormSections({
                     <input
                       type="file"
                       name={`gallery_slot_${slotIndex}`}
+                      ref={(input) => { galleryInputs.current[slotIdx] = input; }}
                       accept="image/jpeg,image/png,image/webp"
                       className="hidden-file-input"
                       onChange={(e) => handleSlotImageChange(slotIdx, e.target.files?.[0] || null)}
@@ -4692,6 +4721,7 @@ function ProductFormSections({
             );
           })}
         </div>
+
       </div>
 
       {/* Section 2: 📄 INFORMASI DASAR */}

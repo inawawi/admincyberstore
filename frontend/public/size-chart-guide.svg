@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" width="100%" height="100%" style="background:#ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#003399" />
+      <stop offset="100%" stop-color="#004aad" />
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <linearGradient id="shirtGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+    <!-- Card Shadow -->
+    <filter id="cardShadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.06" />
+    </filter>
+  </defs>
+
+  <!-- Background Canvas -->
+  <rect width="900" height="620" fill="#f8fafc" rx="16" />
+  <rect x="1" y="1" width="898" height="618" fill="none" stroke="#e2e8f0" stroke-width="2" rx="15" />
+
+  <!-- Header Banner -->
+  <rect x="0" y="0" width="900" height="88" fill="url(#headerGrad)" rx="16" />
+  <rect x="0" y="72" width="900" height="16" fill="url(#headerGrad)" />
+
+  <!-- Header Content -->
+  <g transform="translate(32, 22)">
+    <rect x="0" y="4" width="38" height="38" rx="8" fill="#ffffff" fill-opacity="0.15" />
+    <path d="M12 16 h14 M12 23 h14 M12 30 h8" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+    <text x="50" y="24" fill="#ffffff" font-size="20" font-weight="800" letter-spacing="0.5">PANDUAN UKURAN / SIZE CHART</text>
+    <text x="50" y="42" fill="#bfdbfe" font-size="12" font-weight="500">Standar Kaos &amp; Pakaian Resmi BSI Cyber Store (Regular Fit)</text>
+  </g>
+  <g transform="translate(730, 28)">
+    <rect x="0" y="0" width="138" height="32" rx="16" fill="#ffffff" fill-opacity="0.2" stroke="#ffffff" stroke-opacity="0.3" stroke-width="1" />
+    <circle cx="16" cy="16" r="5" fill="#10b981" />
+    <text x="28" y="21" fill="#ffffff" font-size="12" font-weight="700">Toleransi ±1-2 cm</text>
+  </g>
+
+  <!-- Left: Visual Illustration of Shirt with Dimensions -->
+  <g transform="translate(32, 114)" filter="url(#cardShadow)">
+    <rect width="320" height="420" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    
+    <!-- Title -->
+    <text x="160" y="32" text-anchor="middle" fill="#0f172a" font-size="14" font-weight="700">DIAGRAM CARA MENGUKUR</text>
+    <text x="160" y="48" text-anchor="middle" fill="#64748b" font-size="11">Bentangkan pakaian mendatar di bidang datar</text>
+
+    <!-- T-Shirt & Long Sleeve Combined Drawing -->
+    <g transform="translate(45, 65)">
+      <!-- Long sleeves background outline -->
+      <path d="M30 46 L-15 130 L10 142 L42 78 Z" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="3 3" />
+      <path d="M200 46 L245 130 L220 142 L188 78 Z" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="3 3" />
+
+      <!-- Main T-Shirt Body -->
+      <path d="M42 36 
+               L68 18 
+               Q115 48 162 18 
+               L188 36 
+               L224 82 
+               L186 102 
+               L174 80 
+               L174 240 
+               L56 240 
+               L56 80 
+               L44 102 
+               L6 82 Z" 
+            fill="url(#shirtGrad)" stroke="#003399" stroke-width="2.5" stroke-linejoin="round" />
+
+      <!-- Collar details -->
+      <path d="M68 18 Q115 48 162 18 Q115 36 68 18 Z" fill="#ffffff" stroke="#003399" stroke-width="1.5" />
+
+      <!-- Measurement Line A: Lebar Dada (Chest Width) -->
+      <g transform="translate(0, 106)">
+        <line x1="56" y1="0" x2="174" y2="0" stroke="#ef4444" stroke-width="2.5" />
+        <polygon points="56,0 64,-4 64,4" fill="#ef4444" />
+        <polygon points="174,0 166,-4 166,4" fill="#ef4444" />
+        <circle cx="115" cy="0" r="14" fill="#ef4444" />
+        <text x="115" y="5" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="800">A</text>
+      </g>
+
+      <!-- Measurement Line B: Panjang Badan (Length) -->
+      <g transform="translate(202, 0)">
+        <line x1="0" y1="26" x2="0" y2="240" stroke="#0284c7" stroke-width="2.5" />
+        <polygon points="0,26 -4,34 4,34" fill="#0284c7" />
+        <polygon points="0,240 -4,232 4,232" fill="#0284c7" />
+        <circle cx="0" cy="133" r="14" fill="#0284c7" />
+        <text x="0" y="138" text-anchor="middle" fill="#ffffff" font-size="12" font-weight="800">B</text>
+      </g>
+
+      <!-- Measurement Line C: Panjang Lengan (Sleeve Length) -->
+      <g transform="translate(0, 0)">
+        <line x1="26" y1="36" x2="-14" y2="120" stroke="#8b5cf6" stroke-width="2" stroke-dasharray="4 2" />
+        <circle cx="4" cy="78" r="12" fill="#8b5cf6" />
+        <text x="4" y="82" text-anchor="middle" fill="#ffffff" font-size="11" font-weight="800">C</text>
+      </g>
+    </g>
+
+    <!-- Legend box -->
+    <g transform="translate(20, 328)">
+      <rect width="280" height="74" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1" />
+      
+      <circle cx="20" cy="18" r="7" fill="#ef4444" />
+      <text x="20" y="21" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="800">A</text>
+      <text x="36" y="21" fill="#1e293b" font-size="11" font-weight="700">Lebar Dada:</text>
+      <text x="108" y="21" fill="#64748b" font-size="11">Jarak ketiak kiri ke ketiak kanan</text>
+
+      <circle cx="20" cy="38" r="7" fill="#0284c7" />
+      <text x="20" y="41" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="800">B</text>
+      <text x="36" y="41" fill="#1e293b" font-size="11" font-weight="700">Panjang Baju:</text>
+      <text x="114" y="41" fill="#64748b" font-size="11">Titik bahu atas ke kelim bawah</text>
+
+      <circle cx="20" cy="58" r="7" fill="#8b5cf6" />
+      <text x="20" y="61" text-anchor="middle" fill="#ffffff" font-size="9" font-weight="800">C</text>
+      <text x="36" y="61" fill="#1e293b" font-size="11" font-weight="700">Panjang Lengan:</text>
+      <text x="128" y="61" fill="#64748b" font-size="11">Pundak ke ujung manset</text>
+    </g>
+  </g>
+
+  <!-- Right: Official Size Table -->
+  <g transform="translate(372, 114)" filter="url(#cardShadow)">
+    <rect width="496" height="420" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5" />
+    
+    <!-- Table Header Row -->
+    <rect x="0" y="0" width="496" height="48" rx="12" fill="#eff6ff" />
+    <rect x="0" y="36" width="496" height="12" fill="#eff6ff" />
+    <line x1="0" y1="48" x2="496" y2="48" stroke="#bfdbfe" stroke-width="1.5" />
+
+    <text x="50" y="30" text-anchor="middle" fill="#003399" font-size="12" font-weight="800">UKURAN</text>
+    <text x="135" y="30" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="800">A. LEBAR</text>
+    <text x="220" y="30" text-anchor="middle" fill="#0284c7" font-size="12" font-weight="800">B. PANJANG</text>
+    <text x="305" y="30" text-anchor="middle" fill="#8b5cf6" font-size="12" font-weight="800">C. LENGAN</text>
+    <text x="410" y="30" text-anchor="middle" fill="#0f172a" font-size="12" font-weight="800">REKOMENDASI</text>
+
+    <!-- Row 1: S -->
+    <g transform="translate(0, 48)">
+      <rect width="496" height="48" fill="#ffffff" />
+      <rect x="34" y="11" width="32" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="50" y="28" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="800">S</text>
+      <text x="135" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">48 cm</text>
+      <text x="220" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">68 cm</text>
+      <text x="305" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">58 cm</text>
+      <text x="410" y="28" text-anchor="middle" fill="#475569" font-size="12">45 - 55 kg / 155-165 cm</text>
+      <line x1="16" y1="48" x2="480" y2="48" stroke="#f1f5f9" stroke-width="1" />
+    </g>
+
+    <!-- Row 2: M -->
+    <g transform="translate(0, 96)">
+      <rect width="496" height="48" fill="#f8fafc" />
+      <rect x="34" y="11" width="32" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="50" y="28" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="800">M</text>
+      <text x="135" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">50 cm</text>
+      <text x="220" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">70 cm</text>
+      <text x="305" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">59 cm</text>
+      <text x="410" y="28" text-anchor="middle" fill="#475569" font-size="12">55 - 65 kg / 160-170 cm</text>
+      <line x1="16" y1="48" x2="480" y2="48" stroke="#f1f5f9" stroke-width="1" />
+    </g>
+
+    <!-- Row 3: L (Highlight) -->
+    <g transform="translate(0, 144)">
+      <rect width="496" height="48" fill="#eff6ff" fill-opacity="0.6" />
+      <rect x="34" y="11" width="32" height="26" rx="6" fill="#003399" />
+      <text x="50" y="28" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="800">L</text>
+      <text x="135" y="28" text-anchor="middle" fill="#003399" font-size="13" font-weight="700">52 cm</text>
+      <text x="220" y="28" text-anchor="middle" fill="#003399" font-size="13" font-weight="700">72 cm</text>
+      <text x="305" y="28" text-anchor="middle" fill="#003399" font-size="13" font-weight="700">60 cm</text>
+      <text x="410" y="28" text-anchor="middle" fill="#003399" font-size="12" font-weight="700">65 - 75 kg / 165-175 cm</text>
+      <line x1="16" y1="48" x2="480" y2="48" stroke="#dbeafe" stroke-width="1" />
+    </g>
+
+    <!-- Row 4: XL -->
+    <g transform="translate(0, 192)">
+      <rect width="496" height="48" fill="#f8fafc" />
+      <rect x="34" y="11" width="32" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="50" y="28" text-anchor="middle" fill="#0f172a" font-size="13" font-weight="800">XL</text>
+      <text x="135" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">54 cm</text>
+      <text x="220" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">74 cm</text>
+      <text x="305" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">61 cm</text>
+      <text x="410" y="28" text-anchor="middle" fill="#475569" font-size="12">75 - 85 kg / 170-180 cm</text>
+      <line x1="16" y1="48" x2="480" y2="48" stroke="#f1f5f9" stroke-width="1" />
+    </g>
+
+    <!-- Row 5: XXL -->
+    <g transform="translate(0, 240)">
+      <rect width="496" height="48" fill="#ffffff" />
+      <rect x="30" y="11" width="40" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="50" y="28" text-anchor="middle" fill="#0f172a" font-size="12" font-weight="800">XXL</text>
+      <text x="135" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">56 cm</text>
+      <text x="220" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">76 cm</text>
+      <text x="305" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">62 cm</text>
+      <text x="410" y="28" text-anchor="middle" fill="#475569" font-size="12">85 - 95 kg / 175-185 cm</text>
+      <line x1="16" y1="48" x2="480" y2="48" stroke="#f1f5f9" stroke-width="1" />
+    </g>
+
+    <!-- Row 6: 3XL -->
+    <g transform="translate(0, 288)">
+      <rect width="496" height="48" fill="#f8fafc" />
+      <rect x="30" y="11" width="40" height="26" rx="6" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1" />
+      <text x="50" y="28" text-anchor="middle" fill="#0f172a" font-size="12" font-weight="800">3XL</text>
+      <text x="135" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">58 cm</text>
+      <text x="220" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">78 cm</text>
+      <text x="305" y="28" text-anchor="middle" fill="#1e293b" font-size="13" font-weight="600">63 cm</text>
+      <text x="410" y="28" text-anchor="middle" fill="#475569" font-size="12">&gt; 95 kg / 180-190 cm</text>
+    </g>
+
+    <!-- Table Bottom Guide Note -->
+    <g transform="translate(16, 348)">
+      <rect width="464" height="58" rx="8" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1" />
+      <text x="16" y="22" fill="#003399" font-size="11" font-weight="700">💡 Tips Memilih Ukuran Pas:</text>
+      <text x="16" y="40" fill="#475569" font-size="10.5">Jika Anda ragu antara 2 ukuran, disarankan memilih 1 ukuran lebih besar untuk kenyamanan gerak harian.</text>
+    </g>
+  </g>
+
+  <!-- Footer Brand Bar -->
+  <g transform="translate(32, 558)">
+    <rect width="836" height="42" rx="8" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" />
+    <text x="20" y="25" fill="#64748b" font-size="11" font-weight="600">BSI Cyber Store • Garansi Produk Original &amp; Kualitas Jahitan Standar Nasional</text>
+    <text x="816" y="25" text-anchor="end" fill="#003399" font-size="11" font-weight="700">cyberstore.bsi.ac.id</text>
+  </g>
+</svg>

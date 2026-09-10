@@ -46,7 +46,7 @@ function publicEndpoint(method: string, path: string) {
     "auth/google",
     "payments/midtrans-callback",
   ].includes(path)) return true;
-  if (method === "GET" && ["categories", "products", "expeditions", "about", "help", "store-info", "banners"].includes(path)) return true;
+  if (method === "GET" && ["categories", "products", "expeditions", "about", "help", "store-info", "banners", "auth/google/callback"].includes(path)) return true;
   if (method === "GET" && /^products\/[^/]+(?:\/reviews)?$/.test(path)) return true;
   return false;
 }
