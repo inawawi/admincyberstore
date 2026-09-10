@@ -758,12 +758,12 @@ const allImages = computed(() => {
       if (p && !list.includes(p)) list.push(p)
     })
   }
-  return list
+  return list.slice(0, 6)
 })
 
 const activeImage = ref<string>('')
 watchEffect(() => {
-  if (allImages.value.length > 0 && !activeImage.value) {
+  if (!allImages.value.includes(activeImage.value)) {
     activeImage.value = allImages.value[0] || ''
   }
 })
