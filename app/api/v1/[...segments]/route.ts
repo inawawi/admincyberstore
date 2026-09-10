@@ -1,4 +1,5 @@
 import { handleV1Request } from "@/lib/api/router";
+import { getCorsHeaders } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,13 +19,9 @@ export const PUT = dispatch;
 export const PATCH = dispatch;
 export const DELETE = dispatch;
 
-export function OPTIONS() {
+export function OPTIONS(request: Request) {
   return new Response(null, {
     status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Encrypted",
-    },
+    headers: getCorsHeaders(request),
   });
 }

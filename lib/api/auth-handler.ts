@@ -244,8 +244,19 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
     const email = String(google.email || "").toLowerCase();
     const googleId = String(google.sub || "");
     assert(email && googleId, "Data email atau Google ID tidak ditemukan di dalam token.");
-    if (env.googleClientIds.length && google.aud && !env.googleClientIds.includes(String(google.aud))) {
-      throw new ApiError(422, "Token Google bukan untuk aplikasi ini.");
+    if (env.googleClientIds.length && google.aud) {
+      const audStr = String(google.aud).trim();
+      const isValidAud = env.googleClientIds.some((id) => {
+        const cleanId = id.trim();
+        const fullId = cleanId.endsWith(".apps.googleusercontent.com")
+          ? cleanId
+          : `${cleanId}.apps.googleusercontent.com`;
+        const prefixId = cleanId.replace(/\.apps\.googleusercontent\.com$/, "");
+        return audStr === cleanId || audStr === fullId || audStr === prefixId || audStr.startsWith(prefixId);
+      });
+      if (!isValidAud) {
+        throw new ApiError(422, "Token Google bukan untuk aplikasi ini.");
+      }
     }
     let user = await findUserByEmail(email);
     if (!user) {

@@ -1552,7 +1552,7 @@ const handlePrint = () => {
 <style>
 @media print {
 
-  /* 1. Hide the entire website app, Navbar, Announcement, Footer, and screen-only elements */
+  /* 1. Hide the entire website app, Navbar, Announcement, Footer, screen-only elements, and ALL other modal popups */
   body.invoice-modal-open #__nuxt,
   body.printing-invoice #__nuxt,
   body:has(.invoice-modal-backdrop) #__nuxt,
@@ -1564,7 +1564,24 @@ const handlePrint = () => {
   .cart-drawer,
   .cart-drawer-overlay,
   .no-print,
-  .table-scroll-hint {
+  .invoice-toolbar,
+  .table-scroll-hint,
+  .checkout-success-backdrop,
+  .checkout-success-card,
+  .complete-modal-backdrop,
+  .complete-modal-card,
+  .tracking-modal-backdrop,
+  .tracking-modal-card,
+  .cancel-modal-backdrop,
+  .cancel-modal-card,
+  .cs-modal-backdrop,
+  .cs-modal-card,
+  .logout-modal-backdrop,
+  .review-modal-backdrop,
+  .size-chart-modal-backdrop,
+  .shopee-modal-backdrop,
+  .success-modal-backdrop,
+  .toast-container {
     display: none !important;
     visibility: hidden !important;
   }

@@ -71,6 +71,19 @@ export async function requestData(request: Request): Promise<Record<string, unkn
   return parsed as Record<string, unknown>;
 }
 
+export function getCorsHeaders(request?: Request) {
+  const origin = request?.headers.get("origin") || "*";
+  const reqHeaders =
+    request?.headers.get("access-control-request-headers") ||
+    "Content-Type, Authorization, X-Encrypted, Accept, X-Requested-With, ngrok-skip-browser-warning, x-encrypted";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": reqHeaders,
+  };
+}
+
 export function apiResponse(
   request: Request,
   data: unknown,
@@ -80,15 +93,16 @@ export function apiResponse(
   const shouldEncrypt =
     request.headers.get("x-encrypted") === "true" &&
     !new URL(request.url).pathname.endsWith("/payments/midtrans-callback");
+  const headers = getCorsHeaders(request);
   if (shouldEncrypt && process.env.API_ENCRYPTION_KEY) {
     return NextResponse.json(
       { payload: encryptPayload(safe) },
-      { status, headers: { "X-Encrypted": "true", "Access-Control-Allow-Origin": "*" } },
+      { status, headers: { ...headers, "X-Encrypted": "true" } },
     );
   }
   return NextResponse.json(safe, {
     status,
-    headers: { "Access-Control-Allow-Origin": "*" },
+    headers,
   });
 }
 

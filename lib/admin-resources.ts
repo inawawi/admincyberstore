@@ -486,6 +486,12 @@ export async function listResource(
   const offset = Math.max(0, (page - 1) * perPage);
   const [totalRow] = await rows<AnyRow>(query.count, query.values);
   const total = Number(totalRow?.total || 0);
+
+  if (key === "settings") {
+    const data = await rows<AnyRow>(query.select, query.values);
+    return { data, total: data.length, page: 1, perPage: Math.max(1, data.length), pages: 1 };
+  }
+
   const data = await rows<AnyRow>(`${query.select} LIMIT ? OFFSET ?`, [...query.values, perPage, offset]);
   if (key === "products" && data.length) {
     const images = await rows<AnyRow>(
@@ -531,7 +537,12 @@ export async function getOrderDetail(orderId: number) {
     [orderId]
   );
 
-  return { order, items, payment: payment || null };
+  const trackings = await rows<AnyRow>(
+    `SELECT * FROM order_trackings WHERE order_id = ? ORDER BY created_at DESC, id DESC`,
+    [orderId]
+  );
+
+  return { order, items, payment: payment || null, trackings: trackings || [] };
 }
 
 export async function getChatDetail(chatId: number) {
@@ -804,6 +815,34 @@ export async function createResource(key: string, data: Record<string, unknown>,
   }
 
   if (key === "settings") {
+    let settingsObj: Record<string, unknown> = {};
+    if (typeof data.settings === "string") {
+      try {
+        settingsObj = JSON.parse(data.settings);
+      } catch {
+        settingsObj = {};
+      }
+    } else if (data.settings && typeof data.settings === "object") {
+      settingsObj = data.settings as Record<string, unknown>;
+    }
+
+    if (data.store_logo_file) {
+      const logoPath = await uploadMedia(data.store_logo_file, "settings");
+      if (logoPath) {
+        settingsObj["store_logo"] = logoPath;
+      }
+    }
+
+    if (Object.keys(settingsObj).length > 0) {
+      for (const [k, v] of Object.entries(settingsObj)) {
+        await execute(
+          "INSERT INTO settings (`key`, `value`, created_at, updated_at) VALUES (?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()",
+          [k, v === null || v === undefined ? "" : String(v)]
+        );
+      }
+      return 1;
+    }
+
     const settingKey = String(data.key || "").trim();
     const settingVal = String(data.value || "").trim();
     assert(Boolean(settingKey), "Kunci pengaturan wajib diisi.");
@@ -926,20 +965,56 @@ export async function updateResource(key: string, id: number, data: Record<strin
     const existing = await row<AnyRow>("SELECT * FROM orders WHERE id = ?", [id]);
     if (!existing) throw new ApiError(404, "Pesanan tidak ditemukan.");
 
-    const status = data.status !== undefined ? String(data.status) : String(existing.status);
+    let statusInput = data.status !== undefined ? String(data.status).trim() : String(existing.status);
     const resiNumber = data.resi_number !== undefined ? cleanNullable(data.resi_number as string) : (existing.resi_number as string | null);
     const note = data.note !== undefined ? cleanNullable(data.note as string) : (existing.note as string | null);
     const cancelStatus = data.cancel_request_status !== undefined ? cleanNullable(data.cancel_request_status as string) : (existing.cancel_request_status as string | null);
 
-    let finalStatus = status;
+    const statusMap: Record<string, string> = {
+      pending: "pending_payment",
+      processing: "packed",
+      expired: "cancelled",
+    };
+    if (statusMap[statusInput]) {
+      statusInput = statusMap[statusInput];
+    }
+
+    const validStatuses = ["pending_payment", "paid", "packed", "shipped", "arrived", "completed", "cancelled"];
+    if (!validStatuses.includes(statusInput)) {
+      statusInput = String(existing.status) || "pending_payment";
+    }
+
+    let finalStatus = statusInput;
     if (cancelStatus === "approved") {
       finalStatus = "cancelled";
+    }
+
+    if (data.resi_number !== undefined && resiNumber && (existing.status === "paid" || existing.status === "packed")) {
+      finalStatus = "shipped";
     }
 
     await execute(
       `UPDATE orders SET status = ?, resi_number = ?, note = ?, cancel_request_status = ?, updated_at = NOW() WHERE id = ?`,
       [finalStatus, resiNumber, note, cancelStatus, id]
     );
+
+    if (finalStatus !== String(existing.status) || (resiNumber && resiNumber !== String(existing.resi_number || ""))) {
+      const statusLabels: Record<string, { desc: string; loc: string }> = {
+        packed: { desc: "Pesanan sedang diproses dan dikemas di gudang.", loc: "Gudang Cyber Store" },
+        shipped: { desc: `Pesanan telah dikirim via kurir ${existing.expedition_name || "ekspedisi"}${resiNumber ? ` (Resi: ${resiNumber})` : ""}.`, loc: "Kurir Hub" },
+        arrived: { desc: "Paket telah tiba di alamat tujuan.", loc: "Alamat Pelanggan" },
+        completed: { desc: "Pesanan telah selesai dan diterima (Proof of Delivery / POD).", loc: "Sistem" },
+        cancelled: { desc: "Pesanan telah dibatalkan.", loc: "Sistem" },
+        paid: { desc: "Pembayaran telah berhasil diverifikasi oleh sistem.", loc: "Sistem" },
+        pending_payment: { desc: "Menunggu pembayaran dari pelanggan.", loc: "Sistem" },
+      };
+
+      const info = statusLabels[finalStatus] || { desc: `Status pesanan diperbarui menjadi ${finalStatus}.`, loc: "Sistem" };
+      await execute(
+        "INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
+        [id, finalStatus, info.desc, info.loc]
+      );
+    }
     return;
   }
 

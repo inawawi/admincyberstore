@@ -11,7 +11,7 @@ const date = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: 
 
 export function DashboardView({ data, name }: { data: DashboardData; name: string }) {
   const cards = [
-    { key: "revenue", label: "Pendapatan", icon: "CreditCard", href: "/admin/payments", value: money.format(data.stats.revenue || 0), tone: "blue" },
+    { key: "revenue", label: "Pendapatan", icon: "CreditCard", href: "/admin/orders", value: money.format(data.stats.revenue || 0), tone: "blue" },
     { key: "orders", label: "Total pesanan", icon: "ShoppingBag", href: "/admin/orders", value: String(data.stats.orders || 0), tone: "purple" },
     { key: "products", label: "Produk aktif", icon: "Package", href: "/admin/products", value: String(data.stats.products || 0), tone: "green" },
     { key: "customers", label: "Pelanggan", icon: "Users", href: "/admin/users", value: String(data.stats.customers || 0), tone: "orange" },

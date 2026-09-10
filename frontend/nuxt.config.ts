@@ -27,11 +27,11 @@ export default defineNuxtConfig({
       // Base URL API backend
       apiBase:
         process.env.NUXT_PUBLIC_API_BASE ||
-        "http://localhost:3000/api/v1",
+        "http://localhost:3100/api/v1",
       // Base URL storage/media
       storageBase:
         process.env.NUXT_PUBLIC_STORAGE_BASE ||
-        "http://localhost:3000/storage",
+        "http://localhost:3100/storage",
       // Google OAuth Client ID (Public identifier)
       googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
       googleRedirectUri: process.env.NUXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "",
