@@ -345,10 +345,16 @@ export const useApi = () => {
       const res = await $fetch<any>(`${apiBase}/store-info`, {
         headers: getHeaders(),
       })
-      if (res) {
-        cached.value = res
+      if (!res) return null
+      // admincyberstore returns `name`/`logo`; storefront components use
+      // `store_name`/`store_logo`. Keep both response formats compatible.
+      const info = {
+        ...res,
+        store_name: res.store_name ?? res.name,
+        store_logo: res.store_logo ?? res.logo,
       }
-      return res
+      cached.value = info
+      return info
     } catch (err) {
       console.error('Failed to fetch store info:', err)
       return null

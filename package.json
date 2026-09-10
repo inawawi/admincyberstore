@@ -1,42 +1,25 @@
 {
-  "name": "cyber-store-nextjs",
+  "name": "cyberstore",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": {
-    "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
-  },
+  "engines": { "node": "^20.19.0 || ^22.13.0 || >=24.0.0" },
+  "workspaces": ["apps/*"],
   "scripts": {
-    "dev": "next dev",
-    "ngrok": "ngrok http 3100 --host-header=rewrite",
-    "build": "next build",
-    "start": "node scripts/start.mjs",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --env-file=.env.local --test tests/*.test.ts",
-    "db:setup": "tsx scripts/setup-db.ts"
+    "dev": "concurrently -k -n ADMIN,STOREFRONT \"npm run dev:admin\" \"npm run dev:frontend\"",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "dev:frontend": "npm run dev --workspace=apps/storefront",
+    "build": "npm run build:admin && npm run build:frontend",
+    "build:admin": "npm run build --workspace=apps/admin",
+    "build:frontend": "npm run build --workspace=apps/storefront",
+    "start": "npm run start:admin",
+    "start:admin": "npm run start --workspace=apps/admin",
+    "start:frontend": "npm run start --workspace=apps/storefront",
+    "lint": "npm run lint --workspace=apps/admin",
+    "typecheck": "npm run typecheck --workspace=apps/admin",
+    "test": "npm run test --workspace=apps/admin",
+    "db:setup": "npm run db:setup --workspace=apps/admin",
+    "ngrok": "ngrok http 3100 --host-header=rewrite"
   },
-  "dependencies": {
-    "bcryptjs": "^3.0.2",
-    "dotenv": "^17.2.2",
-    "jose": "^6.1.0",
-    "lucide-react": "^0.542.0",
-    "mysql2": "^3.14.4",
-    "next": "16.3.3",
-    "nodemailer": "^7.0.6",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "react-select": "^5.10.2",
-    "zod": "^4.1.5"
-  },
-  "devDependencies": {
-    "@types/node": "^22.15.0",
-    "@types/nodemailer": "^7.0.1",
-    "@types/react": "^19.1.0",
-    "@types/react-dom": "^19.1.0",
-    "eslint": "^9.35.0",
-    "eslint-config-next": "16.3.3",
-    "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
-  }
+  "devDependencies": { "concurrently": "^9.2.1" }
 }

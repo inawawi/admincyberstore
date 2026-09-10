@@ -7,10 +7,3 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
-
-## Workspace layout
-
-- `apps/admin`: Next.js admin and API. Read Next.js guides from root `node_modules/next/dist/docs/` (npm workspaces hoists dependencies).
-- `apps/storefront`: Nuxt customer storefront.
-- Run commands from the repository root: `npm run dev`, `npm run dev:admin`, `npm run dev:frontend`.
-- Keep application environment files inside each app and do not commit them.

@@ -4,12 +4,14 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package.json package-lock.json ./
-RUN npm ci
+COPY apps/admin/package.json ./apps/admin/package.json
+COPY apps/storefront/package.json ./apps/storefront/package.json
+RUN npm ci --ignore-scripts
 
 COPY . .
-RUN npm run build
+RUN npm run build:admin
 
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["npm", "run", "start:admin"]

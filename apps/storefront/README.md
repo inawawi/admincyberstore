@@ -1,3 +1,7 @@
+# Storefront Cyber Store (Nuxt)
+
+Aplikasi pelanggan dalam workspace `apps/storefront`. Jalankan `npm run dev:frontend` dari root repository untuk membuka http://localhost:3100. Untuk menjalankan admin dan storefront sekaligus, gunakan `npm run dev`. Lihat [panduan workspace](../../README.md) untuk konfigurasi environment dan instalasi.
+
 # Cyber Store - Nuxt 3 Storefront Frontend
 
 Frontend modern berbasis **Nuxt 3** dan **Vue 3** untuk katalog e-commerce pembeli (*Storefront*), terintegrasi penuh dengan REST API Laravel (`cyber_store_api`).

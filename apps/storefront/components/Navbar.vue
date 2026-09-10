@@ -1,19 +1,36 @@
 <template>
   <header class="navbar-wrapper">
     <!-- Announcement Bar (Running Text / Marquee Ticker) -->
-    <div v-if="announcement.is_active" class="top-announcement" role="region" aria-label="Pengumuman Toko">
-      <div class="announcement-marquee-wrapper" title="Arahkan kursor atau tahan untuk jeda">
+    <div
+      v-if="announcement.is_active"
+      class="top-announcement"
+      role="region"
+      aria-label="Pengumuman Toko"
+    >
+      <div
+        class="announcement-marquee-wrapper"
+        title="Arahkan kursor atau tahan untuk jeda"
+      >
         <div class="announcement-marquee-track">
           <!-- Marquee Item 1 -->
           <div class="announcement-item">
             <div class="announcement-badge">
               <span class="pulse-dot"></span>
-              <span>{{ announcement.badge || 'BSI Cyber Store Official' }}</span>
+              <span>{{
+                announcement.badge || 'BSI Cyber Store Official'
+              }}</span>
             </div>
-            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
-              class="announcement-text" v-html="safeAnnouncementText"></component>
+            <component
+              :is="announcement.link ? 'NuxtLink' : 'span'"
+              :to="announcement.link || undefined"
+              class="announcement-text"
+              v-html="safeAnnouncementText"
+            ></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
+              <Icon
+                name="lucide:shield-check"
+                class="w-3.5 h-3.5 inline mr-1 text-cyan"
+              />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -23,12 +40,21 @@
           <div class="announcement-item">
             <div class="announcement-badge">
               <span class="pulse-dot"></span>
-              <span>{{ announcement.badge || 'BSI Cyber Store Official' }}</span>
+              <span>{{
+                announcement.badge || 'BSI Cyber Store Official'
+              }}</span>
             </div>
-            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
-              class="announcement-text" v-html="safeAnnouncementText"></component>
+            <component
+              :is="announcement.link ? 'NuxtLink' : 'span'"
+              :to="announcement.link || undefined"
+              class="announcement-text"
+              v-html="safeAnnouncementText"
+            ></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
+              <Icon
+                name="lucide:shield-check"
+                class="w-3.5 h-3.5 inline mr-1 text-cyan"
+              />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -38,12 +64,21 @@
           <div class="announcement-item" aria-hidden="true">
             <div class="announcement-badge">
               <span class="pulse-dot"></span>
-              <span>{{ announcement.badge || 'BSI Cyber Store Official' }}</span>
+              <span>{{
+                announcement.badge || 'BSI Cyber Store Official'
+              }}</span>
             </div>
-            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
-              class="announcement-text" v-html="safeAnnouncementText"></component>
+            <component
+              :is="announcement.link ? 'NuxtLink' : 'span'"
+              :to="announcement.link || undefined"
+              class="announcement-text"
+              v-html="safeAnnouncementText"
+            ></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
+              <Icon
+                name="lucide:shield-check"
+                class="w-3.5 h-3.5 inline mr-1 text-cyan"
+              />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -53,12 +88,21 @@
           <div class="announcement-item" aria-hidden="true">
             <div class="announcement-badge">
               <span class="pulse-dot"></span>
-              <span>{{ announcement.badge || 'BSI Cyber Store Official' }}</span>
+              <span>{{
+                announcement.badge || 'BSI Cyber Store Official'
+              }}</span>
             </div>
-            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
-              class="announcement-text" v-html="safeAnnouncementText"></component>
+            <component
+              :is="announcement.link ? 'NuxtLink' : 'span'"
+              :to="announcement.link || undefined"
+              class="announcement-text"
+              v-html="safeAnnouncementText"
+            ></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
+              <Icon
+                name="lucide:shield-check"
+                class="w-3.5 h-3.5 inline mr-1 text-cyan"
+              />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -73,8 +117,13 @@
         <!-- Left Area: Hamburger (Mobile/Tablet) + Logo -->
         <div class="nav-left">
           <!-- Mobile Hamburger Toggle Button -->
-          <button @click="toggleMobileMenu" class="hamburger-btn" :class="{ 'is-active': isMobileMenuOpen }"
-            aria-label="Buka Menu Navigasi" :aria-expanded="isMobileMenuOpen">
+          <button
+            @click="toggleMobileMenu"
+            class="hamburger-btn"
+            :class="{ 'is-active': isMobileMenuOpen }"
+            aria-label="Buka Menu Navigasi"
+            :aria-expanded="isMobileMenuOpen"
+          >
             <span class="hamburger-line"></span>
             <span class="hamburger-line"></span>
             <span class="hamburger-line"></span>
@@ -83,23 +132,31 @@
           <!-- Brand Logo -->
           <NuxtLink to="/" class="brand-logo" @click="closeAllMenus">
             <div class="logo-icon-box">
-              <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="logo-img"
-                @error="handleLogoError" />
+              <img
+                v-if="storeLogo"
+                :src="storeLogo"
+                :alt="storeName || 'BSI Cyber Store'"
+                class="logo-img"
+                @error="handleLogoError"
+              />
               <Icon v-else name="lucide:zap" class="logo-svg" />
             </div>
-            <!-- <div class="logo-text-group">
-              <span class="logo-main"><span class="text-bsi">BSI</span> CYBER<span
-                  class="text-store">STORE</span></span>
+            <div class="logo-text-group">
+              <span class="logo-main">{{ storeName }}</span>
               <span class="logo-sub">UNIVERSITAS BINA SARANA INFORMATIKA</span>
-            </div> -->
+            </div>
           </NuxtLink>
         </div>
 
         <!-- Center Area: Desktop Search Bar -->
         <div class="nav-search-wrapper">
           <form @submit.prevent="handleSearch" class="search-form">
-            <input v-model="searchQuery" type="text" placeholder="Cari laptop, kaos maba, aksesoris..."
-              class="nav-search-input" />
+            <input
+              v-model="searchQuery"
+              type="text"
+              placeholder="Cari laptop, kaos maba, aksesoris..."
+              class="nav-search-input"
+            />
             <button type="submit" class="search-btn" aria-label="Cari Produk">
               <Icon name="lucide:search" class="w-4 h-4" />
             </button>
@@ -116,9 +173,15 @@
             <NuxtLink to="/products" class="nav-link" active-class="active">
               Katalog
             </NuxtLink>
-            <NuxtLink to="/products?is_event_maba=1" class="nav-link nav-link-maba">
+            <NuxtLink
+              to="/products?is_event_maba=1"
+              class="nav-link nav-link-maba"
+            >
               <span class="maba-indicator">
-                <Icon name="lucide:graduation-cap" class="w-3.5 h-3.5 inline mr-1 text-gold" />
+                <Icon
+                  name="lucide:graduation-cap"
+                  class="w-3.5 h-3.5 inline mr-1 text-gold"
+                />
                 Maba
               </span>
             </NuxtLink>
@@ -128,19 +191,38 @@
           <NotificationDropdown />
 
           <!-- Mobile Search Trigger Button -->
-          <button @click="toggleMobileSearch" class="action-icon-btn mobile-search-btn"
-            :class="{ 'is-active': isMobileSearchOpen }" aria-label="Cari Produk">
-            <Icon v-if="!isMobileSearchOpen" name="lucide:search" class="w-5 h-5" />
+          <button
+            @click="toggleMobileSearch"
+            class="action-icon-btn mobile-search-btn"
+            :class="{ 'is-active': isMobileSearchOpen }"
+            aria-label="Cari Produk"
+          >
+            <Icon
+              v-if="!isMobileSearchOpen"
+              name="lucide:search"
+              class="w-5 h-5"
+            />
             <Icon v-else name="lucide:x" class="w-5 h-5" />
           </button>
 
           <!-- Cart Button with Counter -->
-          <button @click="cartStore.toggleCart()" class="cart-trigger-btn"
-            :class="{ 'has-items': cartStore.totalItems > 0 }" aria-label="Buka Keranjang">
-            <div class="cart-icon-wrapper" :class="{ 'cart-bounce-anim': cartStore.cartBounce }">
+          <button
+            @click="cartStore.toggleCart()"
+            class="cart-trigger-btn"
+            :class="{ 'has-items': cartStore.totalItems > 0 }"
+            aria-label="Buka Keranjang"
+          >
+            <div
+              class="cart-icon-wrapper"
+              :class="{ 'cart-bounce-anim': cartStore.cartBounce }"
+            >
               <Icon name="lucide:shopping-cart" class="w-5 h-5" />
               <Transition name="badge-pop">
-                <span v-if="cartStore.totalItems > 0" class="cart-counter-badge" :key="cartStore.totalItems">
+                <span
+                  v-if="cartStore.totalItems > 0"
+                  class="cart-counter-badge"
+                  :key="cartStore.totalItems"
+                >
                   {{ cartStore.totalItems > 99 ? '99+' : cartStore.totalItems }}
                 </span>
               </Transition>
@@ -149,17 +231,35 @@
           </button>
 
           <!-- User Auth Profile Dropdown / Login Button (Desktop & Tablet) -->
-          <div v-if="authStore.isAuthenticated" ref="userMenuRef" class="user-menu-wrapper">
-            <button @click="toggleUserMenu" class="user-avatar-btn" :class="{ 'is-active': isUserMenuOpen }"
-              aria-label="Menu Pengguna" :aria-expanded="isUserMenuOpen">
-              <img v-if="authStore.user?.photo" :src="getImageUrl(authStore.user.photo)"
-                :alt="authStore.user?.name || 'Foto Profil'" class="user-avatar-nav-img" />
+          <div
+            v-if="authStore.isAuthenticated"
+            ref="userMenuRef"
+            class="user-menu-wrapper"
+          >
+            <button
+              @click="toggleUserMenu"
+              class="user-avatar-btn"
+              :class="{ 'is-active': isUserMenuOpen }"
+              aria-label="Menu Pengguna"
+              :aria-expanded="isUserMenuOpen"
+            >
+              <img
+                v-if="authStore.user?.photo"
+                :src="getImageUrl(authStore.user.photo)"
+                :alt="authStore.user?.name || 'Foto Profil'"
+                class="user-avatar-nav-img"
+              />
               <div v-else class="user-avatar-initial">
                 {{ (authStore.user?.name || 'U').charAt(0).toUpperCase() }}
               </div>
-              <span class="user-name-label">{{ authStore.user?.name?.split(' ')[0] || 'Akun' }}</span>
-              <Icon name="lucide:chevron-down" class="w-3.5 h-3.5 text-muted user-chevron"
-                :class="{ 'rotate-180': isUserMenuOpen }" />
+              <span class="user-name-label">{{
+                authStore.user?.name?.split(' ')[0] || 'Akun'
+              }}</span>
+              <Icon
+                name="lucide:chevron-down"
+                class="w-3.5 h-3.5 text-muted user-chevron"
+                :class="{ 'rotate-180': isUserMenuOpen }"
+              />
             </button>
 
             <!-- Dropdown Menu -->
@@ -174,15 +274,26 @@
                   </div>
                 </div>
                 <div class="user-dropdown-links">
-                  <NuxtLink to="/account/profile" @click="isUserMenuOpen = false" class="dropdown-link">
+                  <NuxtLink
+                    to="/account/profile"
+                    @click="isUserMenuOpen = false"
+                    class="dropdown-link"
+                  >
                     <Icon name="lucide:user" class="w-4 h-4 text-bsi" />
                     <span>Profil Saya</span>
                   </NuxtLink>
-                  <NuxtLink to="/account/orders" @click="isUserMenuOpen = false" class="dropdown-link">
+                  <NuxtLink
+                    to="/account/orders"
+                    @click="isUserMenuOpen = false"
+                    class="dropdown-link"
+                  >
                     <Icon name="lucide:package" class="w-4 h-4 text-bsi" />
                     <span>Pesanan Saya</span>
                   </NuxtLink>
-                  <button @click="handleLogout" class="dropdown-link text-coral">
+                  <button
+                    @click="handleLogout"
+                    class="dropdown-link text-coral"
+                  >
                     <Icon name="lucide:log-out" class="w-4 h-4" />
                     <span>Keluar / Logout</span>
                   </button>
@@ -202,17 +313,28 @@
       <transition name="slide-search">
         <div v-if="isMobileSearchOpen" class="mobile-search-bar">
           <div class="container">
-            <form @submit.prevent="handleMobileSearch" class="mobile-search-form">
+            <form
+              @submit.prevent="handleMobileSearch"
+              class="mobile-search-form"
+            >
               <Icon name="lucide:search" class="w-5 h-5 mobile-search-icon" />
-              <input ref="mobileSearchInput" v-model="searchQuery" type="text"
-                placeholder="Cari perlengkapan kuliah, gadget, laptop..." class="mobile-search-input" />
-              <button v-if="searchQuery" type="button" @click="searchQuery = ''" class="clear-search-btn"
-                aria-label="Hapus Pencarian">
+              <input
+                ref="mobileSearchInput"
+                v-model="searchQuery"
+                type="text"
+                placeholder="Cari perlengkapan kuliah, gadget, laptop..."
+                class="mobile-search-input"
+              />
+              <button
+                v-if="searchQuery"
+                type="button"
+                @click="searchQuery = ''"
+                class="clear-search-btn"
+                aria-label="Hapus Pencarian"
+              >
                 <Icon name="lucide:x" class="w-4 h-4" />
               </button>
-              <button type="submit" class="btn-search-go">
-                Cari
-              </button>
+              <button type="submit" class="btn-search-go">Cari</button>
             </form>
           </div>
         </div>
@@ -223,7 +345,11 @@
     <ClientOnly>
       <Teleport to="body">
         <transition name="fade">
-          <div v-if="isMobileMenuOpen" class="mobile-drawer-backdrop" @click="closeMobileMenu"></div>
+          <div
+            v-if="isMobileMenuOpen"
+            class="mobile-drawer-backdrop"
+            @click="closeMobileMenu"
+          ></div>
         </transition>
 
         <transition name="slide-drawer">
@@ -232,17 +358,32 @@
             <div class="drawer-header">
               <div class="drawer-logo">
                 <div class="logo-icon-box">
-                  <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="logo-img"
-                    @error="handleLogoError" />
+                  <img
+                    v-if="storeLogo"
+                    :src="storeLogo"
+                    :alt="storeName || 'BSI Cyber Store'"
+                    class="logo-img"
+                    @error="handleLogoError"
+                  />
                   <Icon v-else name="lucide:zap" class="logo-svg" />
                 </div>
                 <div class="logo-text-group">
-                  <span class="logo-main"><span class="text-bsi">BSI</span> CYBER<span
-                      class="text-store">STORE</span></span>
-                  <span class="logo-sub">UNIVERSITAS BINA SARANA INFORMATIKA</span>
+                  <span class="logo-main"
+                    ><span class="text-bsi">BSI</span> CYBER<span
+                      class="text-store"
+                      >STORE</span
+                    ></span
+                  >
+                  <span class="logo-sub"
+                    >UNIVERSITAS BINA SARANA INFORMATIKA</span
+                  >
                 </div>
               </div>
-              <button @click="closeMobileMenu" class="drawer-close-btn" aria-label="Tutup Menu">
+              <button
+                @click="closeMobileMenu"
+                class="drawer-close-btn"
+                aria-label="Tutup Menu"
+              >
                 <Icon name="lucide:x" class="w-5 h-5" />
               </button>
             </div>
@@ -264,40 +405,66 @@
             <div class="drawer-content">
               <div class="drawer-section-title">NAVIGASI UTAMA</div>
               <nav class="drawer-links">
-                <NuxtLink to="/" class="drawer-nav-item" active-class="is-active" @click="closeMobileMenu">
+                <NuxtLink
+                  to="/"
+                  class="drawer-nav-item"
+                  active-class="is-active"
+                  @click="closeMobileMenu"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:home" class="w-4 h-4" />
                   </span>
                   <span>Beranda</span>
                 </NuxtLink>
-                <NuxtLink to="/products" class="drawer-nav-item" active-class="is-active" @click="closeMobileMenu">
+                <NuxtLink
+                  to="/products"
+                  class="drawer-nav-item"
+                  active-class="is-active"
+                  @click="closeMobileMenu"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:shopping-bag" class="w-4 h-4" />
                   </span>
                   <span>Katalog Lengkap</span>
                 </NuxtLink>
-                <NuxtLink to="/products?is_event_maba=1" class="drawer-nav-item drawer-maba-item"
-                  @click="closeMobileMenu">
+                <NuxtLink
+                  to="/products?is_event_maba=1"
+                  class="drawer-nav-item drawer-maba-item"
+                  @click="closeMobileMenu"
+                >
                   <span class="drawer-icon">
-                    <Icon name="lucide:graduation-cap" class="w-4 h-4 text-gold" />
+                    <Icon
+                      name="lucide:graduation-cap"
+                      class="w-4 h-4 text-gold"
+                    />
                   </span>
                   <div class="drawer-maba-text">
                     <span>Perlengkapan Maba 2026</span>
                     <span class="drawer-badge-gold">Ormik & Semot</span>
                   </div>
                 </NuxtLink>
-                <NuxtLink to="/products?is_recommended=1" class="drawer-nav-item" @click="closeMobileMenu">
+                <NuxtLink
+                  to="/products?is_recommended=1"
+                  class="drawer-nav-item"
+                  @click="closeMobileMenu"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:flame" class="w-4 h-4 text-coral" />
                   </span>
                   <span>Cyber Picks Rekomendasi</span>
                 </NuxtLink>
-                <button @click="openCartFromDrawer" class="drawer-nav-item drawer-cart-item">
+                <button
+                  @click="openCartFromDrawer"
+                  class="drawer-nav-item drawer-cart-item"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:shopping-cart" class="w-4 h-4" />
                   </span>
                   <span>Keranjang Belanja</span>
-                  <span v-if="cartStore.totalItems > 0" class="drawer-count-badge">
+                  <span
+                    v-if="cartStore.totalItems > 0"
+                    class="drawer-count-badge"
+                  >
                     {{ cartStore.totalItems }}
                   </span>
                 </button>
@@ -306,19 +473,30 @@
               <!-- Member Area Links -->
               <div class="drawer-section-title">AKUN SAYA</div>
               <div v-if="authStore.isAuthenticated" class="drawer-links">
-                <NuxtLink to="/account/profile" class="drawer-nav-item" @click="closeMobileMenu">
+                <NuxtLink
+                  to="/account/profile"
+                  class="drawer-nav-item"
+                  @click="closeMobileMenu"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:user" class="w-4 h-4" />
                   </span>
                   <span>Profil Saya</span>
                 </NuxtLink>
-                <NuxtLink to="/account/orders" class="drawer-nav-item" @click="closeMobileMenu">
+                <NuxtLink
+                  to="/account/orders"
+                  class="drawer-nav-item"
+                  @click="closeMobileMenu"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:package" class="w-4 h-4" />
                   </span>
                   <span>Pesanan Saya</span>
                 </NuxtLink>
-                <button @click="handleLogoutFromDrawer" class="drawer-nav-item text-coral">
+                <button
+                  @click="handleLogoutFromDrawer"
+                  class="drawer-nav-item text-coral"
+                >
                   <span class="drawer-icon">
                     <Icon name="lucide:log-out" class="w-4 h-4" />
                   </span>
@@ -326,8 +504,14 @@
                 </button>
               </div>
               <div v-else class="drawer-guest-box">
-                <p class="drawer-guest-desc">Masuk untuk melihat riwayat pesanan dan kemudahan checkout.</p>
-                <NuxtLink to="/auth/login" class="btn btn-primary btn-drawer-login" @click="closeMobileMenu">
+                <p class="drawer-guest-desc">
+                  Masuk untuk melihat riwayat pesanan dan kemudahan checkout.
+                </p>
+                <NuxtLink
+                  to="/auth/login"
+                  class="btn btn-primary btn-drawer-login"
+                  @click="closeMobileMenu"
+                >
                   <Icon name="lucide:log-in" class="w-4 h-4" />
                   <span>Masuk ke Akun</span>
                 </NuxtLink>
@@ -336,7 +520,6 @@
 
             <!-- Drawer Footer -->
             <div class="drawer-footer">
-
               <span class="drawer-footer-sub">© Powered by BTI-BSI 2026.</span>
             </div>
           </aside>
@@ -344,8 +527,14 @@
 
         <!-- Logout Confirmation Modal (Teleported to body) -->
         <transition name="modal-fade">
-          <div v-if="isLogoutModalOpen" class="logout-modal-backdrop" role="dialog" aria-modal="true"
-            aria-labelledby="logout-modal-title" @click.self="closeLogoutModal">
+          <div
+            v-if="isLogoutModalOpen"
+            class="logout-modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-modal-title"
+            @click.self="closeLogoutModal"
+          >
             <div class="logout-modal-card cyber-card">
               <!-- Top Ambient Accent Line -->
               <div class="logout-modal-lightbar"></div>
@@ -358,12 +547,23 @@
                   <div class="emblem-inner-shield">
                     <Icon name="lucide:log-out" class="w-6 h-6 text-coral" />
                   </div>
-                  <div class="emblem-micro-badge" title="Sistem Autentikasi Kampus">
-                    <Icon name="lucide:shield-alert" class="w-3.5 h-3.5 text-coral" />
+                  <div
+                    class="emblem-micro-badge"
+                    title="Sistem Autentikasi Kampus"
+                  >
+                    <Icon
+                      name="lucide:shield-alert"
+                      class="w-3.5 h-3.5 text-coral"
+                    />
                   </div>
                 </div>
-                <button type="button" class="logout-modal-close-btn" aria-label="Tutup Dialog Konfirmasi"
-                  :disabled="isLoggingOut" @click="closeLogoutModal">
+                <button
+                  type="button"
+                  class="logout-modal-close-btn"
+                  aria-label="Tutup Dialog Konfirmasi"
+                  :disabled="isLoggingOut"
+                  @click="closeLogoutModal"
+                >
                   <Icon name="lucide:x" class="w-4 h-4" />
                 </button>
               </div>
@@ -375,34 +575,58 @@
                     <span class="logout-badge-pulse"></span>
                     <span>SISTEM KEAMANAN SESI</span>
                   </div>
-                  <h3 id="logout-modal-title" class="logout-modal-title">Keluar dari Sesi?</h3>
+                  <h3 id="logout-modal-title" class="logout-modal-title">
+                    Keluar dari Sesi?
+                  </h3>
                   <p class="logout-modal-desc">
-                    Apakah Anda yakin ingin mengakhiri sesi belanja aktif ini? Akun Anda akan dinonaktifkan dari
-                    perangkat ini dengan aman.
+                    Apakah Anda yakin ingin mengakhiri sesi belanja aktif ini?
+                    Akun Anda akan dinonaktifkan dari perangkat ini dengan aman.
                   </p>
                 </div>
 
                 <!-- User Info Preview Glass Card -->
                 <div v-if="authStore.user" class="logout-user-card">
                   <div class="user-card-avatar-wrapper">
-                    <img v-if="authStore.user?.photo" :src="getImageUrl(authStore.user.photo)"
-                      :alt="authStore.user?.name || 'Foto Profil'" class="user-card-avatar-img" />
+                    <img
+                      v-if="authStore.user?.photo"
+                      :src="getImageUrl(authStore.user.photo)"
+                      :alt="authStore.user?.name || 'Foto Profil'"
+                      class="user-card-avatar-img"
+                    />
                     <div v-else class="user-card-avatar-initial">
-                      {{ (authStore.user?.name || 'U').charAt(0).toUpperCase() }}
+                      {{
+                        (authStore.user?.name || 'U').charAt(0).toUpperCase()
+                      }}
                     </div>
-                    <span class="user-card-status-dot" title="Sesi Terautentikasi"></span>
+                    <span
+                      class="user-card-status-dot"
+                      title="Sesi Terautentikasi"
+                    ></span>
                   </div>
                   <div class="user-card-info">
                     <div class="user-card-name-row">
-                      <span class="user-card-name">{{ authStore.user?.name }}</span>
-                      <span class="user-card-verified-badge" title="Akun Resmi Civitas UBSI">
-                        <Icon name="lucide:badge-check" class="w-4 h-4 text-bsi" />
+                      <span class="user-card-name">{{
+                        authStore.user?.name
+                      }}</span>
+                      <span
+                        class="user-card-verified-badge"
+                        title="Akun Resmi Civitas UBSI"
+                      >
+                        <Icon
+                          name="lucide:badge-check"
+                          class="w-4 h-4 text-bsi"
+                        />
                       </span>
                     </div>
-                    <span class="user-card-email">{{ authStore.user?.email }}</span>
+                    <span class="user-card-email">{{
+                      authStore.user?.email
+                    }}</span>
                     <div class="user-card-tags">
-                      <span class="user-tag-role">{{ authStore.user?.role === 'admin' ? 'Administrator' : 'Civitas UBSI'
-                        }}</span>
+                      <span class="user-tag-role">{{
+                        authStore.user?.role === 'admin'
+                          ? 'Administrator'
+                          : 'Civitas UBSI'
+                      }}</span>
                       <span class="user-tag-session">Sesi Aktif</span>
                     </div>
                   </div>
@@ -412,16 +636,24 @@
                 <div class="logout-perks-grid">
                   <div class="logout-perk-item">
                     <div class="perk-icon-box perk-icon-cart">
-                      <Icon name="lucide:shopping-bag" class="w-4 h-4 text-bsi" />
+                      <Icon
+                        name="lucide:shopping-bag"
+                        class="w-4 h-4 text-bsi"
+                      />
                     </div>
                     <div class="perk-content">
                       <span class="perk-title">Keranjang Disimpan</span>
-                      <span class="perk-desc">Daftar item belanja tetap aman</span>
+                      <span class="perk-desc"
+                        >Daftar item belanja tetap aman</span
+                      >
                     </div>
                   </div>
                   <div class="logout-perk-item">
                     <div class="perk-icon-box perk-icon-shield">
-                      <Icon name="lucide:shield-check" class="w-4 h-4 text-emerald" />
+                      <Icon
+                        name="lucide:shield-check"
+                        class="w-4 h-4 text-emerald"
+                      />
                     </div>
                     <div class="perk-content">
                       <span class="perk-title">Sesi Terenkripsi</span>
@@ -433,15 +665,31 @@
 
               <!-- Modal Actions -->
               <div class="logout-modal-actions">
-                <button type="button" class="btn-cancel-logout" :disabled="isLoggingOut" @click="closeLogoutModal">
+                <button
+                  type="button"
+                  class="btn-cancel-logout"
+                  :disabled="isLoggingOut"
+                  @click="closeLogoutModal"
+                >
                   <Icon name="lucide:arrow-left" class="w-4 h-4" />
                   <span>Batal & Kembali</span>
                 </button>
-                <button type="button" class="btn-logout-confirm" :disabled="isLoggingOut" @click="confirmLogout">
+                <button
+                  type="button"
+                  class="btn-logout-confirm"
+                  :disabled="isLoggingOut"
+                  @click="confirmLogout"
+                >
                   <span class="btn-shimmer-effect"></span>
-                  <Icon v-if="isLoggingOut" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+                  <Icon
+                    v-if="isLoggingOut"
+                    name="lucide:loader-2"
+                    class="w-4 h-4 animate-spin"
+                  />
                   <Icon v-else name="lucide:log-out" class="w-4 h-4" />
-                  <span>{{ isLoggingOut ? 'Mengeluarkan...' : 'Ya, Keluar Sekarang' }}</span>
+                  <span>{{
+                    isLoggingOut ? 'Mengeluarkan...' : 'Ya, Keluar Sekarang'
+                  }}</span>
                 </button>
               </div>
             </div>
@@ -450,14 +698,22 @@
 
         <!-- Logout Success Toast Notification (Teleported to body) -->
         <transition name="toast-pop">
-          <div v-if="logoutToast.show" class="logout-toast-notification" role="status" aria-live="polite">
+          <div
+            v-if="logoutToast.show"
+            class="logout-toast-notification"
+            role="status"
+            aria-live="polite"
+          >
             <!-- Ambient Glowing Accent Line -->
             <div class="toast-glow-accent"></div>
 
             <div class="toast-content-wrapper">
               <div class="toast-icon-box">
                 <div class="toast-icon-pulse"></div>
-                <Icon name="lucide:check-circle-2" class="w-5 h-5 text-emerald relative z-1" />
+                <Icon
+                  name="lucide:check-circle-2"
+                  class="w-5 h-5 text-emerald relative z-1"
+                />
               </div>
               <div class="toast-text-group">
                 <div class="toast-header-row">
@@ -469,12 +725,19 @@
                 </div>
                 <p class="toast-msg">{{ logoutToast.message }}</p>
                 <div class="toast-footer-note">
-                  <Icon name="lucide:shield-check" class="w-3.5 h-3.5 text-emerald inline mr-1" />
+                  <Icon
+                    name="lucide:shield-check"
+                    class="w-3.5 h-3.5 text-emerald inline mr-1"
+                  />
                   <span>Sesi belanja telah diamankan</span>
                 </div>
               </div>
-              <button type="button" class="toast-dismiss-btn" aria-label="Tutup Pemberitahuan"
-                @click="logoutToast.show = false">
+              <button
+                type="button"
+                class="toast-dismiss-btn"
+                aria-label="Tutup Pemberitahuan"
+                @click="logoutToast.show = false"
+              >
                 <Icon name="lucide:x" class="w-4 h-4" />
               </button>
             </div>
@@ -510,14 +773,15 @@ const handleLogoError = () => {
 }
 
 // Dynamic Store Info (Top Announcement Bar)
-const defaultAnnouncement = 'PROMO SPESIAL MAHASISWA BARU 2026! Dapatkan Diskon Hingga 50% Menggunakan Kode: <strong>MABA2026</strong>'
+const defaultAnnouncement =
+  'PROMO SPESIAL MAHASISWA BARU 2026! Dapatkan Diskon Hingga 50% Menggunakan Kode: <strong>MABA2026</strong>'
 
 const announcement = ref({
   is_active: true,
   badge: 'BSI Cyber Store Official',
   text: defaultAnnouncement,
   info: 'Garansi Resmi 100%',
-  link: '',
+  link: ''
 })
 
 // Sanitasi XSS untuk konten HTML yang berasal dari server/database
@@ -570,7 +834,7 @@ onMounted(async () => {
           badge: data.announcement.badge || 'BSI Cyber Store Official',
           text: data.announcement.text || '',
           info: data.announcement.info || '',
-          link: data.announcement.link || '',
+          link: data.announcement.link || ''
         }
       }
     }
@@ -600,7 +864,7 @@ const isLogoutModalOpen = ref(false)
 const isLoggingOut = ref(false)
 const logoutToast = ref<{ show: boolean; message: string }>({
   show: false,
-  message: '',
+  message: ''
 })
 let logoutToastTimer: any = null
 
@@ -669,7 +933,10 @@ const closeAllMenus = () => {
 const handleSearch = () => {
   closeAllMenus()
   if (searchQuery.value.trim()) {
-    router.push({ path: '/products', query: { search: searchQuery.value.trim() } })
+    router.push({
+      path: '/products',
+      query: { search: searchQuery.value.trim() }
+    })
   } else {
     router.push('/products')
   }
@@ -703,7 +970,9 @@ const confirmLogout = async () => {
   if (isLoggingOut.value) return
   isLoggingOut.value = true
 
-  const userName = authStore.user?.name ? authStore.user.name.split(' ')[0] : 'Sobat BSI'
+  const userName = authStore.user?.name
+    ? authStore.user.name.split(' ')[0]
+    : 'Sobat BSI'
 
   try {
     await authStore.logout()
@@ -712,7 +981,7 @@ const confirmLogout = async () => {
     // Tampilkan Toast Validasi Berhasil Logout
     logoutToast.value = {
       show: true,
-      message: `Sampai jumpa kembali, ${userName}! Anda telah berhasil keluar dari akun.`,
+      message: `Sampai jumpa kembali, ${userName}! Anda telah berhasil keluar dari akun.`
     }
 
     if (logoutToastTimer) clearTimeout(logoutToastTimer)
@@ -729,7 +998,7 @@ const confirmLogout = async () => {
     isLogoutModalOpen.value = false
     logoutToast.value = {
       show: true,
-      message: 'Anda telah berhasil keluar dari sesi akun.',
+      message: 'Anda telah berhasil keluar dari sesi akun.'
     }
     if (logoutToastTimer) clearTimeout(logoutToastTimer)
     logoutToastTimer = setTimeout(() => {
@@ -780,8 +1049,20 @@ const confirmLogout = async () => {
   display: flex;
   align-items: center;
   cursor: pointer;
-  mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
-  -webkit-mask-image: linear-gradient(to right, transparent, black 28px, black calc(100% - 28px), transparent);
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 28px,
+    black calc(100% - 28px),
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 28px,
+    black calc(100% - 28px),
+    transparent
+  );
 }
 
 .announcement-marquee-track {
@@ -842,7 +1123,6 @@ const confirmLogout = async () => {
 }
 
 @keyframes pulse-glow {
-
   0%,
   100% {
     opacity: 1;
@@ -1372,7 +1652,8 @@ const confirmLogout = async () => {
   flex-direction: column;
   gap: 0.4rem;
   z-index: 150;
-  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16), 0 4px 12px rgba(0, 51, 153, 0.08);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16),
+    0 4px 12px rgba(0, 51, 153, 0.08);
 }
 
 .user-dropdown-header {
@@ -2004,7 +2285,11 @@ const confirmLogout = async () => {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: radial-gradient(circle at 50% 30%, rgba(0, 51, 153, 0.28) 0%, rgba(15, 23, 42, 0.82) 100%);
+  background: radial-gradient(
+    circle at 50% 30%,
+    rgba(0, 51, 153, 0.28) 0%,
+    rgba(15, 23, 42, 0.82) 100%
+  );
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   display: flex;
@@ -2021,8 +2306,7 @@ const confirmLogout = async () => {
   background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   border-radius: 26px;
   border: 1px solid rgba(226, 232, 240, 0.9);
-  box-shadow:
-    0 30px 80px -15px rgba(15, 23, 42, 0.4),
+  box-shadow: 0 30px 80px -15px rgba(15, 23, 42, 0.4),
     0 10px 30px -5px rgba(225, 29, 72, 0.12),
     0 0 0 1px rgba(255, 255, 255, 0.9) inset;
   overflow: hidden;
@@ -2035,7 +2319,13 @@ const confirmLogout = async () => {
 .logout-modal-lightbar {
   width: 100%;
   height: 4px;
-  background: linear-gradient(90deg, #e11d48 0%, #f43f5e 35%, #f59e0b 70%, #004aad 100%);
+  background: linear-gradient(
+    90deg,
+    #e11d48 0%,
+    #f43f5e 35%,
+    #f59e0b 70%,
+    #004aad 100%
+  );
   box-shadow: 0 0 14px rgba(225, 29, 72, 0.6);
 }
 
@@ -2046,7 +2336,11 @@ const confirmLogout = async () => {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(225, 29, 72, 0.08) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(225, 29, 72, 0.08) 0%,
+    transparent 70%
+  );
   pointer-events: none;
   z-index: 0;
 }
@@ -2075,7 +2369,12 @@ const confirmLogout = async () => {
   position: absolute;
   inset: -6px;
   border-radius: 22px;
-  background: radial-gradient(circle, rgba(225, 29, 72, 0.22) 0%, rgba(225, 29, 72, 0.04) 70%, transparent 100%);
+  background: radial-gradient(
+    circle,
+    rgba(225, 29, 72, 0.22) 0%,
+    rgba(225, 29, 72, 0.04) 70%,
+    transparent 100%
+  );
   animation: emblemHaloPulse 3s ease-in-out infinite alternate;
 }
 
@@ -2457,7 +2756,8 @@ const confirmLogout = async () => {
   background: linear-gradient(135deg, #f43f5e 0%, #e11d48 50%, #be123c 100%);
   color: #ffffff;
   border: none;
-  box-shadow: 0 8px 24px -4px rgba(225, 29, 72, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.2) inset;
+  box-shadow: 0 8px 24px -4px rgba(225, 29, 72, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.2) inset;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2471,7 +2771,8 @@ const confirmLogout = async () => {
 .btn-logout-confirm:hover:not(:disabled) {
   background: linear-gradient(135deg, #fb7185 0%, #e11d48 50%, #9f1239 100%);
   transform: translateY(-2px);
-  box-shadow: 0 12px 30px -4px rgba(225, 29, 72, 0.52), 0 0 0 1px rgba(255, 255, 255, 0.3) inset;
+  box-shadow: 0 12px 30px -4px rgba(225, 29, 72, 0.52),
+    0 0 0 1px rgba(255, 255, 255, 0.3) inset;
 }
 
 .btn-logout-confirm:active:not(:disabled) {
@@ -2490,7 +2791,12 @@ const confirmLogout = async () => {
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
   transform: skewX(-20deg);
   animation: btnShimmer 3.5s infinite;
 }
@@ -2565,8 +2871,7 @@ const confirmLogout = async () => {
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(16, 185, 129, 0.35);
   border-radius: 20px;
-  box-shadow:
-    0 24px 50px -10px rgba(16, 185, 129, 0.25),
+  box-shadow: 0 24px 50px -10px rgba(16, 185, 129, 0.25),
     0 10px 25px -5px rgba(15, 23, 42, 0.08),
     0 0 0 1px rgba(255, 255, 255, 0.9) inset;
   overflow: hidden;
@@ -2606,7 +2911,11 @@ const confirmLogout = async () => {
   position: absolute;
   inset: -4px;
   border-radius: 18px;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(16, 185, 129, 0.25) 0%,
+    transparent 70%
+  );
   animation: toastIconPulse 2.5s infinite alternate;
 }
 

@@ -1,9 +1,21 @@
+import { fileURLToPath } from "node:url";
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
   devtools: { enabled: true },
 
   srcDir: ".",
+
+  typescript: {
+    tsConfig: {
+      // srcDir includes the app root. Build output must not redefine globals
+      // such as $fetch using the untyped, bundled production implementation.
+      exclude: ["./.output", "./node_modules"].map((directory) =>
+        fileURLToPath(new URL(directory, import.meta.url)),
+      ),
+    },
+  },
 
   modules: ["@pinia/nuxt", "@nuxt/icon"],
 

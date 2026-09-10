@@ -8,16 +8,16 @@ out/
 !.env.example
 coverage/
 *.log
-public/storage/*
-!public/storage/.gitkeep
+apps/admin/public/storage/*
+!apps/admin/public/storage/.gitkeep
 
 # Frontend patterns
-frontend/node_modules/
-frontend/.nuxt/
-frontend/.output/
-frontend/.data/
-frontend/.cache/
-frontend/dist/
-frontend/.env
-frontend/.env.*
-!frontend/.env.example
+**/.nuxt/
+**/.output/
+**/.data/
+**/.cache/
+**/dist/
+**/.env.*
+!**/.env.example
+# Generated leftovers from the former frontend location.
+/frontend/
