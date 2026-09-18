@@ -588,21 +588,24 @@ onMounted(async () => {
   try {
     const data = await fetchStoreInfo()
     if (data) {
-      if (data.store_logo || data.logo) {
-        storeLogo.value = getImageUrl(data.store_logo || data.logo)
+      const logoVal = data.store_logo || data.logo || data.data?.store_logo || data.data?.logo
+      if (logoVal) {
+        storeLogo.value = getImageUrl(logoVal)
       }
-      if (data.store_name || data.name) {
-        storeName.value = data.store_name || data.name
+      const nameVal = data.store_name || data.name || data.data?.store_name || data.data?.name
+      if (nameVal) {
+        storeName.value = nameVal
       }
-      if (data.announcement) {
+      const ann = data.announcement || data.data?.announcement
+      if (ann) {
         announcement.value = {
-          is_active: data.announcement.is_active ?? true,
-          badge: data.announcement.badge || 'BSI Cyber Store Official',
-          text: data.announcement.text || defaultAnnouncement,
-          info: data.announcement.info || '',
-          link: data.announcement.link || '',
-          bg_color: data.announcement.bg_color || '',
-          text_color: data.announcement.text_color || '',
+          is_active: ann.is_active ?? true,
+          badge: ann.badge || 'BSI Cyber Store Official',
+          text: ann.text || defaultAnnouncement,
+          info: ann.info || '',
+          link: ann.link || '',
+          bg_color: ann.bg_color || '',
+          text_color: ann.text_color || '',
         }
       }
     }

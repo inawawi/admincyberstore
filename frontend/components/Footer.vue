@@ -6,7 +6,7 @@
         <div class="footer-col brand-col">
           <div class="footer-logo">
             <div class="logo-icon-box">
-              <img src="/logo-cyberstore.jpg" alt="BSI Cyber Store" class="logo-img" />
+              <img :src="storeLogo || '/logo-cyberstore.jpg'" :alt="storeName || 'BSI Cyber Store'" class="logo-img" />
             </div>
             <span class="logo-main"><span class="text-gold">BSI</span> CYBER<span class="text-white">STORE</span></span>
           </div>
@@ -162,8 +162,10 @@ import { useCustomerService } from '~/composables/useCustomerService'
 import { useApi } from '~/composables/useApi'
 
 const { openCustomerService } = useCustomerService()
-const { fetchStoreInfo } = useApi()
+const { fetchStoreInfo, getImageUrl } = useApi()
 
+const storeLogo = ref('/logo-cyberstore.jpg')
+const storeName = ref('BSI Cyber Store')
 const storeAddress = ref('Jl. Dewi Sartika No.77, Cawang, Jakarta Timur')
 const storePhone = ref('(021) 7867868')
 const storeEmail = ref('support@bsi.ac.id')
@@ -172,6 +174,8 @@ onMounted(async () => {
   try {
     const info = await fetchStoreInfo()
     if (info) {
+      if (info.store_logo || info.logo) storeLogo.value = getImageUrl(info.store_logo || info.logo)
+      if (info.store_name || info.name) storeName.value = info.store_name || info.name
       if (info.store_address) storeAddress.value = info.store_address
       if (info.store_phone) storePhone.value = info.store_phone
       if (info.store_email) storeEmail.value = info.store_email

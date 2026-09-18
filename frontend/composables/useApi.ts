@@ -74,6 +74,9 @@ export const useApi = () => {
       if (cleanPath.startsWith('assets/') || cleanPath.startsWith('img/')) {
         const backendUrl = apiBase.replace(/\/api\/v1\/?$/, '')
         result = `${backendUrl}/${encodeURI(cleanPath)}`
+      } else if (cleanPath.startsWith('storage/')) {
+        const sub = cleanPath.slice(8)
+        result = `${storageBase}/${encodeURI(sub)}`
       } else {
         result = `${storageBase}/${encodeURI(cleanPath)}`
       }
@@ -345,10 +348,11 @@ export const useApi = () => {
       const res = await $fetch<any>(`${apiBase}/store-info`, {
         headers: getHeaders(),
       })
-      if (res) {
-        cached.value = res
+      const storeData = res?.data ? { ...res.data, data: res.data } : res
+      if (storeData) {
+        cached.value = storeData
       }
-      return res
+      return storeData
     } catch (err) {
       console.error('Failed to fetch store info:', err)
       return null
