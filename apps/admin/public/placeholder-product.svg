@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 340" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0066ff"/>
+      <stop offset="100%" stop-color="#00d2ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bgGrad)"/>
+  <circle cx="200" cy="140" r="48" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+  <path d="M184 125h32m-32 0l-4 6h-6a4 4 0 00-4 4v20a4 4 0 004 4h48a4 4 0 004-4v-20a4 4 0 00-4-4h-6l-4-6h-24z" fill="none" stroke="url(#accentGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="200" cy="143" r="8" fill="none" stroke="url(#accentGrad)" stroke-width="2.5"/>
+  <text x="200" y="215" fill="#94a3b8" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="600" text-anchor="middle" letter-spacing="1.5">CYBER STORE</text>
+  <text x="200" y="235" fill="#64748b" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" text-anchor="middle">Pratinjau Tidak Tersedia</text>
+</svg>

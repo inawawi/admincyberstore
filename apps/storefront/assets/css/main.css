@@ -382,15 +382,32 @@ input, select, textarea {
   }
 }
 
-/* ─── Global Print Rules (Hides Navbars & Footers on Print) ─────────────────── */
+/* ─── Global Print Rules (Hides Navbars, Footers, & Non-Invoice Modals on Print) ─── */
 @media print {
-  /* Always hide navigation, announcements, drawers, and footers when printing */
+  /* Always hide navigation, announcements, drawers, footers, toast, and all non-invoice modals */
   .navbar-wrapper,
   .top-announcement,
   .footer-wrapper,
   .cart-drawer-overlay,
   .cart-drawer,
-  .no-print {
+  .no-print,
+  .invoice-toolbar,
+  .checkout-success-backdrop,
+  .checkout-success-card,
+  .complete-modal-backdrop,
+  .complete-modal-card,
+  .tracking-modal-backdrop,
+  .tracking-modal-card,
+  .cancel-modal-backdrop,
+  .cancel-modal-card,
+  .cs-modal-backdrop,
+  .cs-modal-card,
+  .logout-modal-backdrop,
+  .review-modal-backdrop,
+  .size-chart-modal-backdrop,
+  .shopee-modal-backdrop,
+  .success-modal-backdrop,
+  .toast-container {
     display: none !important;
     visibility: hidden !important;
   }
@@ -410,5 +427,301 @@ iframe[id^="snap-"],
 .snap-midtrans {
   z-index: 2147483647 !important;
   pointer-events: auto !important;
+}
+
+/* ─── Dark Mode Color Palette & Comprehensive Component Overrides ─────── */
+html[data-theme="dark"],
+body[data-theme="dark"] {
+  --bg-darker: #0b1329;
+  --bg-dark: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-elevated: #334155;
+  --bg-surface-glass: rgba(15, 23, 42, 0.94);
+
+  --border-subtle: #334155;
+  --border-glow: rgba(56, 189, 248, 0.3);
+  --border-active: #38bdf8;
+
+  --text-white: #f8fafc;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 12px 30px rgba(56, 189, 248, 0.18);
+
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] body {
+  background: radial-gradient(circle at 10% 10%, rgba(30, 58, 138, 0.25) 0%, transparent 40%),
+              radial-gradient(circle at 90% 80%, rgba(14, 165, 233, 0.12) 0%, transparent 40%),
+              #0b1329;
+  background-attachment: fixed;
+  color: #f1f5f9;
+}
+
+/* High Contrast Headings & Text in Dark Mode */
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] b {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] p,
+html[data-theme="dark"] span:not([class*="badge"]):not([class*="status"]):not([class*="tag"]):not([class*="btn"]):not([class*="indicator"]):not([class*="avatar"]),
+html[data-theme="dark"] div:not([class*="badge"]):not([class*="status"]):not([class*="tag"]):not([class*="btn"]):not([class*="indicator"]):not([class*="avatar"]),
+html[data-theme="dark"] li,
+html[data-theme="dark"] td,
+html[data-theme="dark"] th,
+html[data-theme="dark"] label {
+  color: #e2e8f0;
+}
+
+/* Target Specific Text Classes for Maximum Legibility */
+html[data-theme="dark"] .text-slate-800,
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-700,
+html[data-theme="dark"] .text-gray-900,
+html[data-theme="dark"] .text-gray-800,
+html[data-theme="dark"] .text-gray-700,
+html[data-theme="dark"] .text-black,
+html[data-theme="dark"] .product-name,
+html[data-theme="dark"] .product-title,
+html[data-theme="dark"] .card-title,
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] .page-title,
+html[data-theme="dark"] .item-title,
+html[data-theme="dark"] .order-id,
+html[data-theme="dark"] .user-name,
+html[data-theme="dark"] .price-amount,
+html[data-theme="dark"] .total-amount,
+html[data-theme="dark"] .label-text,
+html[data-theme="dark"] .form-label,
+html[data-theme="dark"] .field-label,
+html[data-theme="dark"] .sub-title,
+html[data-theme="dark"] .summary-label,
+html[data-theme="dark"] .summary-val,
+html[data-theme="dark"] .cart-item-name,
+html[data-theme="dark"] .checkout-section-title,
+html[data-theme="dark"] .metric-value,
+html[data-theme="dark"] .metric-label,
+html[data-theme="dark"] .filter-title,
+html[data-theme="dark"] .breadcrumbs {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400,
+html[data-theme="dark"] .text-gray-600,
+html[data-theme="dark"] .text-gray-500,
+html[data-theme="dark"] .text-muted,
+html[data-theme="dark"] .product-desc,
+html[data-theme="dark"] .card-desc,
+html[data-theme="dark"] .text-secondary,
+html[data-theme="dark"] .sub-text,
+html[data-theme="dark"] .meta-label,
+html[data-theme="dark"] .field-help {
+  color: #cbd5e1 !important;
+}
+
+/* ─── Navbar Elements Dark Mode Precision Overrides ────────────────────────── */
+html[data-theme="dark"] .main-nav {
+  background: rgba(15, 23, 42, 0.94) !important;
+  border-bottom-color: #334155 !important;
+}
+
+html[data-theme="dark"] .nav-link {
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .nav-link:hover,
+html[data-theme="dark"] .nav-link.active {
+  color: #38bdf8 !important;
+  background: #334155 !important;
+}
+
+/* 1. Maba Indicator Pill in Dark Mode */
+html[data-theme="dark"] .maba-indicator {
+  background: rgba(245, 158, 11, 0.2) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+  color: #fbbf24 !important;
+}
+
+html[data-theme="dark"] .nav-link-maba .text-gold,
+html[data-theme="dark"] .maba-indicator .text-gold {
+  color: #fbbf24 !important;
+}
+
+/* 2. User Avatar Button & Label in Dark Mode */
+html[data-theme="dark"] .user-avatar-btn {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .user-avatar-btn:hover {
+  background: #334155 !important;
+  border-color: #38bdf8 !important;
+}
+
+html[data-theme="dark"] .user-avatar-btn .user-name-label {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .user-avatar-btn .user-chevron {
+  color: #94a3b8 !important;
+}
+
+/* Card, Drawer, Modal, Container Dark Backgrounds */
+html[data-theme="dark"] .main-nav {
+  background: rgba(15, 23, 42, 0.94) !important;
+  border-bottom-color: #334155 !important;
+}
+
+html[data-theme="dark"] .nav-search-input {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #334155 !important;
+}
+
+html[data-theme="dark"] .nav-search-input:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
+}
+
+html[data-theme="dark"] .cyber-card,
+html[data-theme="dark"] .product-card,
+html[data-theme="dark"] .checkout-card,
+html[data-theme="dark"] .order-card,
+html[data-theme="dark"] .filter-card,
+html[data-theme="dark"] .user-dropdown-menu,
+html[data-theme="dark"] .cart-drawer,
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .order-item-card,
+html[data-theme="dark"] .address-card,
+html[data-theme="dark"] .tracking-box,
+html[data-theme="dark"] .review-card,
+html[data-theme="dark"] .auth-card,
+html[data-theme="dark"] .cart-item-card,
+html[data-theme="dark"] .profile-card,
+html[data-theme="dark"] .notification-panel,
+html[data-theme="dark"] .notif-panel,
+html[data-theme="dark"] .notif-item,
+html[data-theme="dark"] .modal-body,
+html[data-theme="dark"] .modal-header,
+html[data-theme="dark"] .modal-footer,
+html[data-theme="dark"] .checkout-success-card,
+html[data-theme="dark"] .mobile-drawer,
+html[data-theme="dark"] .drawer-header,
+html[data-theme="dark"] .drawer-content {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .notif-header {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+}
+
+html[data-theme="dark"] .notif-item:hover,
+html[data-theme="dark"] .notif-item.is-unread {
+  background-color: #334155 !important;
+}
+
+html[data-theme="dark"] .notif-title,
+html[data-theme="dark"] .notif-item-title {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .notif-item-desc,
+html[data-theme="dark"] .notif-item-body {
+  color: #cbd5e1 !important;
+}
+
+/* Secondary Button in Dark Mode */
+html[data-theme="dark"] .btn-secondary,
+html[data-theme="dark"] .btn-outline {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+html[data-theme="dark"] .btn-secondary:hover,
+html[data-theme="dark"] .btn-outline:hover {
+  background-color: #475569 !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+}
+
+/* Form Controls & Inputs in Dark Mode */
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Brand & Link High Visibility Colors */
+html[data-theme="dark"] .text-bsi,
+html[data-theme="dark"] .text-cyan,
+html[data-theme="dark"] .text-blue {
+  color: #38bdf8 !important;
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+/* ─── Theme Toggle Button Styles ────────────────────────────────────────────── */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 74, 173, 0.07);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: rgba(0, 74, 173, 0.15);
+  border-color: var(--border-active);
+  transform: scale(1.06) rotate(12deg);
+}
+
+html[data-theme="dark"] .theme-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: #334155;
+  color: #fbbf24;
+}
+
+html[data-theme="dark"] .theme-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: #fbbf24;
+  box-shadow: 0 0 12px rgba(251, 191, 36, 0.25);
 }
 

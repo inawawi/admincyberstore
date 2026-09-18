@@ -50,3 +50,37 @@ export async function shippingCost(input: {
     return null;
   }
 }
+
+export async function checkWaybill(waybill: string, courier: string) {
+  if (!env.rajaOngkir.apiKey || !waybill) return null;
+  try {
+    const body = new URLSearchParams({
+      waybill: waybill.trim(),
+      courier: courier.toLowerCase().trim(),
+    });
+    const baseUrl = env.rajaOngkir.baseUrl.replace(/\/$/, "").replace(/\/starter$/, "");
+    const response = await fetch(`${baseUrl}/waybill`, {
+      method: "POST",
+      headers: {
+        key: env.rajaOngkir.apiKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body,
+      signal: AbortSignal.timeout(6_000),
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as {
+      rajaongkir?: {
+        result?: {
+          delivered?: boolean;
+          summary?: Record<string, unknown>;
+          details?: Record<string, unknown>;
+          manifest?: Array<{ manifest_description: string; manifest_date: string; manifest_time: string; city_name?: string }>;
+        };
+      };
+    };
+    return data.rajaongkir?.result || null;
+  } catch {
+    return null;
+  }
+}

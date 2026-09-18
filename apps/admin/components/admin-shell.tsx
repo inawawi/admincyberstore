@@ -25,7 +25,7 @@ const navSections = [
   },
   {
     title: "Transaksi",
-    keys: ["orders", "payments", "chats", "reviews", "announcements"],
+    keys: ["orders", "chats", "reviews", "announcements"],
   },
   {
     title: "Master Data",

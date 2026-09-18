@@ -1,16 +1,7 @@
 <template>
   <header class="navbar-wrapper">
-    <!-- Announcement Bar (Running Text / Marquee Ticker) -->
-    <div
-      v-if="announcement.is_active"
-      class="top-announcement"
-      role="region"
-      aria-label="Pengumuman Toko"
-    >
-      <div
-        class="announcement-marquee-wrapper"
-        title="Arahkan kursor atau tahan untuk jeda"
-      >
+    <div v-if="announcement.is_active" class="top-announcement" role="region" aria-label="Pengumuman Toko" :style="announcementStyle">
+      <div class="announcement-marquee-wrapper" title="Arahkan kursor atau tahan untuk jeda">
         <div class="announcement-marquee-track">
           <!-- Marquee Item 1 -->
           <div class="announcement-item">
@@ -189,6 +180,14 @@
 
           <!-- Notification Center Dropdown -->
           <NotificationDropdown />
+
+          <!-- Theme Mode Toggle Button -->
+          <button @click="toggleTheme" class="theme-toggle-btn"
+            :title="isDark ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'"
+            :aria-label="isDark ? 'Mode Terang' : 'Mode Gelap'">
+            <Icon v-if="isDark" name="lucide:sun" class="w-5 h-5 text-amber-400" />
+            <Icon v-else name="lucide:moon" class="w-5 h-5 text-slate-700" />
+          </button>
 
           <!-- Mobile Search Trigger Button -->
           <button
@@ -453,10 +452,13 @@
                   </span>
                   <span>Cyber Picks Rekomendasi</span>
                 </NuxtLink>
-                <button
-                  @click="openCartFromDrawer"
-                  class="drawer-nav-item drawer-cart-item"
-                >
+                <button @click="toggleTheme" class="drawer-nav-item">
+                  <span class="drawer-icon">
+                    <Icon :name="isDark ? 'lucide:sun' : 'lucide:moon'" class="w-4 h-4" :class="isDark ? 'text-amber-400' : 'text-slate-600'" />
+                  </span>
+                  <span>Tampilan {{ isDark ? 'Mode Terang' : 'Mode Gelap' }}</span>
+                </button>
+                <button @click="openCartFromDrawer" class="drawer-nav-item drawer-cart-item">
                   <span class="drawer-icon">
                     <Icon name="lucide:shopping-cart" class="w-4 h-4" />
                   </span>
@@ -758,11 +760,13 @@ import { useRouter } from 'vue-router'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
+import { useTheme } from '~/composables/useTheme'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
 const { fetchStoreInfo, getImageUrl } = useApi()
+const { isDark, toggleTheme, initTheme } = useTheme()
 
 // Dynamic Store Logo & Name from Admin Settings
 const storeLogo = ref('/logo-cyberstore.jpg')
@@ -781,7 +785,20 @@ const announcement = ref({
   badge: 'BSI Cyber Store Official',
   text: defaultAnnouncement,
   info: 'Garansi Resmi 100%',
-  link: ''
+  link: '',
+  bg_color: '',
+  text_color: '',
+})
+
+const announcementStyle = computed(() => {
+  const styles: Record<string, string> = {}
+  if (announcement.value.bg_color) {
+    styles.background = announcement.value.bg_color
+  }
+  if (announcement.value.text_color) {
+    styles.color = announcement.value.text_color
+  }
+  return styles
 })
 
 // Sanitasi XSS untuk konten HTML yang berasal dari server/database
@@ -814,6 +831,7 @@ const handleDocumentClick = (event: MouseEvent) => {
 }
 
 onMounted(async () => {
+  initTheme()
   if (typeof document !== 'undefined') {
     document.addEventListener('click', handleDocumentClick)
     document.addEventListener('keydown', handleKeydown)
@@ -832,9 +850,11 @@ onMounted(async () => {
         announcement.value = {
           is_active: data.announcement.is_active ?? true,
           badge: data.announcement.badge || 'BSI Cyber Store Official',
-          text: data.announcement.text || '',
+          text: data.announcement.text || defaultAnnouncement,
           info: data.announcement.info || '',
-          link: data.announcement.link || ''
+          link: data.announcement.link || '',
+          bg_color: data.announcement.bg_color || '',
+          text_color: data.announcement.text_color || '',
         }
       }
     }
@@ -1138,7 +1158,7 @@ const confirmLogout = async () => {
 .announcement-text {
   font-weight: 500;
   font-size: 0.78rem;
-  color: #ffffff;
+  color: inherit;
   white-space: nowrap;
   text-decoration: none;
   display: inline-flex;
@@ -1146,13 +1166,14 @@ const confirmLogout = async () => {
 }
 
 .announcement-text :deep(strong) {
-  color: #fbbf24;
+  color: inherit;
   font-weight: 800;
 }
 
 .announcement-info {
   font-weight: 600;
-  color: #bfdbfe;
+  color: inherit;
+  opacity: 0.85;
   font-size: 0.75rem;
   white-space: nowrap;
   flex-shrink: 0;

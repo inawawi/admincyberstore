@@ -151,6 +151,15 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
       logo: publicUrl(setting.store_logo),
       city_id: setting.store_city_id || 152,
       city_name: setting.store_city_name || "Jakarta Pusat",
+      announcement: {
+        is_active: setting.top_announcement_active !== "0",
+        text: setting.top_announcement_text || "PROMO SPESIAL MAHASISWA BARU 2026! Dapatkan Diskon Hingga 50% Menggunakan Kode: <strong>MABA2026</strong>",
+        bg_color: setting.top_announcement_bg || "",
+        text_color: setting.top_announcement_color || "",
+        badge: setting.top_announcement_badge || "BSI Cyber Store Official",
+        info: setting.top_announcement_info || "Garansi Resmi 100%",
+        link: setting.top_announcement_link || "",
+      },
     } };
   }
 

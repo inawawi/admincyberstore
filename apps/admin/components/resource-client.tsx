@@ -822,6 +822,34 @@ function formatDotDate(dateStr: unknown) {
   }
 }
 
+function formatDotDateTime(dateStr: unknown) {
+  try {
+    const d = new Date(String(dateStr));
+    const day = String(d.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const month = months[d.getMonth()] || "Jan";
+    const year = d.getFullYear();
+    const hours = String(d.getHours()).padStart(2, "0");
+    const mins = String(d.getMinutes()).padStart(2, "0");
+    return `${day} ${month} ${year}, ${hours}:${mins}`;
+  } catch {
+    return String(dateStr);
+  }
+}
+
+function resolveProductPhotoUrl(photo: unknown): string {
+  if (!photo || typeof photo !== "string" || !photo.trim()) return "/placeholder-product.svg";
+  const p = photo.trim().replace(/\\/g, "/");
+  if (p.startsWith("http://") || p.startsWith("https://") || p.startsWith("data:")) {
+    return p;
+  }
+  if (p.startsWith("/_next") || p.startsWith("/assets") || p.startsWith("assets/") || p.startsWith("/img") || p.startsWith("img/")) {
+    return p.startsWith("/") ? p : `/${p}`;
+  }
+  const clean = p.replace(/^\/?(storage\/)?/, "");
+  return `/storage/${clean}`;
+}
+
 function formatShortDate(dateStr: unknown) {
   try {
     return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(String(dateStr)));
@@ -862,6 +890,7 @@ function OrdersView({
     order: Record<string, unknown>;
     items: Array<Record<string, unknown>>;
     payment: Record<string, unknown> | null;
+    trackings?: Array<Record<string, unknown>>;
   } | null;
 }) {
   const router = useRouter();
@@ -869,6 +898,7 @@ function OrdersView({
     order: Record<string, unknown>;
     items: Array<Record<string, unknown>>;
     payment: Record<string, unknown> | null;
+    trackings?: Array<Record<string, unknown>>;
   } | null>(initialOrderDetail);
 
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -881,15 +911,17 @@ function OrdersView({
   const [cancelStatusVal, setCancelStatusVal] = useState(cancelStatus);
 
   // Order Details mutation states
-  const [editStatus, setEditStatus] = useState(String(selectedOrderDetail?.order?.status || "completed"));
+  const [editStatus, setEditStatus] = useState(String(selectedOrderDetail?.order?.status || "pending_payment"));
   const [editResi, setEditResi] = useState(String(selectedOrderDetail?.order?.resi_number || ""));
   const [savingStatus, setSavingStatus] = useState(false);
   const [savingResi, setSavingResi] = useState(false);
   const [trackingModal, setTrackingModal] = useState(false);
+  const [trackingInfo, setTrackingInfo] = useState<{ title: string; message: string } | null>(null);
+  const [checkingTracking, setCheckingTracking] = useState(false);
 
   useEffect(() => {
     if (selectedOrderDetail?.order) {
-      setEditStatus(String(selectedOrderDetail.order.status || "completed"));
+      setEditStatus(String(selectedOrderDetail.order.status || "pending_payment"));
       setEditResi(String(selectedOrderDetail.order.resi_number || ""));
     }
   }, [selectedOrderDetail]);
@@ -1011,6 +1043,74 @@ function OrdersView({
       setMessage({ text: err.message || "Gagal menyimpan nomor resi.", type: "error" });
     } finally {
       setSavingResi(false);
+    }
+  }
+
+  // Check Waybill / Tracking via RajaOngkir API Handler
+  async function handleCheckTracking() {
+    const resi = editResi.trim() || String(selectedOrderDetail?.order?.resi_number || "").trim();
+    if (!resi) {
+      setMessage({ text: "Harap masukkan dan simpan Nomor Resi Pengiriman terlebih dahulu sebelum mengecek resi via RajaOngkir.", type: "error" });
+      return;
+    }
+    setCheckingTracking(true);
+    try {
+      const res = await fetch("/api/admin/tracking/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          order_id: selectedOrderDetail?.order?.id,
+          resi_number: resi,
+          courier: selectedOrderDetail?.order?.expedition_code || selectedOrderDetail?.order?.expedition_name || "jne",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal melacak resi.");
+
+      const expedition = String(selectedOrderDetail?.order?.expedition_name || "Ekspedisi").toUpperCase();
+      const manifestList = Array.isArray(data.manifest)
+        ? data.manifest.map((m: any) => `• [${m.date}] ${m.description} (${m.city})`).join("\n")
+        : "";
+
+      setTrackingInfo({
+        title: `Tracking Resi ${expedition}: ${resi}`,
+        message: `Status: ${data.summary?.status || "ON PROCESS / DALAM PENGIRIMAN"}\n\nRiwayat Manifest:\n${manifestList || "Pesanan dalam proses logistik ekspedisi."}`,
+      });
+      setTrackingModal(true);
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal melacak resi via RajaOngkir.", type: "error" });
+    } finally {
+      setCheckingTracking(false);
+    }
+  }
+
+  // Simulate Courier Auto-POD Handler
+  async function handleSimulateAutoPOD() {
+    if (!selectedOrderDetail?.order?.id) return;
+    setSavingStatus(true);
+    try {
+      const simulatedResi = editResi.trim() || String(selectedOrderDetail.order.resi_number || "JT89823412398").trim();
+      const res = await fetch(`/api/admin/resources/orders/${selectedOrderDetail.order.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "arrived", resi_number: simulatedResi }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal mensimulasikan kurir POD.");
+
+      setSelectedOrderDetail((prev) => prev ? {
+        ...prev,
+        order: { ...prev.order, status: "arrived", resi_number: simulatedResi },
+      } : null);
+
+      setEditStatus("arrived");
+      setEditResi(simulatedResi);
+      setMessage({ text: "Simulasi Kurir Auto-POD Berhasil! Paket telah ditandai diterima (Proof of Delivery) oleh kurir.", type: "success" });
+      router.refresh();
+    } catch (err: any) {
+      setMessage({ text: err.message || "Gagal mensimulasikan Auto-POD kurir.", type: "error" });
+    } finally {
+      setSavingStatus(false);
     }
   }
 
@@ -1157,6 +1257,16 @@ function OrdersView({
     const serviceFee = Math.max(0, grandTotal - subtotal - shippingCost) || 2000;
     const statusCfg = formatOrderStatus(String(order.status || "completed"));
 
+    const fullAddress = [
+      String(order.customer_address || order.address || "").trim(),
+      String(order.district || "").trim(),
+      String(order.city || "").trim(),
+      String(order.province || "").trim(),
+      String(order.postal_code || "").trim(),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
     return (
       <div className="page-stack order-details-page">
         <SweetAlert
@@ -1171,8 +1281,8 @@ function OrdersView({
         <SweetAlert
           isOpen={trackingModal}
           type="info"
-          title={`Tracking: ${order.expedition_name || "JNE"} (${order.resi_number || "—"})`}
-          message={`Status Pengiriman: Dalam Perjalanan (On Process / Delivered). Paket ditangani oleh kurir ${order.expedition_name || "JNE"} dengan nomor resi ${order.resi_number || "—"} tujuan ${order.city || "Jakarta Selatan"}.`}
+          title={trackingInfo?.title || `Tracking: ${order.expedition_name || "JNE"} (${order.resi_number || "—"})`}
+          message={trackingInfo?.message || `Status Pengiriman: Dalam Perjalanan (On Process / Delivered). Paket ditangani oleh kurir ${order.expedition_name || "JNE"} dengan nomor resi ${order.resi_number || "—"} tujuan ${order.city || "Pusat Pengiriman"}.`}
           confirmText="Tutup"
           onConfirm={() => setTrackingModal(false)}
           onClose={() => setTrackingModal(false)}
@@ -1202,7 +1312,7 @@ function OrdersView({
               <div className="order-details-card-meta">
                 Order no. <strong>#{String(order.invoice_number)}</strong> from{" "}
                 <strong>{formatDotDate(order.created_at)}</strong> • Code:{" "}
-                <strong>{String(order.resi_number || "—")}</strong>
+                <strong>{String(order.status || "PENDING").toUpperCase()}</strong>
               </div>
             </div>
             <div className="order-top-actions">
@@ -1230,20 +1340,20 @@ function OrdersView({
           {/* Items in order */}
           <div className="order-items-container">
             {items.map((item, idx) => {
-              const photoUrl = item.main_photo
-                ? `/storage/${String(item.main_photo).replace(/^\/?storage\/?/, "")}`
-                : null;
+              const photoUrl = resolveProductPhotoUrl(item.main_photo || item.photo || item.image || item.product_photo);
+              const nimVal = item.nim || item.student_id || item.nim_number || order.nim || order.student_id;
               return (
                 <div key={String(item.id || idx)} className="order-item-card">
                   <div className="order-item-left">
                     <div className="order-item-photo-wrap">
-                      {photoUrl ? (
-                        <Image unoptimized src={photoUrl} width={58} height={58} alt="" className="order-item-img" />
-                      ) : (
-                        <div className="order-item-photo-placeholder">
-                          <Icon name="ShoppingBag" size={24} />
-                        </div>
-                      )}
+                      <img
+                        src={photoUrl}
+                        alt={String(item.product_name || item.name || "Produk")}
+                        className="order-item-img"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/placeholder-product.svg";
+                        }}
+                      />
                     </div>
                     <div className="order-item-info">
                       <h4 className="order-item-name">{String(item.product_name || item.name || "Produk")}</h4>
@@ -1251,6 +1361,9 @@ function OrdersView({
                         Qty: <strong>{String(item.quantity)}x</strong> • Ukuran:{" "}
                         <strong>{String(item.size || "—")}</strong> • Warna:{" "}
                         <strong>{String(item.color || "—")}</strong>
+                        {Boolean(nimVal) && (
+                          <> • NIM: <span className="order-nim-badge">🎓 {String(nimVal)}</span></>
+                        )}
                       </div>
                       <div className="order-item-status-row">
                         <span
@@ -1279,98 +1392,184 @@ function OrdersView({
           </div>
         </section>
 
-        {/* Bottom Grid Layout (Left 3 cards, Right 2 cards) */}
+        {/* 3 Column Grid Layout */}
         <div className="order-bottom-grid">
-          {/* Left Column: Track order, Payment details, Billing Information */}
-          <div className="order-bottom-left-col">
-            {/* 1. Track order */}
-            <section className="orders-card order-subcard">
-              <div className="order-subcard-header">
-                <h3>Track order</h3>
-                <span className="order-expedition-badge">
-                  {String(order.expedition_name || "JNE")} {String(order.expedition_service || "Regular")}
-                </span>
-              </div>
-              <div className="order-subcard-content">
-                {order.resi_number ? (
-                  <div className="order-track-box">
-                    <div className="order-track-resi-row">
-                      <span>No. Resi:</span>
-                      <code>{String(order.resi_number)}</code>
-                    </div>
-                    <p className="order-track-status-text">
-                      Paket dalam proses pengiriman oleh kurir {String(order.expedition_name || "ekspedisi")}.
-                    </p>
-                  </div>
+          {/* Column 1: Track order */}
+          <section className="orders-card order-subcard">
+            <div className="order-subcard-header">
+              <h3>Track order</h3>
+              <span className="order-expedition-badge">
+                {String(order.expedition_name || "Anteraja")}
+              </span>
+            </div>
+            <div className="order-subcard-content">
+              <div className="order-timeline">
+                {selectedOrderDetail.trackings && selectedOrderDetail.trackings.length > 0 ? (
+                  selectedOrderDetail.trackings.map((t, idx) => {
+                    const isLatest = idx === 0;
+                    const st = String(t.status || "").toLowerCase();
+                    const iconName = st === "completed" || st === "arrived" ? "Check" : st === "shipped" ? "Truck" : st === "packed" ? "Package" : "Bell";
+                    const iconClass = isLatest ? (st === "completed" || st === "arrived" ? "green-icon" : st === "shipped" ? "blue-icon" : "red-icon") : "grey-icon";
+                    return (
+                      <div key={String(t.id || idx)} className="order-timeline-item">
+                        <div className={`order-timeline-icon ${iconClass}`}>
+                          <Icon name={iconName} size={14} />
+                        </div>
+                        <div className="order-timeline-content">
+                          <h4 className="order-timeline-title">{String(t.description || "Status pesanan diperbarui.")}</h4>
+                          <div className="order-timeline-meta">
+                            <span>{formatDotDateTime(t.created_at)} WIB</span>
+                            <span className="order-timeline-tag">📍 {String(t.location || "Sistem")}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
                 ) : (
-                  <p className="order-muted-note">Belum ada riwayat tracking pengiriman.</p>
+                  <>
+                    {Boolean(order.status === "arrived" || order.status === "completed") && (
+                      <div className="order-timeline-item">
+                        <div className="order-timeline-icon green-icon">
+                          <Icon name="Check" size={14} />
+                        </div>
+                        <div className="order-timeline-content">
+                          <h4 className="order-timeline-title">Pesanan telah diterima oleh pelanggan (Proof of Delivery / POD).</h4>
+                          <div className="order-timeline-meta">
+                            <span>{formatDotDateTime(order.updated_at || new Date().toISOString())} WIB</span>
+                            <span className="order-timeline-tag">📍 {String(order.city || "Tujuan")}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {Boolean(order.resi_number || order.status === "shipped" || order.status === "arrived" || order.status === "completed") && (
+                      <div className="order-timeline-item">
+                        <div className="order-timeline-icon blue-icon">
+                          <Icon name="Truck" size={14} />
+                        </div>
+                        <div className="order-timeline-content">
+                          <h4 className="order-timeline-title">
+                            Pesanan diserahkan ke kurir {String(order.expedition_name || "Anteraja")}{order.resi_number ? ` (Resi: ${order.resi_number})` : ""}.
+                          </h4>
+                          <div className="order-timeline-meta">
+                            <span>{formatDotDateTime(order.updated_at || order.created_at)} WIB</span>
+                            <span className="order-timeline-tag">📍 {String(order.expedition_name || "Kurir Hub")}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="order-timeline-item">
+                      <div className="order-timeline-icon red-icon">
+                        <Icon name="Bell" size={14} />
+                      </div>
+                      <div className="order-timeline-content">
+                        <h4 className="order-timeline-title">Pembayaran berhasil diverifikasi oleh sistem.</h4>
+                        <div className="order-timeline-meta">
+                          <span>{formatDotDateTime(payment?.created_at || order.created_at)} WIB</span>
+                          <span className="order-timeline-tag">📍 Sistem</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="order-timeline-item">
+                      <div className="order-timeline-icon grey-icon">
+                        <Icon name="Package" size={14} />
+                      </div>
+                      <div className="order-timeline-content">
+                        <h4 className="order-timeline-title">Pesanan dibuat dan menunggu pembayaran.</h4>
+                        <div className="order-timeline-meta">
+                          <span>{formatDotDateTime(order.created_at)} WIB</span>
+                          <span className="order-timeline-tag">📍 {String(order.city || "Bogor")}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
-            </section>
+            </div>
+          </section>
 
-            {/* 2. Payment details */}
+          {/* Column 2: Payment details & Billing Information */}
+          <div className="order-bottom-col-stack" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Payment details */}
             <section className="orders-card order-subcard">
               <div className="order-subcard-header">
                 <h3>Payment details</h3>
               </div>
               <div className="order-subcard-content">
-                {payment ? (
-                  <div className="order-payment-box">
-                    <div className="order-pay-row">
-                      <span>Metode Pembayaran:</span>
-                      <strong>{String(payment.payment_type || payment.payment_method || "Transfer Bank")}</strong>
+                <div className="order-payment-box-v2">
+                  <div className="order-pay-badge-row">
+                    <div className="order-pay-method-badge">
+                      <span className="order-pay-brand">
+                        {String(payment?.payment_type || payment?.payment_method || payment?.bank || order.payment_method || "ECHA").toUpperCase()}
+                      </span>
+                      <span className="order-pay-acc">
+                        {String(payment?.account_number || payment?.va_number || (payment?.transaction_id ? `ID: ${String(payment.transaction_id).slice(0, 10)}...` : "**** **** **** 0000"))}
+                      </span>
                     </div>
-                    <div className="order-pay-row">
-                      <span>Status:</span>
-                      <span className="status-pill success">{String(payment.status || "paid")}</span>
-                    </div>
-                    {Boolean(payment.transaction_id) && (
-                      <div className="order-pay-row">
-                        <span>ID Transaksi:</span>
-                        <code>{String(payment.transaction_id)}</code>
-                      </div>
-                    )}
+                    <span className="order-pay-status-pill green">PAID</span>
                   </div>
-                ) : (
-                  <p className="order-muted-note">Belum ada transaksi pembayaran.</p>
-                )}
+                  <div className="order-pay-info-line">
+                    <span>Jumlah Pembayaran:</span>
+                    <strong>{money.format(grandTotal)}</strong>
+                  </div>
+                  <div className="order-pay-info-line">
+                    <span>Dibayar Pada:</span>
+                    <strong>{formatDotDateTime(payment?.created_at || order.created_at)}</strong>
+                  </div>
+                </div>
               </div>
             </section>
 
-            {/* 3. Billing Information */}
+            {/* Billing Information */}
             <section className="orders-card order-subcard">
               <div className="order-subcard-header">
                 <h3>Billing Information</h3>
               </div>
               <div className="order-subcard-content">
-                <div className="order-billing-box">
-                  <h4 className="order-billing-name">{String(order.customer_name || "Pelanggan")}</h4>
+                <div className="order-billing-box-v2">
+                  <h4 className="order-billing-name">{String(order.customer_name || "Imam Nawawi")}</h4>
                   <div className="order-billing-line">
                     <span>Email:</span>
-                    <strong>{String(order.customer_email || "—")}</strong>
+                    <strong>{String(order.customer_email || "imamnawawi@bsi.ac.id")}</strong>
                   </div>
                   <div className="order-billing-line">
                     <span>No. HP:</span>
-                    <strong>{String(order.customer_phone || order.address_phone || "—")}</strong>
+                    <strong>{String(order.customer_phone || order.address_phone || "087829398630")}</strong>
                   </div>
                   <div className="order-billing-line">
                     <span>Alamat:</span>
-                    <span>
-                      {String(order.customer_address || "—")}
-                      {order.district ? `, ${String(order.district)}` : ""}
-                      {order.city ? `, ${String(order.city)}` : ""}
-                      {order.province ? `, ${String(order.province)}` : ""}
-                      {order.postal_code ? ` ${String(order.postal_code)}` : ""}
-                    </span>
+                    <span>{fullAddress || "Jalan Garuda Utama, Cikahuripan, Bogor, West Java 16877"}</span>
+                  </div>
+
+                  {/* Embedded Google Map Box */}
+                  <div className="order-map-container" style={{ position: "relative", overflow: "hidden", borderRadius: 8, border: "1px solid #e2e8f0", marginTop: 8 }}>
+                    <iframe
+                      width="100%"
+                      height="125"
+                      style={{ border: 0, display: "block" }}
+                      loading="lazy"
+                      allowFullScreen
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(fullAddress || "Bogor")}&t=&z=13&ie=UTF8&iwloc=&output=embed`}
+                    />
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || "Bogor")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="order-map-btn"
+                    >
+                      📌 Buka Google Maps
+                    </a>
                   </div>
                 </div>
               </div>
             </section>
           </div>
 
-          {/* Right Column: Order Summary & Ubah Status & Resi */}
-          <div className="order-bottom-right-col">
-            {/* 4. Order Summary */}
+          {/* Column 3: Order Summary & Ubah Status & Resi */}
+          <div className="order-bottom-col-stack" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* Order Summary */}
             <section className="orders-card order-subcard">
               <div className="order-subcard-header">
                 <h3>Order Summary</h3>
@@ -1391,7 +1590,7 @@ function OrdersView({
                   </div>
                   <div className="order-summary-row">
                     <span>Ekspedisi:</span>
-                    <span>{String(order.expedition_name || "JNE")} {String(order.expedition_service || "Regular")}</span>
+                    <span>{String(order.expedition_name || "Anteraja")}</span>
                   </div>
                   <div className="order-summary-divider" />
                   <div className="order-summary-row order-summary-grand-total">
@@ -1402,7 +1601,7 @@ function OrdersView({
               </div>
             </section>
 
-            {/* 5. Ubah Status & Resi */}
+            {/* Ubah Status & Resi */}
             <section className="orders-card order-subcard">
               <div className="order-subcard-header">
                 <h3>Ubah Status & Resi</h3>
@@ -1416,13 +1615,13 @@ function OrdersView({
                     onChange={(e) => setEditStatus(e.target.value)}
                     className="order-select-control"
                   >
-                    <option value="pending">Menunggu Pembayaran</option>
-                    <option value="paid">Menunggu Konfirmasi (Sudah Bayar)</option>
-                    <option value="processing">Diproses</option>
-                    <option value="shipped">Dikirim</option>
-                    <option value="completed">Selesai</option>
-                    <option value="cancelled">Dibatalkan</option>
-                    <option value="expired">Kadaluarsa</option>
+                    <option value="pending_payment">Menunggu Pembayaran (pending_payment)</option>
+                    <option value="paid">Sudah Dibayar (paid)</option>
+                    <option value="packed">Diproses / Sedang Dikemas (packed)</option>
+                    <option value="shipped">Dikirim (shipped)</option>
+                    <option value="arrived">Tiba di Tujuan (arrived)</option>
+                    <option value="completed">Selesai (completed)</option>
+                    <option value="cancelled">Dibatalkan (cancelled)</option>
                   </select>
                   <button
                     type="submit"
@@ -1432,7 +1631,7 @@ function OrdersView({
                     {savingStatus ? (
                       <><span className="spinner" /> Menyimpan...</>
                     ) : (
-                      <><Icon name="Receipt" size={15} /> SIMPAN STATUS</>
+                      <><Icon name="Printer" size={15} /> SIMPAN STATUS</>
                     )}
                   </button>
                 </form>
@@ -1444,7 +1643,7 @@ function OrdersView({
                     type="text"
                     value={editResi}
                     onChange={(e) => setEditResi(e.target.value)}
-                    placeholder="JT... / JNE..."
+                    placeholder="Masukkan nomor resi"
                     className="order-input-control"
                   />
                   <button
@@ -1462,12 +1661,35 @@ function OrdersView({
 
                 <button
                   type="button"
-                  onClick={() => setTrackingModal(true)}
+                  onClick={handleCheckTracking}
+                  disabled={checkingTracking}
                   className="order-btn-check-tracking"
                 >
-                  <Icon name="RefreshCw" size={14} />
-                  <span>Cek Resi via RajaOngkir</span>
+                  {checkingTracking ? (
+                    <><span className="spinner" /> Melacak Resi...</>
+                  ) : (
+                    <><Icon name="RefreshCw" size={14} /> <span>Cek Resi via RajaOngkir</span></>
+                  )}
                 </button>
+
+                {/* Courier Auto-POD Callout Box */}
+                <div className="order-pod-simulation-box">
+                  <div className="order-pod-header">
+                    <Icon name="Truck" size={16} />
+                    <h4>Simulasi Kurir Selesaikan Pengiriman</h4>
+                  </div>
+                  <p className="order-pod-desc">
+                    Uji coba serah terima paket oleh kurir. Foto bukti pengiriman (Proof of Delivery / POD) akan ter-upload secara otomatis tanpa perlu input manual admin.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSimulateAutoPOD}
+                    disabled={savingStatus}
+                    className="order-btn-simulate-pod"
+                  >
+                    🚀 SIMULASIKAN AUTO-POD KURIR
+                  </button>
+                </div>
               </div>
             </section>
           </div>
@@ -3479,6 +3701,760 @@ function AnnouncementsView({
   );
 }
 
+function SettingsView({
+  meta,
+  result,
+}: {
+  meta: ResourceMeta;
+  result: { data: Array<Record<string, unknown>> };
+}) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  // Parse result.data array into dictionary map
+  const initialMap: Record<string, string> = {};
+  if (Array.isArray(result.data)) {
+    result.data.forEach((item) => {
+      if (item.key) {
+        initialMap[String(item.key)] = String(item.value ?? "");
+      }
+    });
+  }
+
+  // Section 1: Identitas & Profil Toko
+  const [storeName, setStoreName] = useState(initialMap.store_name || "UBSI Cyber Store");
+  const [storeLogoUrl, setStoreLogoUrl] = useState<string>(() => {
+    const raw = initialMap.store_logo || "";
+    if (!raw) return "";
+    if (raw.startsWith("http") || raw.startsWith("/")) return raw;
+    return `/storage/${raw.replace(/^\/?storage\/?/, "")}`;
+  });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [storeDesc, setStoreDesc] = useState(
+    initialMap.store_description ||
+      "Toko Resmi Merchandise & Perlengkapan Kuliah Kampus UBSI (Universitas Bina Sarana Informatika)"
+  );
+  const [storeAddress, setStoreAddress] = useState(
+    initialMap.store_address ||
+      "Jl. Kramat Raya No.98, RT.3/RW.9, Kwitang, Senen, Jakarta Pusat, DKI Jakarta 10450"
+  );
+  const [storePhone, setStorePhone] = useState(initialMap.store_phone || "08123456789");
+  const [storeEmail, setStoreEmail] = useState(initialMap.store_email || "cs@ubsicyberstore.ac.id");
+  const [storeHours, setStoreHours] = useState(initialMap.store_hours || "Senin - Jumat (08:00 - 17:00 WIB)");
+
+  // Section 2: RajaOngkir
+  const [rajaApiKey, setRajaApiKey] = useState(initialMap.rajaongkir_api_key || "");
+  const [rajaAccountType, setRajaAccountType] = useState(initialMap.rajaongkir_account_type || "starter");
+  const [rajaOriginCity, setRajaOriginCity] = useState(initialMap.rajaongkir_origin_city || "152");
+  const [rajaCouriers, setRajaCouriers] = useState<string[]>(() => {
+    const raw = initialMap.rajaongkir_couriers || "jne,pos,tiki,jnt,sicepat";
+    try {
+      if (raw.startsWith("[")) return JSON.parse(raw);
+    } catch {}
+    return raw.split(",").map((s) => s.trim()).filter(Boolean);
+  });
+
+  // Section 3: Midtrans
+  const [midtransMode, setMidtransMode] = useState(initialMap.midtrans_mode || "sandbox");
+  const [midtransServerKey, setMidtransServerKey] = useState(initialMap.midtrans_server_key || "");
+  const [midtransClientKey, setMidtransClientKey] = useState(initialMap.midtrans_client_key || "");
+  const [midtransMerchantId, setMidtransMerchantId] = useState(initialMap.midtrans_merchant_id || "");
+
+  // Section 4: Banner Pengumuman Atas (Marquee)
+  const [topBannerActive, setTopBannerActive] = useState<boolean>(
+    initialMap.top_announcement_active === "1" ||
+      initialMap.top_announcement_active === "true" ||
+      initialMap.top_announcement_active === undefined
+  );
+  const [topBannerText, setTopBannerText] = useState(
+    initialMap.top_announcement_text ||
+      "📢 Selamat Datang di UBSI Cyber Store! Dapatkan Diskon Khusus Mahasiswa Baru untuk Pembelian Paket Ormik & Semot."
+  );
+  const [topBannerBg, setTopBannerBg] = useState(initialMap.top_announcement_bg || "#1e293b");
+  const [topBannerColor, setTopBannerColor] = useState(initialMap.top_announcement_color || "#f8fafc");
+
+  // Section 5: Halaman Kebijakan & Dynamic FAQs
+  const [termsConditions, setTermsConditions] = useState(
+    initialMap.terms_conditions ||
+      "1. Pembelian produk merchandise UBSI Cyber Store terbuka untuk mahasiswa, alumni, dan masyarakat umum.\n2. Pembayaran menggunakan Midtrans Snap Gateway yang terverifikasi otomatis.\n3. Harap pastikan alamat pengiriman sudah benar sebelum menyelesaikan pesanan."
+  );
+  const [returnPolicy, setReturnPolicy] = useState(
+    initialMap.return_policy ||
+      "1. Penukaran produk hanya berlaku untuk kesalahan ukuran (size) atau cacat produksi pabrik.\n2. Pengajuan klaim retur maksimal 3x24 jam setelah status pesanan dinyatakan Tiba.\n3. Wajib menyertakan video unboxing utuh tanpa terpotong."
+  );
+  const [privacyPolicy, setPrivacyPolicy] = useState(
+    initialMap.privacy_policy ||
+      "Kami menjaga kerahasiaan data pribadi pengguna (nama, email, nomor HP, dan alamat). Data Anda hanya digunakan untuk kepentingan pengiriman dan layanan transaksi UBSI Cyber Store."
+  );
+
+  const [faqs, setFaqs] = useState<Array<{ question: string; answer: string }>>(() => {
+    const raw = initialMap.faqs_json || "";
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch {}
+    }
+    return [
+      {
+        question: "Bagaimana cara menentukan ukuran jaket almamater MABA?",
+        answer: "Ukuran otomatis terpilih berdasarkan digit terakhir NIM Anda saat checkout produk Event MABA, atau Anda dapat merujuk pada tabel Size Chart.",
+      },
+      {
+        question: "Berapa lama estimasi pengiriman pesanan?",
+        answer: "Pengiriman Jabodetabek membutuhkan waktu 1-2 hari kerja. Untuk luar Jabodetabek berkisar 2-4 hari kerja tergantung kurir yang dipilih.",
+      },
+      {
+        question: "Apakah bisa melakukan pembatalan pesanan yang sudah dibayar?",
+        answer: "Pengajuan pembatalan dapat dilakukan melalui aplikasi sebelum pesanan diproses/dikirim oleh admin.",
+      },
+    ];
+  });
+
+  // Sync states whenever result.data updates (e.g. after save & router.refresh())
+  useEffect(() => {
+    const map: Record<string, string> = {};
+    if (Array.isArray(result.data)) {
+      result.data.forEach((item) => {
+        if (item.key) {
+          map[String(item.key)] = String(item.value ?? "");
+        }
+      });
+    }
+
+    if (map.store_name !== undefined) setStoreName(map.store_name);
+    if (map.store_logo !== undefined) {
+      const raw = map.store_logo || "";
+      const logoUrl = !raw ? "" : (raw.startsWith("http") || raw.startsWith("/") ? raw : `/storage/${raw.replace(/^\/?storage\/?/, "")}`);
+      setStoreLogoUrl(logoUrl);
+    }
+    if (map.store_description !== undefined) setStoreDesc(map.store_description);
+    if (map.store_address !== undefined) setStoreAddress(map.store_address);
+    if (map.store_phone !== undefined) setStorePhone(map.store_phone);
+    if (map.store_email !== undefined) setStoreEmail(map.store_email);
+    if (map.store_hours !== undefined) setStoreHours(map.store_hours);
+
+    if (map.rajaongkir_api_key !== undefined) setRajaApiKey(map.rajaongkir_api_key);
+    if (map.rajaongkir_account_type !== undefined) setRajaAccountType(map.rajaongkir_account_type);
+    if (map.rajaongkir_origin_city !== undefined) setRajaOriginCity(map.rajaongkir_origin_city);
+    if (map.rajaongkir_couriers !== undefined) {
+      try {
+        if (map.rajaongkir_couriers.startsWith("[")) {
+          setRajaCouriers(JSON.parse(map.rajaongkir_couriers));
+        } else {
+          setRajaCouriers(map.rajaongkir_couriers.split(",").map((s) => s.trim()).filter(Boolean));
+        }
+      } catch {}
+    }
+
+    if (map.midtrans_mode !== undefined) setMidtransMode(map.midtrans_mode);
+    if (map.midtrans_server_key !== undefined) setMidtransServerKey(map.midtrans_server_key);
+    if (map.midtrans_client_key !== undefined) setMidtransClientKey(map.midtrans_client_key);
+    if (map.midtrans_merchant_id !== undefined) setMidtransMerchantId(map.midtrans_merchant_id);
+
+    if (map.top_announcement_active !== undefined) {
+      setTopBannerActive(map.top_announcement_active === "1" || map.top_announcement_active === "true");
+    }
+    if (map.top_announcement_text !== undefined) setTopBannerText(map.top_announcement_text);
+    if (map.top_announcement_bg !== undefined) setTopBannerBg(map.top_announcement_bg);
+    if (map.top_announcement_color !== undefined) setTopBannerColor(map.top_announcement_color);
+
+    if (map.terms_conditions !== undefined) setTermsConditions(map.terms_conditions);
+    if (map.return_policy !== undefined) setReturnPolicy(map.return_policy);
+    if (map.privacy_policy !== undefined) setPrivacyPolicy(map.privacy_policy);
+
+    if (map.faqs_json !== undefined) {
+      try {
+        const parsed = JSON.parse(map.faqs_json);
+        if (Array.isArray(parsed)) setFaqs(parsed);
+      } catch {}
+    }
+  }, [result.data]);
+
+  const toggleCourier = (code: string) => {
+    setRajaCouriers((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  const handleAddFaq = () => {
+    setFaqs((prev) => [...prev, { question: "", answer: "" }]);
+  };
+
+  const handleUpdateFaq = (index: number, key: "question" | "answer", val: string) => {
+    setFaqs((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [key]: val };
+      return next;
+    });
+  };
+
+  const handleRemoveFaq = (index: number) => {
+    setFaqs((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  async function handleClearCache() {
+    setClearingCache(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/admin/cache/clear", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Gagal membersihkan cache.");
+      setMessage({ text: data.message || "Cache sistem berhasil dibersihkan.", type: "success" });
+      router.refresh();
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : "Gagal membersihkan cache.", type: "error" });
+    } finally {
+      setClearingCache(false);
+    }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    const settingsObj: Record<string, string> = {
+      store_name: storeName,
+      store_description: storeDesc,
+      store_address: storeAddress,
+      store_phone: storePhone,
+      store_email: storeEmail,
+      store_hours: storeHours,
+      rajaongkir_api_key: rajaApiKey,
+      rajaongkir_account_type: rajaAccountType,
+      rajaongkir_origin_city: rajaOriginCity,
+      rajaongkir_couriers: JSON.stringify(rajaCouriers),
+      midtrans_mode: midtransMode,
+      midtrans_server_key: midtransServerKey,
+      midtrans_client_key: midtransClientKey,
+      midtrans_merchant_id: midtransMerchantId,
+      top_announcement_active: topBannerActive ? "1" : "0",
+      top_announcement_text: topBannerText,
+      top_announcement_bg: topBannerBg,
+      top_announcement_color: topBannerColor,
+      terms_conditions: termsConditions,
+      return_policy: returnPolicy,
+      privacy_policy: privacyPolicy,
+      faqs_json: JSON.stringify(faqs.filter((f) => f.question.trim())),
+    };
+
+    const formData = new FormData();
+    formData.append("settings", JSON.stringify(settingsObj));
+    if (logoFile) {
+      formData.append("store_logo_file", logoFile);
+    }
+
+    try {
+      const res = await fetch("/api/admin/resources/settings", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal menyimpan pengaturan.");
+      setMessage({ text: "✓ Pengaturan aplikasi & identitas toko berhasil diperbarui!", type: "success" });
+      router.refresh();
+    } catch (err) {
+      setMessage({ text: err instanceof Error ? err.message : "Gagal menyimpan pengaturan.", type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="page-stack settings-page-wrapper">
+      <section className="page-heading resource-heading">
+        <div>
+          <span className="eyebrow">MANAJEMEN</span>
+          <h1>Pengaturan Aplikasi &amp; Identitas Toko</h1>
+          <p>Kelola identitas toko, metode pengiriman, payment gateway, dan kebijakan halaman.</p>
+        </div>
+        <div className="header-action-group">
+          <button
+            type="button"
+            className="warning-button clear-cache-btn"
+            onClick={handleClearCache}
+            disabled={clearingCache}
+            title="Bersihkan Cache Sistem"
+          >
+            <Icon name="RefreshCw" className={clearingCache ? "spin" : ""} size={16} />
+            <span>Bersihkan Cache</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Floating SweetAlert Toast */}
+      <SweetAlert
+        isOpen={!!message}
+        isToast={true}
+        type={message?.type || "info"}
+        message={message?.text || ""}
+        onClose={() => setMessage(null)}
+      />
+
+      <form onSubmit={handleSubmit} className="settings-form-stack">
+        {/* SECTION 1: IDENTITAS & PROFIL TOKO */}
+        <div className="form-section-card">
+          <div className="section-title">
+            <span className="section-icon-emoji">🏪</span>
+            <div>
+              <h3>IDENTITAS &amp; PROFIL TOKO</h3>
+              <p className="section-desc">Informasi dasar toko yang tampil di aplikasi Android, struk, dan nota pembelian.</p>
+            </div>
+          </div>
+
+          <div className="section-grid">
+            <label className="field-label span-two">
+              <span>Nama Toko <strong className="required-star">*</strong></span>
+              <input
+                type="text"
+                required
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                placeholder="Contoh: UBSI Cyber Store"
+              />
+            </label>
+
+            {/* Logo Upload Box */}
+            <div className="field-label span-two logo-upload-card">
+              <span>Logo Toko</span>
+              <div className="logo-upload-box">
+                <div className="logo-preview-wrapper">
+                  {storeLogoUrl ? (
+                    <Image unoptimized src={storeLogoUrl} alt="Logo Toko" width={64} height={64} className="logo-img-thumb" />
+                  ) : (
+                    <div className="logo-placeholder"><Icon name="Store" size={28} /></div>
+                  )}
+                </div>
+                <div className="logo-upload-info">
+                  <strong>Logo Toko Saat Ini</strong>
+                  <p>Rekomendasi rasio 1:1 berbentuk persegi (PNG, JPG, atau WEBP, maks 2MB).</p>
+                  <label className="secondary-button subtle-button logo-file-btn">
+                    📷 Ganti Logo
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden-file-input"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setLogoFile(file);
+                          setStoreLogoUrl(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <label className="field-label span-two">
+              <span>Deskripsi Singkat Toko</span>
+              <textarea
+                rows={3}
+                value={storeDesc}
+                onChange={(e) => setStoreDesc(e.target.value)}
+                placeholder="Tuliskan deskripsi singkat mengenai toko..."
+              />
+            </label>
+
+            <label className="field-label span-two">
+              <span>Alamat Lengkap Toko / Gudang</span>
+              <textarea
+                rows={3}
+                value={storeAddress}
+                onChange={(e) => setStoreAddress(e.target.value)}
+                placeholder="Alamat lengkap toko fisik atau lokasi gudang pengiriman..."
+              />
+            </label>
+
+            <div className="three-col-row span-two">
+              <label className="field-label">
+                <span>Nomor WhatsApp CS / Admin</span>
+                <input
+                  type="text"
+                  value={storePhone}
+                  onChange={(e) => setStorePhone(e.target.value)}
+                  placeholder="Contoh: 08123456789"
+                />
+              </label>
+
+              <label className="field-label">
+                <span>Email Layanan Pelanggan</span>
+                <input
+                  type="email"
+                  value={storeEmail}
+                  onChange={(e) => setStoreEmail(e.target.value)}
+                  placeholder="cs@ubsicyberstore.ac.id"
+                />
+              </label>
+
+              <label className="field-label">
+                <span>Jam Operasional Toko</span>
+                <input
+                  type="text"
+                  value={storeHours}
+                  onChange={(e) => setStoreHours(e.target.value)}
+                  placeholder="Senin - Jumat (08:00 - 17:00 WIB)"
+                />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 2: PENGIRIMAN & ASAL PENGIRIMAN (RAJAONGKIR) */}
+        <div className="form-section-card">
+          <div className="section-title">
+            <span className="section-icon-emoji">🚚</span>
+            <div>
+              <h3>PENGIRIMAN &amp; ASAL PENGIRIMAN (RAJAONGKIR)</h3>
+              <p className="section-desc">Konfigurasi API RajaOngkir untuk perhitungan ongkos kirim otomatis.</p>
+            </div>
+          </div>
+
+          <div className="section-grid">
+            <div className="two-col-row span-two">
+              <label className="field-label">
+                <span>RajaOngkir API Key</span>
+                <input
+                  type="text"
+                  value={rajaApiKey}
+                  onChange={(e) => setRajaApiKey(e.target.value)}
+                  placeholder="Masukkan API Key RajaOngkir..."
+                />
+                <small className="field-help">Diperlukan untuk integrasi hitung ongkir otomatis saat checkout.</small>
+              </label>
+
+              <label className="field-label">
+                <span>Tipe Akun RajaOngkir</span>
+                <select value={rajaAccountType} onChange={(e) => setRajaAccountType(e.target.value)}>
+                  <option value="starter">Starter (Gratis - JNE, POS, TIKI)</option>
+                  <option value="basic">Basic (Ekspedisi Lebih Banyak)</option>
+                  <option value="pro">Pro / Enterprise (Kecamatan &amp; Internasional)</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="field-label span-two">
+              <span>Kota / Kabupaten Asal Pengiriman (City ID RajaOngkir)</span>
+              <input
+                type="text"
+                value={rajaOriginCity}
+                onChange={(e) => setRajaOriginCity(e.target.value)}
+                placeholder="Contoh: 152 (Kota Jakarta Pusat)"
+              />
+              <small className="field-help">ID Kota asal toko untuk perhitungan titik keberangkatan paket (Default: 152 = Jakarta Pusat).</small>
+            </label>
+
+            {/* Checkbox Grid Kurir */}
+            <div className="field-label span-two">
+              <span>Kurir Pengiriman Aktif</span>
+              <div className="couriers-checkbox-grid">
+                {[
+                  { code: "jne", label: "JNE Express" },
+                  { code: "pos", label: "POS Indonesia" },
+                  { code: "tiki", label: "TIKI" },
+                  { code: "jnt", label: "J&T Express" },
+                  { code: "sicepat", label: "SiCepat Express" },
+                ].map((courier) => (
+                  <label className="courier-checkbox-item" key={courier.code}>
+                    <input
+                      type="checkbox"
+                      checked={rajaCouriers.includes(courier.code)}
+                      onChange={() => toggleCourier(courier.code)}
+                    />
+                    <span>{courier.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 3: INTEGRASI PAYMENT GATEWAY (MIDTRANS) */}
+        <div className="form-section-card">
+          <div className="section-title">
+            <span className="section-icon-emoji">💳</span>
+            <div>
+              <h3>INTEGRASI PAYMENT GATEWAY (MIDTRANS)</h3>
+              <p className="section-desc">Pengaturan mode pembayaran otomatis melalui Midtrans Snap API.</p>
+            </div>
+          </div>
+
+          <div className="section-grid">
+            <label className="field-label span-two">
+              <span>Mode Midtrans</span>
+              <select value={midtransMode} onChange={(e) => setMidtransMode(e.target.value)}>
+                <option value="sandbox">Sandbox (Testing / Pengembangan)</option>
+                <option value="production">Production (Live / Transaksi Real)</option>
+              </select>
+            </label>
+
+            <div className="three-col-row span-two">
+              <label className="field-label">
+                <span>Server Key Midtrans</span>
+                <input
+                  type="password"
+                  value={midtransServerKey}
+                  onChange={(e) => setMidtransServerKey(e.target.value)}
+                  placeholder="SB-Mid-server-..."
+                />
+              </label>
+
+              <label className="field-label">
+                <span>Client Key Midtrans</span>
+                <input
+                  type="text"
+                  value={midtransClientKey}
+                  onChange={(e) => setMidtransClientKey(e.target.value)}
+                  placeholder="SB-Mid-client-..."
+                />
+              </label>
+
+              <label className="field-label">
+                <span>Merchant ID Midtrans</span>
+                <input
+                  type="text"
+                  value={midtransMerchantId}
+                  onChange={(e) => setMidtransMerchantId(e.target.value)}
+                  placeholder="G123456789"
+                />
+              </label>
+            </div>
+
+            {/* Webhook Callout Info Box */}
+            <div className="webhook-callout-box span-two">
+              <div className="webhook-callout-header">
+                <Icon name="Info" size={18} />
+                <strong>URL Webhook Notifikasi Pembayaran (Midtrans Notification)</strong>
+              </div>
+              <p>Daftarkan URL ini di Dashboard Midtrans (Settings &gt; Configuration &gt; Payment Notification URL):</p>
+              <code className="webhook-code-url">https://cyberstore.ubsi.ac.id/api/payment/notification</code>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 4: BANNER PENGUMUMAN ATAS (TOP BAR / MARQUEE) */}
+        <div className="form-section-card">
+          <div className="section-title">
+            <span className="section-icon-emoji">📢</span>
+            <div>
+              <h3>BANNER PENGUMUMAN ATAS (TOP BAR / MARQUEE)</h3>
+              <p className="section-desc">Tampilkan pesan running text / marquee pengumuman di bagian paling atas aplikasi toko.</p>
+            </div>
+          </div>
+
+          <div className="section-grid">
+            <div className="span-two">
+              <label className="checkbox-item-label">
+                <input
+                  type="checkbox"
+                  checked={topBannerActive}
+                  onChange={(e) => setTopBannerActive(e.target.checked)}
+                />
+                <span>Aktifkan Running Text Pengumuman Atas</span>
+              </label>
+            </div>
+
+            {topBannerActive && (
+              <>
+                <label className="field-label span-two">
+                  <span>Teks Pengumuman Running Text</span>
+                  <textarea
+                    rows={2}
+                    value={topBannerText}
+                    onChange={(e) => setTopBannerText(e.target.value)}
+                    placeholder="📢 Selamat Datang di UBSI Cyber Store! Dapatkan Diskon Khusus..."
+                  />
+                </label>
+
+                <div className="two-col-row span-two">
+                  <label className="field-label">
+                    <span>Warna Latar Banner (Background)</span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        type="color"
+                        className="color-hex-picker"
+                        value={topBannerBg}
+                        onChange={(e) => setTopBannerBg(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        value={topBannerBg}
+                        onChange={(e) => setTopBannerBg(e.target.value)}
+                        placeholder="#1e293b"
+                      />
+                    </div>
+                  </label>
+
+                  <label className="field-label">
+                    <span>Warna Teks Banner</span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input
+                        type="color"
+                        className="color-hex-picker"
+                        value={topBannerColor}
+                        onChange={(e) => setTopBannerColor(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        value={topBannerColor}
+                        onChange={(e) => setTopBannerColor(e.target.value)}
+                        placeholder="#f8fafc"
+                      />
+                    </div>
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* SECTION 5: HALAMAN KEBIJAKAN & FAQ */}
+        <div className="form-section-card">
+          <div className="section-title">
+            <span className="section-icon-emoji">📄</span>
+            <div>
+              <h3>HALAMAN KEBIJAKAN &amp; FAQ (FREQUENTLY ASKED QUESTIONS)</h3>
+              <p className="section-desc">Kelola isi halaman informasi Syarat &amp; Ketentuan, Kebijakan Retur, Kebijakan Privasi, serta Daftar Pertanyaan Umum (FAQ).</p>
+            </div>
+          </div>
+
+          <div className="policy-cards-stack">
+            {/* Card 1: Syarat & Ketentuan */}
+            <div className="policy-subcard">
+              <h4>📋 Syarat &amp; Ketentuan (Terms &amp; Conditions)</h4>
+              <label className="field-label">
+                <textarea
+                  rows={4}
+                  value={termsConditions}
+                  onChange={(e) => setTermsConditions(e.target.value)}
+                  placeholder="Tuliskan poin-poin Syarat &amp; Ketentuan di sini..."
+                />
+              </label>
+            </div>
+
+            {/* Card 2: Kebijakan Retur */}
+            <div className="policy-subcard">
+              <h4>🔄 Kebijakan Pengembalian &amp; Retur (Return Policy)</h4>
+              <label className="field-label">
+                <textarea
+                  rows={4}
+                  value={returnPolicy}
+                  onChange={(e) => setReturnPolicy(e.target.value)}
+                  placeholder="Tuliskan syarat dan tata cara pengajuan retur barang..."
+                />
+              </label>
+            </div>
+
+            {/* Card 3: Kebijakan Privasi */}
+            <div className="policy-subcard">
+              <h4>🔒 Kebijakan Privasi (Privacy Policy)</h4>
+              <label className="field-label">
+                <textarea
+                  rows={4}
+                  value={privacyPolicy}
+                  onChange={(e) => setPrivacyPolicy(e.target.value)}
+                  placeholder="Tuliskan kebijakan perlindungan data pribadi pelanggan..."
+                />
+              </label>
+            </div>
+
+            {/* Card 4: Dynamic FAQs Editor */}
+            <div className="policy-subcard faqs-editor-subcard">
+              <div className="faq-subcard-header">
+                <div>
+                  <h4>❓ Daftar Pertanyaan Umum (FAQ Dinamis)</h4>
+                  <p className="inner-card-sub">Daftar Q&amp;A interaktif yang tampil di aplikasi Android untuk menjawab pertanyaan pelanggan.</p>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-button subtle-button add-faq-btn"
+                  onClick={handleAddFaq}
+                >
+                  <Icon name="Plus" size={15} />
+                  <span>+ Tambah Pertanyaan FAQ</span>
+                </button>
+              </div>
+
+              <div className="faqs-list-container">
+                {faqs.map((faq, index) => (
+                  <div className="faq-item-card" key={index}>
+                    <div className="faq-item-header">
+                      <span className="faq-item-badge">Pertanyaan #{index + 1}</span>
+                      <button
+                        type="button"
+                        className="danger-button subtle-button remove-faq-btn"
+                        onClick={() => handleRemoveFaq(index)}
+                      >
+                        <Icon name="Trash2" size={14} />
+                        <span>Hapus</span>
+                      </button>
+                    </div>
+
+                    <div className="faq-item-fields">
+                      <label className="field-label">
+                        <span>Pertanyaan</span>
+                        <input
+                          type="text"
+                          value={faq.question}
+                          onChange={(e) => handleUpdateFaq(index, "question", e.target.value)}
+                          placeholder="Contoh: Berapa lama estimasi pengiriman paket?"
+                        />
+                      </label>
+
+                      <label className="field-label">
+                        <span>Jawaban</span>
+                        <textarea
+                          rows={2}
+                          value={faq.answer}
+                          onChange={(e) => handleUpdateFaq(index, "answer", e.target.value)}
+                          placeholder="Tuliskan jawaban lengkap untuk pertanyaan di atas..."
+                        />
+                      </label>
+                    </div>
+                  </div>
+                ))}
+
+                {faqs.length === 0 && (
+                  <div className="empty-faq-box">
+                    <p>Belum ada daftar FAQ. Klik tombol di atas untuk menambah pertanyaan baru.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Floating Bottom Save Action Bar */}
+        <div className="product-edit-footer-bar settings-footer-bar">
+          <div className="footer-stat-info">
+            💡 Perubahan pengaturan akan langsung berdampak pada aplikasi dan API toko.
+          </div>
+
+          <div className="footer-action-btns">
+            <button
+              className="primary-button red-submit-btn"
+              disabled={saving}
+              type="submit"
+            >
+              {saving ? (
+                <>
+                  <span className="spinner" /> Menyimpan Pengaturan…
+                </>
+              ) : (
+                <>💾 Simpan Seluruh Pengaturan</>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 export function ResourceClient({
   meta,
   result,
@@ -3549,6 +4525,14 @@ export function ResourceClient({
         result={result}
         search={search}
         status={status}
+      />
+    );
+  }
+  if (meta.key === "settings") {
+    return (
+      <SettingsView
+        meta={meta}
+        result={result}
       />
     );
   }
