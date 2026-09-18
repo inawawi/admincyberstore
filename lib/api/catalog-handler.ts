@@ -144,11 +144,13 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
     } };
     return { data: {
       name: setting.store_name || "UBSI Cyber Store",
+      store_name: setting.store_name || "UBSI Cyber Store",
       address: setting.store_address || "Jl. Kramat Raya No.98, Jakarta Pusat",
       phone: setting.store_phone || "(021) 7867868",
       whatsapp: setting.store_whatsapp || setting.store_phone || "",
       email: setting.store_email || "support@bsi.ac.id",
       logo: publicUrl(setting.store_logo),
+      store_logo: publicUrl(setting.store_logo),
       city_id: setting.store_city_id || 152,
       city_name: setting.store_city_name || "Jakarta Pusat",
       announcement: {

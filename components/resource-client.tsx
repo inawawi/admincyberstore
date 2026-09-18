@@ -274,10 +274,14 @@ function getRowPhotoUrl(row: Record<string, unknown>): string | null {
   const photo =
     row.main_photo_url ||
     row.main_photo ||
+    row.image_path_url ||
+    row.image_path ||
     row.image_url ||
     row.image ||
     row.photo_url ||
     row.photo ||
+    row.avatar_url ||
+    row.avatar ||
     row.logo_url ||
     row.logo;
   if (!photo || typeof photo !== "string") return null;
@@ -5104,17 +5108,42 @@ export function ResourceClient({
                             {photoUrl ? (
                               <Image
                                 unoptimized
-                                width={36}
-                                height={36}
+                                width={meta.key === "banners" ? 54 : 36}
+                                height={meta.key === "banners" ? 32 : 36}
                                 src={photoUrl}
                                 alt=""
-                                style={{ width: 36, height: 36, borderRadius: 6, objectFit: "cover", flexShrink: 0 }}
+                                style={{
+                                  width: meta.key === "banners" ? 54 : 36,
+                                  height: meta.key === "banners" ? 32 : 36,
+                                  borderRadius: meta.key === "users" ? "50%" : 6,
+                                  objectFit: "cover",
+                                  flexShrink: 0,
+                                }}
                               />
-                            ) : (
+                            ) : meta.key === "users" ? (
                               <span
                                 style={{
                                   width: 36,
                                   height: 36,
+                                  borderRadius: "50%",
+                                  background: "var(--surface-hover)",
+                                  border: "1px solid var(--border)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: "var(--muted)",
+                                  flexShrink: 0,
+                                  fontWeight: 700,
+                                  fontSize: 13,
+                                }}
+                              >
+                                {String(row.name || "U").slice(0, 1).toUpperCase()}
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  width: meta.key === "banners" ? 54 : 36,
+                                  height: meta.key === "banners" ? 32 : 36,
                                   borderRadius: 6,
                                   background: "var(--surface-hover)",
                                   border: "1px solid var(--border)",
@@ -5125,7 +5154,7 @@ export function ResourceClient({
                                   flexShrink: 0,
                                 }}
                               >
-                                <Icon name="Package" size={18} />
+                                <Icon name={meta.key === "banners" ? "GalleryHorizontalEnd" : "Package"} size={18} />
                               </span>
                             )}
                             <span>{display(row[column.key], column.format)}</span>
@@ -6194,26 +6223,87 @@ function EditorField({ field, row, onToggle }: { field: ResourceField; row: Reco
     );
   }
   if (field.kind === "image") {
-    const existingPath = field.key === "size_chart_file" ? row?.size_chart : null;
-    const existingUrl = existingPath ? `/storage/${String(existingPath).replace(/^\/?storage\/?/, "")}` : null;
+    const rawPath =
+      field.key === "size_chart_file"
+        ? row?.size_chart
+        : field.key === "image_file"
+        ? (row?.image_path || row?.image)
+        : field.key === "photo_file"
+        ? row?.photo
+        : field.key === "main_photo_file"
+        ? row?.main_photo
+        : (row?.[field.key] || row?.image_path || row?.photo || row?.image || row?.main_photo);
+
+    const existingUrl =
+      rawPath && typeof rawPath === "string"
+        ? /^https?:\/\//i.test(rawPath)
+          ? rawPath
+          : `/storage/${rawPath.replace(/^\/?storage\/?/, "")}`
+        : null;
+
+    const isAvatar = field.key === "photo_file";
+
     return (
       <label className="field-label span-two">
         <span>{field.label}{field.required && " *"}</span>
-        <span className="file-input">
-          <Icon name="GalleryHorizontalEnd" size={18} />
-          <input
-            type="file"
-            name={field.key}
-            accept="image/jpeg,image/png,image/webp"
-            required={field.required && !row}
-          />
-          <small>{field.placeholder || "Pilih berkas gambar (JPG, PNG, atau WEBP)"}</small>
-          {existingUrl && (
-            <a className="file-current" href={existingUrl} target="_blank" rel="noreferrer">
-              Lihat gambar saat ini
-            </a>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", marginTop: "4px" }}>
+          {existingUrl ? (
+            <div
+              style={{
+                position: "relative",
+                width: isAvatar ? 52 : 72,
+                height: isAvatar ? 52 : 44,
+                borderRadius: isAvatar ? "50%" : 8,
+                overflow: "hidden",
+                border: "1px solid var(--border)",
+                boxShadow: "0 2px 6px rgba(0,0,0,0.06)",
+                flexShrink: 0,
+                background: "var(--surface)",
+              }}
+            >
+              <Image
+                unoptimized
+                src={existingUrl}
+                alt="Gambar saat ini"
+                width={isAvatar ? 52 : 72}
+                height={isAvatar ? 52 : 44}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                width: isAvatar ? 52 : 72,
+                height: isAvatar ? 52 : 44,
+                borderRadius: isAvatar ? "50%" : 8,
+                border: "1px dashed var(--border)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                background: "var(--surface-hover)",
+                color: "var(--muted)",
+              }}
+            >
+              <Icon name={isAvatar ? "User" : "GalleryHorizontalEnd"} size={20} />
+            </div>
           )}
-        </span>
+          <span className="file-input" style={{ flex: 1 }}>
+            <Icon name="Upload" size={18} />
+            <input
+              type="file"
+              name={field.key}
+              accept="image/jpeg,image/png,image/webp"
+              required={field.required && !row}
+            />
+            <small>{field.placeholder || "Pilih berkas gambar (JPG, PNG, atau WEBP)"}</small>
+            {existingUrl && (
+              <a className="file-current" href={existingUrl} target="_blank" rel="noreferrer">
+                Buka berkas asli
+              </a>
+            )}
+          </span>
+        </div>
         {field.placeholder && <small className="field-help">{field.placeholder}</small>}
       </label>
     );

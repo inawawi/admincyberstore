@@ -120,6 +120,7 @@ const definitions: Record<string, ResourceMeta> = {
       ], placeholder: "Pilih tingkat hak akses pengguna..." },
       { key: "phone", label: "Nomor WhatsApp / HP", kind: "text", placeholder: "Contoh: 081234567890" },
       { key: "address", label: "Alamat domisili lengkap", kind: "textarea", placeholder: "Tuliskan alamat domisili / pengiriman lengkap..." },
+      { key: "photo_file", label: "Foto Profil Pengguna", kind: "image", placeholder: "Pilih foto profil pengguna (JPG, PNG, atau WEBP, maks 5 MB)" },
       { key: "is_active", label: "Akun aktif", kind: "boolean", placeholder: "Pengguna dapat login dan bertransaksi jika akun diaktifkan" },
     ],
   },
@@ -710,11 +711,12 @@ export async function createResource(key: string, data: Record<string, unknown>,
     const hash = await hashPassword(password);
     const phone = cleanNullable(data.phone as string);
     const address = cleanNullable(data.address as string);
+    const photoFile = await uploadMedia(data.photo_file, "users");
     const isActive = data.is_active !== undefined ? asBoolean(data.is_active) : true;
     const res = await execute(
-      `INSERT INTO users (name, email, password, role, phone, address, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [name, email, hash, role, phone, address, isActive ? 1 : 0]
+      `INSERT INTO users (name, email, password, role, phone, address, photo, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [name, email, hash, role, phone, address, photoFile, isActive ? 1 : 0]
     );
     return res.insertId;
   }
@@ -767,7 +769,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
     const order = asNumber(data.order, 0);
     const imageFile = await uploadMedia(data.image_file, "banners");
     const res = await execute(
-      "INSERT INTO banners (title, description, image, `order`, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
+      "INSERT INTO banners (title, description, image_path, `order`, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
       [title, desc, imageFile, order]
     );
     return res.insertId;
@@ -1049,11 +1051,16 @@ export async function updateResource(key: string, id: number, data: Record<strin
     }
     const phone = data.phone !== undefined ? cleanNullable(data.phone as string) : (existing.phone as string | null);
     const address = data.address !== undefined ? cleanNullable(data.address as string) : (existing.address as string | null);
+    let photo = existing.photo as string | null;
+    if (data.photo_file !== undefined) {
+      const newPhoto = await uploadMedia(data.photo_file, "users");
+      if (newPhoto) photo = newPhoto;
+    }
     const isActive = data.is_active !== undefined ? asBoolean(data.is_active) : Boolean(existing.is_active);
 
     await execute(
-      `UPDATE users SET name = ?, email = ?, password = ?, role = ?, phone = ?, address = ?, is_active = ?, updated_at = NOW() WHERE id = ?`,
-      [name, email, hash, role, phone, address, isActive ? 1 : 0, id]
+      `UPDATE users SET name = ?, email = ?, password = ?, role = ?, phone = ?, address = ?, photo = ?, is_active = ?, updated_at = NOW() WHERE id = ?`,
+      [name, email, hash, role, phone, address, photo, isActive ? 1 : 0, id]
     );
     return;
   }
@@ -1118,10 +1125,11 @@ export async function updateResource(key: string, id: number, data: Record<strin
     const title = data.title !== undefined ? cleanNullable(data.title as string) : (existing.title as string | null);
     const desc = data.description !== undefined ? cleanNullable(data.description as string) : (existing.description as string | null);
     const order = data.order !== undefined ? asNumber(data.order as string | number, 0) : Number(existing.order);
-    const imageFile = data.image_file !== undefined ? await uploadMedia(data.image_file, "banners") : (existing.image as string | null);
+    const uploadedImage = data.image_file !== undefined ? await uploadMedia(data.image_file, "banners") : null;
+    const imageFile = uploadedImage || (existing.image_path as string | null);
 
     await execute(
-      "UPDATE banners SET title = ?, description = ?, image = ?, `order` = ?, updated_at = NOW() WHERE id = ?",
+      "UPDATE banners SET title = ?, description = ?, image_path = ?, `order` = ?, updated_at = NOW() WHERE id = ?",
       [title, desc, imageFile, order, id]
     );
     return;

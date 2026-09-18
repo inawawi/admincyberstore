@@ -7,14 +7,17 @@
     "node": "^20.19.0 || ^22.13.0 || >=24.0.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -k -n backend,frontend -c blue.bold,green.bold \"next dev --port 3000\" \"npm run dev:frontend\"",
+    "dev:backend": "next dev --port 3000",
+    "dev:frontend": "npm --prefix frontend run dev -- --port 3100",
     "ngrok": "ngrok http 3100 --host-header=rewrite",
     "build": "next build",
     "start": "node scripts/start.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "tsx --env-file=.env.local --test tests/*.test.ts",
-    "db:setup": "tsx scripts/setup-db.ts"
+    "db:setup": "tsx scripts/setup-db.ts",
+    "install:all": "npm install && npm --prefix frontend install"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -34,6 +37,7 @@
     "@types/nodemailer": "^7.0.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "concurrently": "^10.0.5",
     "eslint": "^9.35.0",
     "eslint-config-next": "16.3.3",
     "tsx": "^4.20.5",

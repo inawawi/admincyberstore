@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 import type { ResourceMeta } from "@/types";
 
 interface Props {
-  user: { name?: unknown; role?: unknown; email?: unknown };
+  user: { name?: unknown; role?: unknown; email?: unknown; photo?: unknown };
   resources: ResourceMeta[];
+  storeSettings?: { name: string; logo: string | null };
   children: React.ReactNode;
 }
 
@@ -45,7 +47,7 @@ const navSections = [
   },
 ];
 
-export function AdminShell({ user, resources, children }: Props) {
+export function AdminShell({ user, resources, storeSettings, children }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -64,7 +66,9 @@ export function AdminShell({ user, resources, children }: Props) {
     router.refresh();
   }
 
-  const resourceMap = new Map(resources.map((r) => [r.key, r]));
+  const resourceMap = new Map(resources.map((entry) => [entry.key, entry]));
+
+  const appTitle = storeSettings?.name ? `${storeSettings.name} Admin` : "Cyber Store Admin";
 
   return (
     <div className={`desktop-frame ${isMaximized ? "is-maximized-frame" : ""}`}>
@@ -76,8 +80,14 @@ export function AdminShell({ user, resources, children }: Props) {
       {isMinimized && (
         <div className="minimized-dock-bar">
           <button className="dock-restore-btn" onClick={() => setIsMinimized(false)}>
-            <span className="app-icon"><Icon name="Boxes" size={16} /></span>
-            <strong>Cyber Store Admin</strong>
+            <span className="app-icon" style={storeSettings?.logo ? { background: "#ffffff", padding: 2, border: "1px solid rgba(0,0,0,0.08)" } : undefined}>
+              {storeSettings?.logo ? (
+                <Image unoptimized src={storeSettings.logo} alt="" width={20} height={20} style={{ width: 20, height: 20, objectFit: "contain", borderRadius: 4 }} />
+              ) : (
+                <Icon name="Boxes" size={16} />
+              )}
+            </span>
+            <strong>{appTitle}</strong>
             <span className="dock-tag">Klik untuk pulihkan</span>
           </button>
         </div>
@@ -91,8 +101,14 @@ export function AdminShell({ user, resources, children }: Props) {
             <Icon name="Menu" size={18} />
           </button>
           <Link href="/admin" className="titlebar-brand">
-            <span className="app-icon"><Icon name="Boxes" size={16} /></span>
-            <span>Cyber Store Admin</span>
+            <span className="app-icon" style={storeSettings?.logo ? { background: "#ffffff", padding: 2, border: "1px solid rgba(0,0,0,0.08)" } : undefined}>
+              {storeSettings?.logo ? (
+                <Image unoptimized src={storeSettings.logo} alt="" width={22} height={22} style={{ width: 22, height: 22, objectFit: "contain", borderRadius: 4 }} />
+              ) : (
+                <Icon name="Boxes" size={16} />
+              )}
+            </span>
+            <span>{appTitle}</span>
           </Link>
           <div className="titlebar-drag" />
           <div className="window-controls">
@@ -123,7 +139,20 @@ export function AdminShell({ user, resources, children }: Props) {
             <aside className={`sidebar ${sidebarOpen ? "is-open" : ""}`}>
               {/* User Profile Card */}
               <div className="sidebar-profile">
-                <div className="avatar">{String(user.name || "A").slice(0, 1).toUpperCase()}</div>
+                <div className="avatar" style={user.photo ? { overflow: "hidden", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" } : undefined}>
+                  {user.photo ? (
+                    <Image
+                      unoptimized
+                      src={`/storage/${String(user.photo).replace(/^\/?storage\/?/, "")}`}
+                      alt=""
+                      width={36}
+                      height={36}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
+                  ) : (
+                    String(user.name || "A").slice(0, 1).toUpperCase()
+                  )}
+                </div>
                 <div className="profile-copy">
                   <strong>{String(user.name || "Administrator")}</strong>
                   <span>{String(user.role || "admin")}</span>

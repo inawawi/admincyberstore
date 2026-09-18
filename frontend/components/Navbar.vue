@@ -588,11 +588,11 @@ onMounted(async () => {
   try {
     const data = await fetchStoreInfo()
     if (data) {
-      if (data.store_logo) {
-        storeLogo.value = getImageUrl(data.store_logo)
+      if (data.store_logo || data.logo) {
+        storeLogo.value = getImageUrl(data.store_logo || data.logo)
       }
-      if (data.store_name) {
-        storeName.value = data.store_name
+      if (data.store_name || data.name) {
+        storeName.value = data.store_name || data.name
       }
       if (data.announcement) {
         announcement.value = {
