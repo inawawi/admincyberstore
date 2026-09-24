@@ -6,6 +6,7 @@ import {
   CircleHelp,
   CreditCard,
   GalleryHorizontalEnd,
+  Layers,
   LayoutDashboard,
   LogOut,
   Megaphone,
@@ -52,6 +53,7 @@ import {
   MessageCircle,
   Power,
   ChevronDown,
+  ChevronUp,
   User,
   Image as ImageIcon,
   Filter,
@@ -71,12 +73,12 @@ import type { LucideProps } from "lucide-react";
 
 const icons = {
   Boxes, ChartNoAxesCombined, ChevronLeft, ChevronRight, CircleHelp, CreditCard,
-  GalleryHorizontalEnd, LayoutDashboard, LogOut, Megaphone, Menu, MessagesSquare,
+  GalleryHorizontalEnd, Layers, LayoutDashboard, LogOut, Megaphone, Menu, MessagesSquare,
   Moon, Package, Search, Settings, Shapes, ShoppingBag, Star, Sun, Truck, UserRound,
   Users, UserRoundX, X, Check, Plus, Pencil, Trash2, RefreshCw, MoreHorizontal, AlertTriangle,
   Eye, EyeOff, Save, Database, Bell, Wifi, ArrowUpRight, Sparkles, Ruler, BadgeDollarSign,
   Images, Palette, Upload, CheckCircle2, Tag, TrendingUp, ShoppingCart, MessageSquare,
-  MessageCircle, Power, ChevronDown, User, Image: ImageIcon, Filter,
+  MessageCircle, Power, ChevronDown, ChevronUp, User, Image: ImageIcon, Filter,
   FileText, Download, ArrowDown, ArrowUp, BarChart3, Printer, ExternalLink, Receipt,
   Send, SendHorizontal, Clock,
 };

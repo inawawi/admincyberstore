@@ -1,4 +1,6 @@
 import { defineStore } from 'pinia'
+import { useCookie, useRequestURL } from '#imports'
+import { sessionCookieOptions, isCurrentSessionUnauthorized } from '~/utils/auth-session'
 import { useApi } from '~/composables/useApi'
 
 export interface UserProfile {
@@ -32,29 +34,19 @@ export const useAuthStore = defineStore('auth', {
   actions: {
     initAuth() {
       const tokenCookie = useCookie<string | null>('cyber_store_token')
+      const userCookie = useCookie<UserProfile | null>('cyber_store_user')
+
       if (tokenCookie.value) {
         this.token = tokenCookie.value
-      } else if (import.meta.client) {
-        const savedToken = localStorage.getItem('cyber_store_token')
-        if (savedToken) {
-          this.token = savedToken
-          tokenCookie.value = savedToken
-        }
       }
 
-      if (import.meta.client) {
-        const savedUser = localStorage.getItem('cyber_store_user')
-        if (savedUser) {
-          try {
-            this.user = JSON.parse(savedUser)
-          } catch (e) {
-            console.error('Failed to parse user session:', e)
-          }
-        }
-        // Refresh profile if token exists
-        if (this.token) {
-          this.fetchMe()
-        }
+      if (userCookie.value) {
+        this.user = userCookie.value
+      }
+
+      if (import.meta.client && this.token) {
+        // Refresh profile in background to keep data fresh
+        this.fetchMe()
       }
     },
 
@@ -63,16 +55,15 @@ export const useAuthStore = defineStore('auth', {
       if (user) {
         this.user = user
       }
-      const tokenCookie = useCookie<string | null>('cyber_store_token', {
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 30, // 30 hari
-      })
+      // This storefront sends Bearer tokens from the client; its cookie must
+      // be writable/readable by the client as well, including after a redirect.
+      const options = sessionCookieOptions(useRequestURL().protocol)
+      const tokenCookie = useCookie<string | null>('cyber_store_token', options)
       tokenCookie.value = token
-      if (import.meta.client) {
-        localStorage.setItem('cyber_store_token', token)
-        if (user) {
-          localStorage.setItem('cyber_store_user', JSON.stringify(user))
-        }
+
+      const userCookie = useCookie<UserProfile | null>('cyber_store_user', options)
+      if (user) {
+        userCookie.value = user
       }
     },
 
@@ -80,11 +71,9 @@ export const useAuthStore = defineStore('auth', {
       this.token = ''
       this.user = null
       const tokenCookie = useCookie<string | null>('cyber_store_token')
+      const userCookie = useCookie<UserProfile | null>('cyber_store_user')
       tokenCookie.value = null
-      if (import.meta.client) {
-        localStorage.removeItem('cyber_store_token')
-        localStorage.removeItem('cyber_store_user')
-      }
+      userCookie.value = null
     },
 
     async login(email: string, password: string): Promise<{ success: boolean; message?: string; requireOtp?: boolean }> {
@@ -301,26 +290,32 @@ export const useAuthStore = defineStore('auth', {
 
     async fetchMe() {
       if (!this.token) return
+      const sessionToken = this.token
       const { apiBase } = useApi()
+      const userCookie = useCookie<UserProfile | null>(
+        'cyber_store_user', sessionCookieOptions(useRequestURL().protocol),
+      )
 
       try {
         const res = await $fetch<any>(`${apiBase}/me`, {
           headers: {
-            Authorization: `Bearer ${this.token}`,
+            Authorization: `Bearer ${sessionToken}`,
             Accept: 'application/json',
             'ngrok-skip-browser-warning': 'true',
           },
         })
-
+        // A response from an old login must not overwrite a newer session.
+        if (this.token !== sessionToken) return
         if (res.user) {
           this.user = res.user
-          if (import.meta.client) {
-            localStorage.setItem('cyber_store_user', JSON.stringify(res.user))
-          }
+          userCookie.value = res.user
         }
       } catch (err) {
-        console.warn('Session expired, logging out:', err)
-        this.clearSession()
+        if (isCurrentSessionUnauthorized(err, sessionToken, this.token)) {
+          this.clearSession()
+        } else {
+          console.warn('Profile refresh failed; current session preserved.')
+        }
       }
     },
 
@@ -346,9 +341,6 @@ export const useAuthStore = defineStore('auth', {
 
         if (res.user) {
           this.user = res.user
-          if (import.meta.client) {
-            localStorage.setItem('cyber_store_user', JSON.stringify(res.user))
-          }
         }
 
         return {

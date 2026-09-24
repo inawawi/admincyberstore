@@ -2,14 +2,22 @@
   <div class="product-card cyber-card">
     <!-- Image Wrapper with Badges -->
     <div class="card-image-box">
+      <!-- Loading Skeleton & Shimmer for Image -->
+      <Transition name="fade-fast">
+        <div v-if="isImageLoading" class="image-loading-placeholder">
+          <div class="image-shimmer-bar"></div>
+          <div class="image-loader-icon-wrap">
+            <span class="image-spinner-circle"></span>
+            <span class="image-loading-label">Memuat...</span>
+          </div>
+        </div>
+      </Transition>
+
       <NuxtLink :to="productUrl" class="image-link">
-        <img
-          :src="getImageUrl(product.main_photo)"
-          :alt="product.name"
-          loading="lazy"
-          class="product-image"
-          @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }"
-        />
+        <img :src="getImageUrl(product.main_photo)" :alt="product.name" loading="lazy"
+          :class="['product-image', { 'is-loaded': !isImageLoading }]"
+          @load="onImageLoaded"
+          @error="onImageError" />
       </NuxtLink>
 
       <!-- Badges (Compact) -->
@@ -21,30 +29,19 @@
       </div>
 
       <!-- Quick Add to Cart Floating Button -->
-      <button
+      <!-- <button
         @click.prevent="handleQuickAdd"
         :disabled="product.stock <= 0"
         class="quick-add-btn"
         :title="product.stock <= 0 ? 'Stok Habis' : 'Tambah ke Keranjang'"
       >
         <Icon name="lucide:plus" class="w-4 h-4" />
-      </button>
+      </button> -->
     </div>
 
     <!-- Product Content -->
     <div class="card-content">
-      <!-- Category & Stock Status -->
-      <div class="card-meta-row">
-        <span class="category-name">
-          {{ product.category?.name || 'Tech Gear' }}
-        </span>
-        <span v-if="product.stock > 0" class="stock-status in-stock">
-          Stok: {{ product.stock }}
-        </span>
-        <span v-else class="stock-status out-of-stock">
-          Habis
-        </span>
-      </div>
+
 
       <!-- Product Title -->
       <h3 class="product-title">
@@ -52,7 +49,15 @@
           {{ product.name }}
         </NuxtLink>
       </h3>
-
+      <!-- Stock Status -->
+      <div class="card-meta-row">
+        <span v-if="product.stock > 0" class="stock-status in-stock">
+          Stok: {{ product.stock }}
+        </span>
+        <span v-else class="stock-status out-of-stock">
+          Habis
+        </span>
+      </div>
       <!-- Rating & Reviews -->
       <div class="rating-row">
         <div class="stars-box">
@@ -76,9 +81,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useFormat } from '~/composables/useFormat'
 import { useApi } from '~/composables/useApi'
+import { useToast } from '~/composables/useToast'
 import { useCartStore } from '~/stores/cart'
 
 const props = defineProps<{
@@ -88,6 +94,29 @@ const props = defineProps<{
 const { formatRupiah, calculateDiscount } = useFormat()
 const { getImageUrl } = useApi()
 const cartStore = useCartStore()
+const toast = useToast()
+
+// State loading gambar
+const isImageLoading = ref(true)
+
+const onImageLoaded = () => {
+  isImageLoading.value = false
+}
+
+const onImageError = (e: any) => {
+  if (e?.target) {
+    e.target.src = '/placeholder-product.svg'
+  }
+  isImageLoading.value = false
+}
+
+onMounted(() => {
+  // Timeout pengaman agar loading gambar tidak terlalu lama (maksimal 750ms)
+  const timer = setTimeout(() => {
+    isImageLoading.value = false
+  }, 750)
+  onUnmounted(() => clearTimeout(timer))
+})
 
 const discountPercent = computed(() => {
   return calculateDiscount(props.product.price, props.product.original_price)
@@ -108,6 +137,15 @@ const handleQuickAdd = () => {
   const defaultSize = props.product.sizes?.length ? props.product.sizes[0] : null
   const defaultColor = props.product.colors?.length ? props.product.colors[0] : null
   cartStore.addToCart(props.product, 1, defaultSize, defaultColor)
+
+  toast.success(`"${props.product.name}" berhasil ditambahkan ke keranjang belanja.`, {
+    title: 'Keranjang Belanja',
+    tag: 'DITAMBAHKAN',
+    action: {
+      label: 'Buka Keranjang',
+      onClick: () => cartStore.toggleCart()
+    }
+  })
 }
 </script>
 
@@ -123,7 +161,8 @@ const handleQuickAdd = () => {
 .card-image-box {
   position: relative;
   width: 100%;
-  padding-top: 85%; /* 4:3.4 Aspect Ratio */
+  padding-top: 85%;
+  /* 4:3.4 Aspect Ratio */
   background: #f8fafc;
   overflow: hidden;
   border-bottom: 1px solid #f1f5f9;
@@ -137,11 +176,82 @@ const handleQuickAdd = () => {
   justify-content: center;
 }
 
+/* Image Loading State */
+.image-loading-placeholder {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.image-shimmer-bar {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.7) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmerFlow 1.2s infinite;
+}
+
+@keyframes shimmerFlow {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.image-loader-icon-wrap {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.image-spinner-circle {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(0, 51, 153, 0.15);
+  border-top-color: #003399;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.image-loading-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 .product-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0;
+  transition: opacity 0.28s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.product-image.is-loaded {
+  opacity: 1;
+}
+
+.fade-fast-enter-active,
+.fade-fast-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.fade-fast-enter-from,
+.fade-fast-leave-to {
+  opacity: 0;
 }
 
 .product-card:hover .product-image {
@@ -345,20 +455,25 @@ const handleQuickAdd = () => {
     gap: 0.2rem;
     max-width: calc(100% - 2.5rem);
   }
+
   .mini-badge {
     padding: 0.1rem 0.3rem;
     font-size: 0.58rem;
     border-radius: 3px;
   }
+
   .card-content {
     padding: 0.75rem;
   }
+
   .product-title {
     font-size: 0.85rem;
   }
+
   .price-current {
     font-size: 0.95rem;
   }
+
   .quick-add-btn {
     opacity: 1;
     transform: none;

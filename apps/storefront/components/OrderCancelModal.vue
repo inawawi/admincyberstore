@@ -19,14 +19,11 @@
           <form @submit.prevent="handleSubmitCancel" class="cancel-form">
             <div class="cancel-body">
               <p class="cancel-info-text">
-                <span v-if="order.status === 'paid'">
-                  Pesanan telah dibayar. Pembatalan ini diajukan ke admin sebelum toko mengemas atau memproses paket
-                  Anda (berlaku maksimal 1x24 jam sejak pemesanan).
-                </span>
-                <span v-else>
-                  Apakah Anda yakin ingin membatalkan pesanan ini? Tagihan pembayaran dan pesanan Anda akan dibatalkan
-                  langsung, dan stok produk akan dikembalikan.
-                </span>
+                Pengajuan akan ditinjau admin dan dapat diterima atau ditolak. Jika disetujui,
+                transaksi dibatalkan melalui Midtrans. Untuk pembayaran yang sudah lunas,
+                refund diproses ke metode pembayaran asal jika didukung Midtrans.
+                Waktu dana masuk mengikuti penyedia pembayaran.
+
               </p>
 
               <div class="form-group">
@@ -54,7 +51,7 @@
               </button>
               <button type="submit" class="btn btn-danger" :disabled="isSubmitting || !selectedReason">
                 <span v-if="isSubmitting">Memproses...</span>
-                <span v-else>Ya, Batalkan Pesanan</span>
+                <span v-else>Ajukan Pembatalan</span>
               </button>
             </div>
           </form>

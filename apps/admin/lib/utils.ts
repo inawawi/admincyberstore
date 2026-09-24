@@ -1,7 +1,8 @@
 import { randomBytes } from "node:crypto";
 
 export function nowSql(date = new Date()) {
-  return date.toISOString().slice(0, 19).replace("T", " ");
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 export function addMinutes(minutes: number) {
@@ -50,6 +51,41 @@ export function parseJsonArray(value: unknown): string[] | null {
     }
   }
   return null;
+}
+
+export function parseColorsArray(value: unknown): Array<{ name: string; hex: string; stock: number }> | null {
+  if (value === undefined || value === null || value === "") return null;
+  let items: unknown[] = [];
+  if (Array.isArray(value)) {
+    items = value;
+  } else if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) items = parsed;
+      else items = value.split(",").map((s) => s.trim()).filter(Boolean);
+    } catch {
+      items = value.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+  } else {
+    return null;
+  }
+
+  const result = items.map((item) => {
+    if (typeof item === "string") {
+      return { name: item.trim(), hex: "", stock: 0 };
+    }
+    if (item && typeof item === "object") {
+      const obj = item as Record<string, unknown>;
+      return {
+        name: String(obj.name || "").trim(),
+        hex: typeof obj.hex === "string" ? obj.hex.trim() : "",
+        stock: obj.stock !== undefined ? Math.max(0, asNumber(obj.stock, 0)) : 0,
+      };
+    }
+    return null;
+  }).filter((c): c is { name: string; hex: string; stock: number } => Boolean(c && c.name));
+
+  return result.length ? result : null;
 }
 
 export function publicUrl(path: unknown) {

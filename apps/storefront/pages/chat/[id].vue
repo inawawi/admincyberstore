@@ -13,7 +13,8 @@
 
     <!-- Loading State -->
     <div v-if="pending && !product" class="chat-loading-box cyber-card">
-      <CyberLoader text="MEMUAT RUANG CHAT TOKO..." subtext="Menghubungkan ke server penjual BSI Cyber Store..." size="lg" />
+      <CyberLoader text="MEMUAT RUANG CHAT TOKO..." subtext="Menghubungkan ke server penjual BSI Cyber Store..."
+        size="lg" />
     </div>
 
     <!-- Product Not Found State -->
@@ -32,12 +33,9 @@
       <div class="store-chat-header cyber-card">
         <div class="store-header-left">
           <div class="store-avatar-box">
-            <img
-              :src="storeInfo?.store_logo ? getImageUrl(storeInfo.store_logo) : '/logo-cyberstore.jpg'"
-              :alt="storeInfo?.store_name || 'BSI Cyber Store Official'"
-              class="store-avatar-img"
-              @error="(e: any) => { if (e.target) e.target.src = '/logo-cyberstore.jpg' }"
-            />
+            <img :src="storeInfo?.store_logo ? getImageUrl(storeInfo.store_logo) : '/logo-cyberstore.jpg'"
+              :alt="storeInfo?.store_name || 'BSI Cyber Store Official'" class="store-avatar-img"
+              @error="(e: any) => { if (e.target) e.target.src = '/logo-cyberstore.jpg' }" />
             <span class="store-online-dot" title="Toko Online"></span>
           </div>
 
@@ -69,7 +67,8 @@
         </div>
 
         <div class="store-header-right">
-          <NuxtLink :to="`/products/${productId}`" class="btn btn-secondary btn-back-product" title="Kembali ke Halaman Detail Produk">
+          <NuxtLink :to="`/products/${productId}`" class="btn btn-secondary btn-back-product"
+            title="Kembali ke Halaman Detail Produk">
             <Icon name="lucide:arrow-left" class="w-4 h-4 mr-1.5" />
             <span>Kembali ke Produk</span>
           </NuxtLink>
@@ -79,12 +78,8 @@
       <!-- Pinned Product Information Bar -->
       <div class="pinned-product-bar cyber-card">
         <div class="pinned-product-img-box">
-          <img
-            :src="getImageUrl(product.main_photo)"
-            :alt="product.name"
-            class="pinned-product-img"
-            @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }"
-          />
+          <img :src="getImageUrl(product.main_photo)" :alt="product.name" class="pinned-product-img"
+            @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }" />
         </div>
 
         <div class="pinned-product-info">
@@ -114,13 +109,8 @@
             <Icon name="lucide:external-link" class="w-4 h-4" />
             <span class="action-btn-text">Detail Produk</span>
           </NuxtLink>
-          <button
-            type="button"
-            @click="handleQuickBuy"
-            :disabled="product.stock <= 0"
-            class="btn btn-primary btn-quick-buy"
-            title="Langsung Beli Produk Ini"
-          >
+          <button type="button" @click="handleQuickBuy" :disabled="product.stock <= 0"
+            class="btn btn-primary btn-quick-buy" title="Langsung Beli Produk Ini">
             <Icon name="lucide:shopping-bag" class="w-4 h-4" />
             <span class="action-btn-text">Beli Sekarang</span>
           </button>
@@ -147,7 +137,8 @@
           <p>Silakan masuk ke akun Anda agar pertanyaan stok dan riwayat obrolan dengan penjual tersimpan aman.</p>
 
           <div class="unauth-actions-group">
-            <NuxtLink :to="`/auth/login?redirect=${encodeURIComponent(route.fullPath)}`" class="btn btn-primary btn-login-chat">
+            <NuxtLink :to="`/auth/login?redirect=${encodeURIComponent(route.fullPath)}`"
+              class="btn btn-primary btn-login-chat">
               <Icon name="lucide:log-in" class="w-4 h-4 mr-1.5" />
               <span>Masuk ke Akun</span>
             </NuxtLink>
@@ -173,21 +164,19 @@
                 <span class="bubble-time-text">Sistem Otomatis</span>
               </div>
               <div class="bubble-body-content">
-                Halo <strong>{{ authStore.user?.name || 'Kak' }}</strong>! Ada yang bisa kami bantu seputar stok produk <strong>"{{ product.name }}"</strong>?
+                Halo <strong>{{ authStore.user?.name || 'Kak' }}</strong>! Ada yang bisa kami bantu seputar stok produk
+                <strong>"{{ product.name }}"</strong>?
                 <br />
                 <span class="sub-text">
-                  Kirim pertanyaan Anda di bawah ini, bot kami akan mengecek ketersediaan stok fisik di gudang secara langsung.
+                  Kirim pertanyaan Anda di bawah ini, bot kami akan mengecek ketersediaan stok fisik di gudang secara
+                  langsung.
                 </span>
               </div>
             </div>
 
             <!-- List of Chat Messages in this Product Thread -->
-            <div
-              v-for="msg in messages"
-              :key="msg.id"
-              class="chat-bubble"
-              :class="msg.sender_type === 'customer' ? 'user-bubble' : 'store-bubble'"
-            >
+            <div v-for="msg in messages" :key="msg.id" class="chat-bubble"
+              :class="msg.sender_type === 'customer' ? 'user-bubble' : 'store-bubble'">
               <div v-if="msg.sender_type !== 'customer'" class="bubble-sender-row">
                 <span class="sender-badge-store">
                   <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-bsi" />
@@ -211,7 +200,7 @@
               <div class="typing-indicator-dots">
                 <span></span><span></span><span></span>
               </div>
-              <span class="typing-label">Toko sedang mengecek stok & membalas...</span>
+              <span class="typing-label">Harap Tunggu...</span>
             </div>
           </div>
 
@@ -219,14 +208,8 @@
           <div class="chat-quick-prompts-bar">
             <span class="quick-prompt-label">Tanya Cepat:</span>
             <div class="quick-prompts-track">
-              <button
-                v-for="(prompt, idx) in quickPrompts"
-                :key="idx"
-                type="button"
-                class="quick-chip-btn"
-                @click="handleSendQuickPrompt(prompt)"
-                :disabled="isSending"
-              >
+              <button v-for="(prompt, idx) in quickPrompts" :key="idx" type="button" class="quick-chip-btn"
+                @click="handleSendQuickPrompt(prompt)" :disabled="isSending">
                 {{ prompt }}
               </button>
             </div>
@@ -234,20 +217,11 @@
 
           <!-- Message Input Box -->
           <form @submit.prevent="handleSendMessage" class="chat-input-form-bar">
-            <input
-              v-model="inputMessage"
-              type="text"
+            <input v-model="inputMessage" type="text"
               placeholder="Tulis pertanyaan seputar stok, ukuran, atau pengiriman ke penjual..."
-              class="chat-input-field"
-              :disabled="isSending"
-            />
-            <button
-              type="submit"
-              class="btn-send-message"
-              :disabled="!inputMessage.trim() || isSending"
-              title="Kirim Pesan ke Penjual"
-              aria-label="Kirim Pesan"
-            >
+              class="chat-input-field" :disabled="isSending" />
+            <button type="submit" class="btn-send-message" :disabled="!inputMessage.trim() || isSending"
+              title="Kirim Pesan ke Penjual" aria-label="Kirim Pesan">
               <Icon v-if="!isSending" name="lucide:send" class="w-5 h-5" />
               <span v-else class="btn-spinner"></span>
             </button>
@@ -259,6 +233,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '~/composables/useApi'
@@ -976,6 +951,7 @@ useHead({
     opacity: 0;
     transform: translateY(6px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -1078,10 +1054,14 @@ useHead({
 }
 
 @keyframes typingBounce {
-  0%, 80%, 100% {
+
+  0%,
+  80%,
+  100% {
     transform: scale(0.6);
     opacity: 0.5;
   }
+
   40% {
     transform: scale(1);
     opacity: 1;

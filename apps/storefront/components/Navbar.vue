@@ -1,6 +1,7 @@
 <template>
   <header class="navbar-wrapper">
-    <div v-if="announcement.is_active" class="top-announcement" role="region" aria-label="Pengumuman Toko" :style="announcementStyle">
+    <div v-if="announcement.is_active" class="top-announcement" role="region" aria-label="Pengumuman Toko"
+      :style="announcementStyle">
       <div class="announcement-marquee-wrapper" title="Arahkan kursor atau tahan untuk jeda">
         <div class="announcement-marquee-track">
           <!-- Marquee Item 1 -->
@@ -11,17 +12,10 @@
                 announcement.badge || 'BSI Cyber Store Official'
               }}</span>
             </div>
-            <component
-              :is="announcement.link ? 'NuxtLink' : 'span'"
-              :to="announcement.link || undefined"
-              class="announcement-text"
-              v-html="safeAnnouncementText"
-            ></component>
+            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
+              class="announcement-text" v-html="safeAnnouncementText"></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon
-                name="lucide:shield-check"
-                class="w-3.5 h-3.5 inline mr-1 text-cyan"
-              />
+              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -35,17 +29,10 @@
                 announcement.badge || 'BSI Cyber Store Official'
               }}</span>
             </div>
-            <component
-              :is="announcement.link ? 'NuxtLink' : 'span'"
-              :to="announcement.link || undefined"
-              class="announcement-text"
-              v-html="safeAnnouncementText"
-            ></component>
+            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
+              class="announcement-text" v-html="safeAnnouncementText"></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon
-                name="lucide:shield-check"
-                class="w-3.5 h-3.5 inline mr-1 text-cyan"
-              />
+              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -59,17 +46,10 @@
                 announcement.badge || 'BSI Cyber Store Official'
               }}</span>
             </div>
-            <component
-              :is="announcement.link ? 'NuxtLink' : 'span'"
-              :to="announcement.link || undefined"
-              class="announcement-text"
-              v-html="safeAnnouncementText"
-            ></component>
+            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
+              class="announcement-text" v-html="safeAnnouncementText"></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon
-                name="lucide:shield-check"
-                class="w-3.5 h-3.5 inline mr-1 text-cyan"
-              />
+              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -83,17 +63,10 @@
                 announcement.badge || 'BSI Cyber Store Official'
               }}</span>
             </div>
-            <component
-              :is="announcement.link ? 'NuxtLink' : 'span'"
-              :to="announcement.link || undefined"
-              class="announcement-text"
-              v-html="safeAnnouncementText"
-            ></component>
+            <component :is="announcement.link ? 'NuxtLink' : 'span'" :to="announcement.link || undefined"
+              class="announcement-text" v-html="safeAnnouncementText"></component>
             <div v-if="announcement.info" class="announcement-info">
-              <Icon
-                name="lucide:shield-check"
-                class="w-3.5 h-3.5 inline mr-1 text-cyan"
-              />
+              <Icon name="lucide:shield-check" class="w-3.5 h-3.5 inline mr-1 text-cyan" />
               <span>{{ announcement.info }}</span>
             </div>
             <span class="announcement-separator">✦</span>
@@ -108,13 +81,8 @@
         <!-- Left Area: Hamburger (Mobile/Tablet) + Logo -->
         <div class="nav-left">
           <!-- Mobile Hamburger Toggle Button -->
-          <button
-            @click="toggleMobileMenu"
-            class="hamburger-btn"
-            :class="{ 'is-active': isMobileMenuOpen }"
-            aria-label="Buka Menu Navigasi"
-            :aria-expanded="isMobileMenuOpen"
-          >
+          <button @click="toggleMobileMenu" class="hamburger-btn" :class="{ 'is-active': isMobileMenuOpen }"
+            aria-label="Buka Menu Navigasi" :aria-expanded="isMobileMenuOpen">
             <span class="hamburger-line"></span>
             <span class="hamburger-line"></span>
             <span class="hamburger-line"></span>
@@ -123,13 +91,8 @@
           <!-- Brand Logo -->
           <NuxtLink to="/" class="brand-logo" @click="closeAllMenus">
             <div class="logo-icon-box">
-              <img
-                v-if="storeLogo"
-                :src="storeLogo"
-                :alt="storeName || 'BSI Cyber Store'"
-                class="logo-img"
-                @error="handleLogoError"
-              />
+              <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="logo-img"
+                @error="handleLogoError" />
               <Icon v-else name="lucide:zap" class="logo-svg" />
             </div>
             <div class="logo-text-group">
@@ -140,18 +103,92 @@
         </div>
 
         <!-- Center Area: Desktop Search Bar -->
-        <div class="nav-search-wrapper">
+        <div ref="searchWrapperRef" class="nav-search-wrapper">
           <form @submit.prevent="handleSearch" class="search-form">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Cari laptop, kaos maba, aksesoris..."
-              class="nav-search-input"
-            />
+            <input v-model="searchQuery" type="text" placeholder="Cari kaos maba, jaket, tumbler..."
+              class="nav-search-input" autocomplete="off" @focus="isSearchDropdownOpen = true"
+              @keydown.esc="isSearchDropdownOpen = false" />
+            <button v-if="searchQuery" type="button" @click="searchQuery = ''" class="desktop-clear-search-btn"
+              title="Hapus teks" aria-label="Hapus teks">
+              <Icon name="lucide:x" class="w-3.5 h-3.5" />
+            </button>
             <button type="submit" class="search-btn" aria-label="Cari Produk">
               <Icon name="lucide:search" class="w-4 h-4" />
             </button>
           </form>
+
+          <!-- Shopee-Style Search History & Autocomplete Dropdown -->
+          <Transition name="search-dropdown-pop">
+            <div v-if="isSearchDropdownOpen" class="search-history-dropdown"
+              :class="{ 'is-autocomplete-mode': searchQuery.trim().length > 0 }" @mousedown.prevent>
+              <!-- TAMPILAN A: User Sedang Mengetik (Shopee Autocomplete Sesuai Gambar) -->
+              <template v-if="searchQuery.trim().length > 0">
+                <!-- 1. Baris Cari Toko dengan Icon Toko Merah/Oranye Sesuai Gambar -->
+                <div class="search-suggest-store-row" @click="handleSearch">
+                  <div class="store-icon-wrap">
+                    <Icon name="lucide:store" class="w-4 h-4 text-orange-500" />
+                  </div>
+                  <span class="suggest-store-text">
+                    Cari Toko "<strong>{{ searchQuery.trim() }}</strong>"
+                  </span>
+                </div>
+
+                <!-- 2. Daftar Rekomendasi Kata Kunci (Shopee Style dengan bold prefix) -->
+                <div class="search-suggest-list">
+                  <div v-for="(suggestion, sIdx) in matchedSuggestions" :key="sIdx" class="search-suggest-item"
+                    @click="executeKeywordSearch(suggestion)">
+                    <span class="suggest-item-text" v-html="highlightMatch(suggestion, searchQuery.trim())"></span>
+                  </div>
+                </div>
+              </template>
+
+              <!-- TAMPILAN B: Input Masih Kosong (Riwayat & Pencarian Populer) -->
+              <template v-else>
+                <!-- 1. Riwayat Pencarian (Shopee Style) -->
+                <div v-if="filteredHistory.length > 0" class="history-section">
+                  <div class="history-section-header">
+                    <span class="history-title">
+                      <Icon name="lucide:history" class="w-3.5 h-3.5 text-slate-400 inline mr-1" />
+                      Riwayat Pencarian
+                    </span>
+                    <button type="button" class="btn-clear-history" @click="clearAllHistory"
+                      title="Hapus semua riwayat">
+                      <Icon name="lucide:trash-2" class="w-3 h-3 inline mr-0.5" />
+                      Hapus Semua
+                    </button>
+                  </div>
+                  <div class="history-chips-wrap">
+                    <div v-for="(item, idx) in filteredHistory" :key="idx" class="history-chip"
+                      @click="executeKeywordSearch(item)">
+                      <span class="chip-text">{{ item }}</span>
+                      <button type="button" class="chip-remove-btn" @click.stop="removeHistoryItem(item)"
+                        title="Hapus item ini" aria-label="Hapus">
+                        <Icon name="lucide:x" class="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. Pencarian Populer dari Kategori Database (Shopee Style) -->
+                <div v-if="popularCategories.length > 0" class="popular-section"
+                  :class="{ 'has-border-top': filteredHistory.length > 0 }">
+                  <div class="popular-section-header">
+                    <span class="popular-title">
+                      <Icon name="lucide:flame" class="w-3.5 h-3.5 text-rose-500 inline mr-1" />
+                      Kategori Populer
+                    </span>
+                  </div>
+                  <div class="popular-chips-wrap">
+                    <button v-for="cat in popularCategories" :key="cat.id" type="button" class="popular-chip"
+                      @click="executeCategorySearch(cat)">
+                      <Icon name="lucide:sparkles" class="w-3 h-3 text-amber-500 mr-1 inline" />
+                      <span>{{ cat.name }}</span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </Transition>
         </div>
 
         <!-- Right Area: Navigation Links & Actions -->
@@ -164,15 +201,9 @@
             <NuxtLink to="/products" class="nav-link" active-class="active">
               Katalog
             </NuxtLink>
-            <NuxtLink
-              to="/products?is_event_maba=1"
-              class="nav-link nav-link-maba"
-            >
+            <NuxtLink to="/products?is_event_maba=1" class="nav-link nav-link-maba">
               <span class="maba-indicator">
-                <Icon
-                  name="lucide:graduation-cap"
-                  class="w-3.5 h-3.5 inline mr-1 text-gold"
-                />
+                <Icon name="lucide:graduation-cap" class="w-3.5 h-3.5 inline mr-1 text-gold" />
                 Maba
               </span>
             </NuxtLink>
@@ -181,47 +212,20 @@
           <!-- Notification Center Dropdown -->
           <NotificationDropdown />
 
-          <!-- Theme Mode Toggle Button -->
-          <button @click="toggleTheme" class="theme-toggle-btn"
-            :title="isDark ? 'Ganti ke Mode Terang (Light Mode)' : 'Ganti ke Mode Gelap (Dark Mode)'"
-            :aria-label="isDark ? 'Mode Terang' : 'Mode Gelap'">
-            <Icon v-if="isDark" name="lucide:sun" class="w-5 h-5 text-amber-400" />
-            <Icon v-else name="lucide:moon" class="w-5 h-5 text-slate-700" />
-          </button>
-
           <!-- Mobile Search Trigger Button -->
-          <button
-            @click="toggleMobileSearch"
-            class="action-icon-btn mobile-search-btn"
-            :class="{ 'is-active': isMobileSearchOpen }"
-            aria-label="Cari Produk"
-          >
-            <Icon
-              v-if="!isMobileSearchOpen"
-              name="lucide:search"
-              class="w-5 h-5"
-            />
+          <button @click="toggleMobileSearch" class="action-icon-btn mobile-search-btn"
+            :class="{ 'is-active': isMobileSearchOpen }" aria-label="Cari Produk">
+            <Icon v-if="!isMobileSearchOpen" name="lucide:search" class="w-5 h-5" />
             <Icon v-else name="lucide:x" class="w-5 h-5" />
           </button>
 
           <!-- Cart Button with Counter -->
-          <button
-            @click="cartStore.toggleCart()"
-            class="cart-trigger-btn"
-            :class="{ 'has-items': cartStore.totalItems > 0 }"
-            aria-label="Buka Keranjang"
-          >
-            <div
-              class="cart-icon-wrapper"
-              :class="{ 'cart-bounce-anim': cartStore.cartBounce }"
-            >
+          <button @click="cartStore.toggleCart()" class="cart-trigger-btn"
+            :class="{ 'has-items': cartStore.totalItems > 0 }" aria-label="Buka Keranjang">
+            <div class="cart-icon-wrapper" :class="{ 'cart-bounce-anim': cartStore.cartBounce }">
               <Icon name="lucide:shopping-cart" class="w-5 h-5" />
               <Transition name="badge-pop">
-                <span
-                  v-if="cartStore.totalItems > 0"
-                  class="cart-counter-badge"
-                  :key="cartStore.totalItems"
-                >
+                <span v-if="cartStore.totalItems > 0" class="cart-counter-badge" :key="cartStore.totalItems">
                   {{ cartStore.totalItems > 99 ? '99+' : cartStore.totalItems }}
                 </span>
               </Transition>
@@ -230,35 +234,19 @@
           </button>
 
           <!-- User Auth Profile Dropdown / Login Button (Desktop & Tablet) -->
-          <div
-            v-if="authStore.isAuthenticated"
-            ref="userMenuRef"
-            class="user-menu-wrapper"
-          >
-            <button
-              @click="toggleUserMenu"
-              class="user-avatar-btn"
-              :class="{ 'is-active': isUserMenuOpen }"
-              aria-label="Menu Pengguna"
-              :aria-expanded="isUserMenuOpen"
-            >
-              <img
-                v-if="authStore.user?.photo"
-                :src="getImageUrl(authStore.user.photo)"
-                :alt="authStore.user?.name || 'Foto Profil'"
-                class="user-avatar-nav-img"
-              />
+          <div v-if="authStore.isAuthenticated" ref="userMenuRef" class="user-menu-wrapper">
+            <button @click="toggleUserMenu" class="user-avatar-btn" :class="{ 'is-active': isUserMenuOpen }"
+              aria-label="Menu Pengguna" :aria-expanded="isUserMenuOpen">
+              <img v-if="authStore.user?.photo" :src="getImageUrl(authStore.user.photo)"
+                :alt="authStore.user?.name || 'Foto Profil'" class="user-avatar-nav-img" />
               <div v-else class="user-avatar-initial">
                 {{ (authStore.user?.name || 'U').charAt(0).toUpperCase() }}
               </div>
               <span class="user-name-label">{{
                 authStore.user?.name?.split(' ')[0] || 'Akun'
               }}</span>
-              <Icon
-                name="lucide:chevron-down"
-                class="w-3.5 h-3.5 text-muted user-chevron"
-                :class="{ 'rotate-180': isUserMenuOpen }"
-              />
+              <Icon name="lucide:chevron-down" class="w-3.5 h-3.5 text-muted user-chevron"
+                :class="{ 'rotate-180': isUserMenuOpen }" />
             </button>
 
             <!-- Dropdown Menu -->
@@ -273,26 +261,15 @@
                   </div>
                 </div>
                 <div class="user-dropdown-links">
-                  <NuxtLink
-                    to="/account/profile"
-                    @click="isUserMenuOpen = false"
-                    class="dropdown-link"
-                  >
+                  <NuxtLink to="/account/profile" @click="isUserMenuOpen = false" class="dropdown-link">
                     <Icon name="lucide:user" class="w-4 h-4 text-bsi" />
                     <span>Profil Saya</span>
                   </NuxtLink>
-                  <NuxtLink
-                    to="/account/orders"
-                    @click="isUserMenuOpen = false"
-                    class="dropdown-link"
-                  >
+                  <NuxtLink to="/account/orders" @click="isUserMenuOpen = false" class="dropdown-link">
                     <Icon name="lucide:package" class="w-4 h-4 text-bsi" />
                     <span>Pesanan Saya</span>
                   </NuxtLink>
-                  <button
-                    @click="handleLogout"
-                    class="dropdown-link text-coral"
-                  >
+                  <button @click="handleLogout" class="dropdown-link text-coral">
                     <Icon name="lucide:log-out" class="w-4 h-4" />
                     <span>Keluar / Logout</span>
                   </button>
@@ -310,31 +287,88 @@
 
       <!-- Mobile Expandable Search Bar (Slide Down) -->
       <transition name="slide-search">
-        <div v-if="isMobileSearchOpen" class="mobile-search-bar">
+        <div v-if="isMobileSearchOpen" ref="mobileSearchWrapperRef" class="mobile-search-bar">
           <div class="container">
-            <form
-              @submit.prevent="handleMobileSearch"
-              class="mobile-search-form"
-            >
+            <form @submit.prevent="handleMobileSearch" class="mobile-search-form">
               <Icon name="lucide:search" class="w-5 h-5 mobile-search-icon" />
-              <input
-                ref="mobileSearchInput"
-                v-model="searchQuery"
-                type="text"
-                placeholder="Cari perlengkapan kuliah, gadget, laptop..."
-                class="mobile-search-input"
-              />
-              <button
-                v-if="searchQuery"
-                type="button"
-                @click="searchQuery = ''"
-                class="clear-search-btn"
-                aria-label="Hapus Pencarian"
-              >
+              <input ref="mobileSearchInput" v-model="searchQuery" type="text"
+                placeholder="Cari kaos maba, jaket, tumbler..." class="mobile-search-input" autocomplete="off" />
+              <button v-if="searchQuery" type="button" @click="searchQuery = ''" class="clear-search-btn"
+                aria-label="Hapus Pencarian">
                 <Icon name="lucide:x" class="w-4 h-4" />
               </button>
               <button type="submit" class="btn-search-go">Cari</button>
             </form>
+
+            <!-- Mobile Shopee-Style Search History & Popular Searches -->
+            <div class="mobile-search-dropdown-content"
+              :class="{ 'is-autocomplete-mode': searchQuery.trim().length > 0 }">
+              <!-- TAMPILAN A: User Sedang Mengetik (Shopee Autocomplete Sesuai Gambar) -->
+              <template v-if="searchQuery.trim().length > 0">
+                <!-- 1. Baris Cari Toko dengan Icon Toko Merah/Oranye Sesuai Gambar -->
+                <div class="search-suggest-store-row" @click="handleMobileSearch">
+                  <div class="store-icon-wrap">
+                    <Icon name="lucide:store" class="w-4 h-4 text-orange-500" />
+                  </div>
+                  <span class="suggest-store-text">
+                    Cari Toko "<strong>{{ searchQuery.trim() }}</strong>"
+                  </span>
+                </div>
+
+                <!-- 2. Daftar Autocomplete dengan Highlight Tebal (Bold Prefix) -->
+                <div class="search-suggest-list">
+                  <div v-for="(suggestion, sIdx) in matchedSuggestions" :key="sIdx" class="search-suggest-item"
+                    @click="executeKeywordSearch(suggestion)">
+                    <span class="suggest-item-text" v-html="highlightMatch(suggestion, searchQuery.trim())"></span>
+                  </div>
+                </div>
+              </template>
+
+              <!-- TAMPILAN B: Input Masih Kosong (Riwayat & Pencarian Populer) -->
+              <template v-else>
+                <!-- Riwayat Pencarian Mobile -->
+                <div v-if="filteredHistory.length > 0" class="history-section">
+                  <div class="history-section-header">
+                    <span class="history-title">
+                      <Icon name="lucide:history" class="w-3.5 h-3.5 text-slate-400 inline mr-1" />
+                      Riwayat Pencarian
+                    </span>
+                    <button type="button" class="btn-clear-history" @click="clearAllHistory">
+                      <Icon name="lucide:trash-2" class="w-3 h-3 inline mr-0.5" />
+                      Hapus Semua
+                    </button>
+                  </div>
+                  <div class="history-chips-wrap">
+                    <div v-for="(item, idx) in filteredHistory" :key="idx" class="history-chip"
+                      @click="executeKeywordSearch(item)">
+                      <span class="chip-text">{{ item }}</span>
+                      <button type="button" class="chip-remove-btn" @click.stop="removeHistoryItem(item)"
+                        aria-label="Hapus">
+                        <Icon name="lucide:x" class="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Pencarian Populer Mobile dari Kategori Database -->
+                <div v-if="popularCategories.length > 0" class="popular-section"
+                  :class="{ 'has-border-top': filteredHistory.length > 0 }">
+                  <div class="popular-section-header">
+                    <span class="popular-title">
+                      <Icon name="lucide:flame" class="w-3.5 h-3.5 text-rose-500 inline mr-1" />
+                      Kategori Populer
+                    </span>
+                  </div>
+                  <div class="popular-chips-wrap">
+                    <button v-for="cat in popularCategories" :key="cat.id" type="button" class="popular-chip"
+                      @click="executeCategorySearch(cat)">
+                      <Icon name="lucide:sparkles" class="w-3 h-3 text-amber-500 mr-1 inline" />
+                      <span>{{ cat.name }}</span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </transition>
@@ -344,11 +378,7 @@
     <ClientOnly>
       <Teleport to="body">
         <transition name="fade">
-          <div
-            v-if="isMobileMenuOpen"
-            class="mobile-drawer-backdrop"
-            @click="closeMobileMenu"
-          ></div>
+          <div v-if="isMobileMenuOpen" class="mobile-drawer-backdrop" @click="closeMobileMenu"></div>
         </transition>
 
         <transition name="slide-drawer">
@@ -357,32 +387,16 @@
             <div class="drawer-header">
               <div class="drawer-logo">
                 <div class="logo-icon-box">
-                  <img
-                    v-if="storeLogo"
-                    :src="storeLogo"
-                    :alt="storeName || 'BSI Cyber Store'"
-                    class="logo-img"
-                    @error="handleLogoError"
-                  />
+                  <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="logo-img"
+                    @error="handleLogoError" />
                   <Icon v-else name="lucide:zap" class="logo-svg" />
                 </div>
                 <div class="logo-text-group">
-                  <span class="logo-main"
-                    ><span class="text-bsi">BSI</span> CYBER<span
-                      class="text-store"
-                      >STORE</span
-                    ></span
-                  >
-                  <span class="logo-sub"
-                    >UNIVERSITAS BINA SARANA INFORMATIKA</span
-                  >
+                  <span class="logo-main">{{ storeName }}</span>
+                  <span class="logo-sub">UNIVERSITAS BINA SARANA INFORMATIKA</span>
                 </div>
               </div>
-              <button
-                @click="closeMobileMenu"
-                class="drawer-close-btn"
-                aria-label="Tutup Menu"
-              >
+              <button @click="closeMobileMenu" class="drawer-close-btn" aria-label="Tutup Menu">
                 <Icon name="lucide:x" class="w-5 h-5" />
               </button>
             </div>
@@ -404,69 +418,40 @@
             <div class="drawer-content">
               <div class="drawer-section-title">NAVIGASI UTAMA</div>
               <nav class="drawer-links">
-                <NuxtLink
-                  to="/"
-                  class="drawer-nav-item"
-                  active-class="is-active"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/" class="drawer-nav-item" active-class="is-active" @click="closeMobileMenu">
                   <span class="drawer-icon">
                     <Icon name="lucide:home" class="w-4 h-4" />
                   </span>
                   <span>Beranda</span>
                 </NuxtLink>
-                <NuxtLink
-                  to="/products"
-                  class="drawer-nav-item"
-                  active-class="is-active"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/products" class="drawer-nav-item" active-class="is-active" @click="closeMobileMenu">
                   <span class="drawer-icon">
                     <Icon name="lucide:shopping-bag" class="w-4 h-4" />
                   </span>
                   <span>Katalog Lengkap</span>
                 </NuxtLink>
-                <NuxtLink
-                  to="/products?is_event_maba=1"
-                  class="drawer-nav-item drawer-maba-item"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/products?is_event_maba=1" class="drawer-nav-item drawer-maba-item"
+                  @click="closeMobileMenu">
                   <span class="drawer-icon">
-                    <Icon
-                      name="lucide:graduation-cap"
-                      class="w-4 h-4 text-gold"
-                    />
+                    <Icon name="lucide:graduation-cap" class="w-4 h-4 text-gold" />
                   </span>
                   <div class="drawer-maba-text">
                     <span>Perlengkapan Maba 2026</span>
                     <span class="drawer-badge-gold">Ormik & Semot</span>
                   </div>
                 </NuxtLink>
-                <NuxtLink
-                  to="/products?is_recommended=1"
-                  class="drawer-nav-item"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/products?is_recommended=1" class="drawer-nav-item" @click="closeMobileMenu">
                   <span class="drawer-icon">
                     <Icon name="lucide:flame" class="w-4 h-4 text-coral" />
                   </span>
                   <span>Cyber Picks Rekomendasi</span>
                 </NuxtLink>
-                <button @click="toggleTheme" class="drawer-nav-item">
-                  <span class="drawer-icon">
-                    <Icon :name="isDark ? 'lucide:sun' : 'lucide:moon'" class="w-4 h-4" :class="isDark ? 'text-amber-400' : 'text-slate-600'" />
-                  </span>
-                  <span>Tampilan {{ isDark ? 'Mode Terang' : 'Mode Gelap' }}</span>
-                </button>
                 <button @click="openCartFromDrawer" class="drawer-nav-item drawer-cart-item">
                   <span class="drawer-icon">
                     <Icon name="lucide:shopping-cart" class="w-4 h-4" />
                   </span>
                   <span>Keranjang Belanja</span>
-                  <span
-                    v-if="cartStore.totalItems > 0"
-                    class="drawer-count-badge"
-                  >
+                  <span v-if="cartStore.totalItems > 0" class="drawer-count-badge">
                     {{ cartStore.totalItems }}
                   </span>
                 </button>
@@ -475,30 +460,19 @@
               <!-- Member Area Links -->
               <div class="drawer-section-title">AKUN SAYA</div>
               <div v-if="authStore.isAuthenticated" class="drawer-links">
-                <NuxtLink
-                  to="/account/profile"
-                  class="drawer-nav-item"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/account/profile" class="drawer-nav-item" @click="closeMobileMenu">
                   <span class="drawer-icon">
                     <Icon name="lucide:user" class="w-4 h-4" />
                   </span>
                   <span>Profil Saya</span>
                 </NuxtLink>
-                <NuxtLink
-                  to="/account/orders"
-                  class="drawer-nav-item"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/account/orders" class="drawer-nav-item" @click="closeMobileMenu">
                   <span class="drawer-icon">
                     <Icon name="lucide:package" class="w-4 h-4" />
                   </span>
                   <span>Pesanan Saya</span>
                 </NuxtLink>
-                <button
-                  @click="handleLogoutFromDrawer"
-                  class="drawer-nav-item text-coral"
-                >
+                <button @click="handleLogoutFromDrawer" class="drawer-nav-item text-coral">
                   <span class="drawer-icon">
                     <Icon name="lucide:log-out" class="w-4 h-4" />
                   </span>
@@ -509,11 +483,7 @@
                 <p class="drawer-guest-desc">
                   Masuk untuk melihat riwayat pesanan dan kemudahan checkout.
                 </p>
-                <NuxtLink
-                  to="/auth/login"
-                  class="btn btn-primary btn-drawer-login"
-                  @click="closeMobileMenu"
-                >
+                <NuxtLink to="/auth/login" class="btn btn-primary btn-drawer-login" @click="closeMobileMenu">
                   <Icon name="lucide:log-in" class="w-4 h-4" />
                   <span>Masuk ke Akun</span>
                 </NuxtLink>
@@ -529,223 +499,37 @@
 
         <!-- Logout Confirmation Modal (Teleported to body) -->
         <transition name="modal-fade">
-          <div
-            v-if="isLogoutModalOpen"
-            class="logout-modal-backdrop"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="logout-modal-title"
-            @click.self="closeLogoutModal"
-          >
-            <div class="logout-modal-card cyber-card">
-              <!-- Top Ambient Accent Line -->
-              <div class="logout-modal-lightbar"></div>
-              <div class="modal-ambient-glow" aria-hidden="true"></div>
-
-              <!-- Modal Header -->
-              <div class="logout-modal-header">
-                <div class="logout-hero-emblem">
-                  <div class="emblem-halo-pulse"></div>
-                  <div class="emblem-inner-shield">
-                    <Icon name="lucide:log-out" class="w-6 h-6 text-coral" />
-                  </div>
-                  <div
-                    class="emblem-micro-badge"
-                    title="Sistem Autentikasi Kampus"
-                  >
-                    <Icon
-                      name="lucide:shield-alert"
-                      class="w-3.5 h-3.5 text-coral"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="logout-modal-close-btn"
-                  aria-label="Tutup Dialog Konfirmasi"
-                  :disabled="isLoggingOut"
-                  @click="closeLogoutModal"
-                >
-                  <Icon name="lucide:x" class="w-4 h-4" />
-                </button>
-              </div>
-
-              <!-- Modal Body -->
-              <div class="logout-modal-body">
-                <div class="logout-modal-title-group">
-                  <div class="logout-badge">
-                    <span class="logout-badge-pulse"></span>
-                    <span>SISTEM KEAMANAN SESI</span>
-                  </div>
-                  <h3 id="logout-modal-title" class="logout-modal-title">
-                    Keluar dari Sesi?
-                  </h3>
-                  <p class="logout-modal-desc">
-                    Apakah Anda yakin ingin mengakhiri sesi belanja aktif ini?
-                    Akun Anda akan dinonaktifkan dari perangkat ini dengan aman.
-                  </p>
-                </div>
-
-                <!-- User Info Preview Glass Card -->
-                <div v-if="authStore.user" class="logout-user-card">
-                  <div class="user-card-avatar-wrapper">
-                    <img
-                      v-if="authStore.user?.photo"
-                      :src="getImageUrl(authStore.user.photo)"
-                      :alt="authStore.user?.name || 'Foto Profil'"
-                      class="user-card-avatar-img"
-                    />
-                    <div v-else class="user-card-avatar-initial">
-                      {{
-                        (authStore.user?.name || 'U').charAt(0).toUpperCase()
-                      }}
-                    </div>
-                    <span
-                      class="user-card-status-dot"
-                      title="Sesi Terautentikasi"
-                    ></span>
-                  </div>
-                  <div class="user-card-info">
-                    <div class="user-card-name-row">
-                      <span class="user-card-name">{{
-                        authStore.user?.name
-                      }}</span>
-                      <span
-                        class="user-card-verified-badge"
-                        title="Akun Resmi Civitas UBSI"
-                      >
-                        <Icon
-                          name="lucide:badge-check"
-                          class="w-4 h-4 text-bsi"
-                        />
-                      </span>
-                    </div>
-                    <span class="user-card-email">{{
-                      authStore.user?.email
-                    }}</span>
-                    <div class="user-card-tags">
-                      <span class="user-tag-role">{{
-                        authStore.user?.role === 'admin'
-                          ? 'Administrator'
-                          : 'Civitas UBSI'
-                      }}</span>
-                      <span class="user-tag-session">Sesi Aktif</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Security / Data Retention Perks Grid -->
-                <div class="logout-perks-grid">
-                  <div class="logout-perk-item">
-                    <div class="perk-icon-box perk-icon-cart">
-                      <Icon
-                        name="lucide:shopping-bag"
-                        class="w-4 h-4 text-bsi"
-                      />
-                    </div>
-                    <div class="perk-content">
-                      <span class="perk-title">Keranjang Disimpan</span>
-                      <span class="perk-desc"
-                        >Daftar item belanja tetap aman</span
-                      >
-                    </div>
-                  </div>
-                  <div class="logout-perk-item">
-                    <div class="perk-icon-box perk-icon-shield">
-                      <Icon
-                        name="lucide:shield-check"
-                        class="w-4 h-4 text-emerald"
-                      />
-                    </div>
-                    <div class="perk-content">
-                      <span class="perk-title">Sesi Terenkripsi</span>
-                      <span class="perk-desc">Token ditutup aman</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Modal Actions -->
-              <div class="logout-modal-actions">
-                <button
-                  type="button"
-                  class="btn-cancel-logout"
-                  :disabled="isLoggingOut"
-                  @click="closeLogoutModal"
-                >
-                  <Icon name="lucide:arrow-left" class="w-4 h-4" />
-                  <span>Batal & Kembali</span>
-                </button>
-                <button
-                  type="button"
-                  class="btn-logout-confirm"
-                  :disabled="isLoggingOut"
-                  @click="confirmLogout"
-                >
-                  <span class="btn-shimmer-effect"></span>
-                  <Icon
-                    v-if="isLoggingOut"
-                    name="lucide:loader-2"
-                    class="w-4 h-4 animate-spin"
-                  />
-                  <Icon v-else name="lucide:log-out" class="w-4 h-4" />
-                  <span>{{
-                    isLoggingOut ? 'Mengeluarkan...' : 'Ya, Keluar Sekarang'
-                  }}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </transition>
-
-        <!-- Logout Success Toast Notification (Teleported to body) -->
-        <transition name="toast-pop">
-          <div
-            v-if="logoutToast.show"
-            class="logout-toast-notification"
-            role="status"
-            aria-live="polite"
-          >
-            <!-- Ambient Glowing Accent Line -->
-            <div class="toast-glow-accent"></div>
-
-            <div class="toast-content-wrapper">
-              <div class="toast-icon-box">
-                <div class="toast-icon-pulse"></div>
-                <Icon
-                  name="lucide:check-circle-2"
-                  class="w-5 h-5 text-emerald relative z-1"
-                />
-              </div>
-              <div class="toast-text-group">
-                <div class="toast-header-row">
-                  <div class="toast-badge-wrap">
-                    <span class="toast-pulse-dot"></span>
-                    <span class="toast-tag">LOGOUT BERHASIL</span>
-                  </div>
-                  <span class="toast-time">Baru saja</span>
-                </div>
-                <p class="toast-msg">{{ logoutToast.message }}</p>
-                <div class="toast-footer-note">
-                  <Icon
-                    name="lucide:shield-check"
-                    class="w-3.5 h-3.5 text-emerald inline mr-1"
-                  />
-                  <span>Sesi belanja telah diamankan</span>
-                </div>
-              </div>
-              <button
-                type="button"
-                class="toast-dismiss-btn"
-                aria-label="Tutup Pemberitahuan"
-                @click="logoutToast.show = false"
-              >
+          <div v-if="isLogoutModalOpen" class="logout-modal-backdrop" role="dialog" aria-modal="true"
+            aria-labelledby="logout-modal-title" @click.self="closeLogoutModal">
+            <div class="logout-modal-card simple-confirm-modal">
+              <button type="button" class="simple-modal-close" aria-label="Tutup Dialog" :disabled="isLoggingOut"
+                @click="closeLogoutModal">
                 <Icon name="lucide:x" class="w-4 h-4" />
               </button>
-            </div>
-            <!-- Progress Bar Indicator -->
-            <div class="toast-progress-track">
-              <div class="toast-progress-bar"></div>
+
+              <div class="simple-modal-icon-circle">
+                <Icon name="lucide:log-out" class="w-6 h-6 text-coral" />
+              </div>
+
+              <div class="simple-modal-content">
+                <h3 id="logout-modal-title" class="simple-modal-title">
+                  Konfirmasi Keluar
+                </h3>
+                <p class="simple-modal-desc">
+                  Apakah Anda yakin ingin keluar dari akun Anda?
+                </p>
+              </div>
+
+              <div class="simple-modal-actions">
+                <button type="button" class="btn-simple-cancel" :disabled="isLoggingOut" @click="closeLogoutModal">
+                  Batal
+                </button>
+                <button type="button" class="btn-simple-logout" :disabled="isLoggingOut" @click="confirmLogout">
+                  <Icon v-if="isLoggingOut" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+                  <Icon v-else name="lucide:log-out" class="w-4 h-4" />
+                  <span>{{ isLoggingOut ? 'Mengeluarkan...' : 'Ya, Keluar' }}</span>
+                </button>
+              </div>
             </div>
           </div>
         </transition>
@@ -761,33 +545,43 @@ import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
 import { useTheme } from '~/composables/useTheme'
+import { useToast } from '~/composables/useToast'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
-const { fetchStoreInfo, getImageUrl } = useApi()
-const { isDark, toggleTheme, initTheme } = useTheme()
+const toast = useToast()
+const { fetchStoreInfo, fetchCategories, getImageUrl } = useApi()
+const { initTheme } = useTheme()
 
-// Dynamic Store Logo & Name from Admin Settings
-const storeLogo = ref('/logo-cyberstore.jpg')
-const storeName = ref('BSI Cyber Store')
+// Fetch Categories from Database for Popular Searches
+const { data: categoriesData } = await useAsyncData('navbar_categories', () => fetchCategories(), {
+  getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
+})
 
-const handleLogoError = () => {
-  storeLogo.value = '/logo-cyberstore.jpg'
-}
+const popularCategories = computed(() => {
+  const list = categoriesData.value?.categories || []
+  return list.filter((c: any) => Boolean(c.is_active))
+})
 
 // Dynamic Store Info (Top Announcement Bar)
 const defaultAnnouncement =
   'PROMO SPESIAL MAHASISWA BARU 2026! Dapatkan Diskon Hingga 50% Menggunakan Kode: <strong>MABA2026</strong>'
 
-const announcement = ref({
-  is_active: true,
-  badge: 'BSI Cyber Store Official',
-  text: defaultAnnouncement,
-  info: 'Garansi Resmi 100%',
-  link: '',
-  bg_color: '',
-  text_color: '',
+// Await store info on SSR so SSR HTML and hydration match perfectly
+const { data: storeInfoData } = await useAsyncData('navbar_store_info', () => fetchStoreInfo())
+
+const announcement = useState('navbar_announcement', () => {
+  const data = storeInfoData.value
+  return {
+    is_active: data?.announcement?.is_active ?? true,
+    badge: data?.announcement?.badge || 'BSI Cyber Store Official',
+    text: data?.announcement?.text || defaultAnnouncement,
+    info: data?.announcement?.info || 'Garansi Resmi 100%',
+    link: data?.announcement?.link || '',
+    bg_color: data?.announcement?.bg_color || '',
+    text_color: data?.announcement?.text_color || '',
+  }
 })
 
 const announcementStyle = computed(() => {
@@ -798,7 +592,7 @@ const announcementStyle = computed(() => {
   if (announcement.value.text_color) {
     styles.color = announcement.value.text_color
   }
-  return styles
+  return Object.keys(styles).length > 0 ? styles : undefined
 })
 
 // Sanitasi XSS untuk konten HTML yang berasal dari server/database
@@ -817,8 +611,73 @@ const safeAnnouncementText = computed(() => {
   return sanitizeHtml(announcement.value.text || defaultAnnouncement)
 })
 
+// Dynamic Store Logo & Name from Admin Settings
+const cachedStoreInfo = useState<any>('cached_store_info', () => null)
+const storeLogo = useState<string>('navbar_store_logo', () => {
+  const data = storeInfoData.value || cachedStoreInfo.value
+  const logo = data?.store_logo || data?.logo
+  return logo ? getImageUrl(logo) : '/logo-cyberstore.jpg'
+})
+const storeName = useState<string>('navbar_store_name', () => {
+  const data = storeInfoData.value || cachedStoreInfo.value
+  return data?.store_name || data?.name || 'BSI Cyber Store'
+})
+
+const handleLogoError = () => {
+  if (storeLogo.value !== '/logo-cyberstore.jpg') {
+    storeLogo.value = '/logo-cyberstore.jpg'
+  }
+}
+
+const applyStoreInfo = (data: any) => {
+  if (!data) return
+  const logoUrl = data.store_logo || data.logo
+  if (logoUrl) {
+    storeLogo.value = getImageUrl(logoUrl)
+  }
+  const name = data.store_name || data.name
+  if (name) {
+    storeName.value = name
+  }
+  if (data.announcement) {
+    announcement.value = {
+      is_active: data.announcement.is_active ?? true,
+      badge: data.announcement.badge || 'BSI Cyber Store Official',
+      text: data.announcement.text || defaultAnnouncement,
+      info: data.announcement.info || '',
+      link: data.announcement.link || '',
+      bg_color: data.announcement.bg_color || '',
+      text_color: data.announcement.text_color || '',
+    }
+  }
+}
+
+// Immediate synchronization if storeInfoData resolves
+if (storeInfoData.value) {
+  applyStoreInfo(storeInfoData.value)
+}
+
+// Reactive listener if cachedStoreInfo updates elsewhere
+watch(
+  cachedStoreInfo,
+  (val) => {
+    if (val) applyStoreInfo(val)
+  },
+  { deep: true }
+)
+
+watch(
+  storeInfoData,
+  (newData) => {
+    if (newData) applyStoreInfo(newData)
+  },
+  { deep: true }
+)
+
 // Ref for click outside detection
 const userMenuRef = ref<HTMLElement | null>(null)
+const searchWrapperRef = ref<HTMLElement | null>(null)
+const mobileSearchWrapperRef = ref<HTMLElement | null>(null)
 
 const handleDocumentClick = (event: MouseEvent) => {
   if (
@@ -828,10 +687,31 @@ const handleDocumentClick = (event: MouseEvent) => {
   ) {
     isUserMenuOpen.value = false
   }
+
+  if (
+    isSearchDropdownOpen.value &&
+    searchWrapperRef.value &&
+    !searchWrapperRef.value.contains(event.target as Node) &&
+    (!mobileSearchWrapperRef.value || !mobileSearchWrapperRef.value.contains(event.target as Node))
+  ) {
+    isSearchDropdownOpen.value = false
+  }
+}
+
+const handleKeydown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape') {
+    if (isSearchDropdownOpen.value) {
+      isSearchDropdownOpen.value = false
+    }
+    if (isLogoutModalOpen.value && !isLoggingOut.value) {
+      closeLogoutModal()
+    }
+  }
 }
 
 onMounted(async () => {
   initTheme()
+  loadSearchHistory()
   if (typeof document !== 'undefined') {
     document.addEventListener('click', handleDocumentClick)
     document.addEventListener('keydown', handleKeydown)
@@ -840,23 +720,7 @@ onMounted(async () => {
   try {
     const data = await fetchStoreInfo()
     if (data) {
-      if (data.store_logo || data.logo) {
-        storeLogo.value = getImageUrl(data.store_logo || data.logo)
-      }
-      if (data.store_name || data.name) {
-        storeName.value = data.store_name || data.name
-      }
-      if (data.announcement) {
-        announcement.value = {
-          is_active: data.announcement.is_active ?? true,
-          badge: data.announcement.badge || 'BSI Cyber Store Official',
-          text: data.announcement.text || defaultAnnouncement,
-          info: data.announcement.info || '',
-          link: data.announcement.link || '',
-          bg_color: data.announcement.bg_color || '',
-          text_color: data.announcement.text_color || '',
-        }
-      }
+      applyStoreInfo(data)
     }
   } catch (err) {
     console.error('Failed to load store info:', err)
@@ -868,9 +732,6 @@ onBeforeUnmount(() => {
     document.removeEventListener('click', handleDocumentClick)
     document.removeEventListener('keydown', handleKeydown)
   }
-  if (logoutToastTimer) {
-    clearTimeout(logoutToastTimer)
-  }
 })
 
 const searchQuery = ref('')
@@ -879,20 +740,195 @@ const isMobileMenuOpen = ref(false)
 const isMobileSearchOpen = ref(false)
 const mobileSearchInput = ref<HTMLInputElement | null>(null)
 
-// Logout Confirmation & Toast Notification States
-const isLogoutModalOpen = ref(false)
-const isLoggingOut = ref(false)
-const logoutToast = ref<{ show: boolean; message: string }>({
-  show: false,
-  message: ''
-})
-let logoutToastTimer: any = null
+// Shopee-Style Search History States & Methods
+const isSearchDropdownOpen = ref(false)
+const searchHistory = ref<string[]>([])
+const SEARCH_HISTORY_KEY = 'cyberstore_search_history'
 
-const handleKeydown = (e: KeyboardEvent) => {
-  if (e.key === 'Escape' && isLogoutModalOpen.value && !isLoggingOut.value) {
-    closeLogoutModal()
+// Trending & Popular UBSI Merchandise Searches
+const popularSearches = [
+  'Kaos Ormik & Semot',
+  'Jaket UBSI',
+  'Tumbler BSI',
+  'Badge UBSI',
+  'Gelas Mug BSI',
+  'Bantal Kampus',
+]
+
+// Database Rekomendasi Kata Kunci (Shopee Autocomplete Style)
+const defaultSuggestionsDatabase = [
+  // Tumbler items
+  'tumbler',
+  'tumbler ubsi premium',
+  'tumbler stainless custom',
+  'tumbler semot hitam',
+  'tumbler ormik 500ml',
+  'tumbler official cyberstore',
+  // Baju items (sesuai contoh di gambar Shopee)
+  'baju atasan wanita terbaru',
+  'baju kaos pria',
+  'baju anak perempuan',
+  'baju wanita kekinian',
+  'baju anak laki laki',
+  'baju couple pasangan',
+  'baju kaos wanita',
+  'baju wanita korean style',
+  'baju crop top wanita',
+  'baju kaos semot maba',
+  'baju kemeja ormik',
+  'baju polo ubsi hitam',
+  'baju almamater ubsi',
+  // Jaket items
+  'jaket almamater ubsi',
+  'jaket varsity ubsi',
+  'jaket bomber semot',
+  'jaket hoodie ubsi official',
+  // Gelas & Mug
+  'gelas mug ubsi',
+  'mug keramik custom',
+  'mug souvenir semot',
+  // Badge & Aksesoris
+  'badge ubsi bordir',
+  'badge logo ubsi ormik',
+  'tote bag ubsi kanvas',
+  'lanyard id card ubsi',
+  'topi ubsi hitam',
+  'pin ubsi logam',
+  // Bantal
+  'bantal leher ubsi',
+  'bantal kampus ubsi',
+]
+
+const matchedSuggestions = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return []
+
+  const dbCategoryNames = popularCategories.value.map((c: any) => String(c.name))
+  const allSources = [...dbCategoryNames, ...defaultSuggestionsDatabase]
+
+  const matched = allSources.filter(item => item.toLowerCase().includes(q))
+  const results: string[] = []
+
+  // Sertakan kata kunci input pengguna di paling atas jika belum ada persis
+  if (!matched.some(m => m.toLowerCase() === q)) {
+    results.push(searchQuery.value.trim())
+  }
+  results.push(...matched)
+
+  return Array.from(new Set(results)).slice(0, 9)
+})
+
+const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const highlightMatch = (text: string, query: string): string => {
+  if (!query) return text
+  const escaped = escapeRegex(query)
+  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<strong>$1</strong>')
+}
+
+const loadSearchHistory = () => {
+  if (import.meta.client) {
+    try {
+      const stored = localStorage.getItem(SEARCH_HISTORY_KEY)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          searchHistory.value = parsed.slice(0, 10)
+        }
+      }
+    } catch (e) {
+      console.error('Error loading search history:', e)
+    }
   }
 }
+
+const saveToSearchHistory = (query: string) => {
+  const trimmed = query.trim()
+  if (!trimmed) return
+
+  const filtered = searchHistory.value.filter(
+    item => item.toLowerCase() !== trimmed.toLowerCase()
+  )
+  filtered.unshift(trimmed)
+  searchHistory.value = filtered.slice(0, 10)
+
+  if (import.meta.client) {
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value))
+    } catch (e) {
+      console.error('Error saving search history:', e)
+    }
+  }
+}
+
+const removeHistoryItem = (itemToRemove: string) => {
+  searchHistory.value = searchHistory.value.filter(item => item !== itemToRemove)
+  if (import.meta.client) {
+    try {
+      localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory.value))
+    } catch (e) {
+      console.error('Error updating search history:', e)
+    }
+  }
+}
+
+const clearAllHistory = () => {
+  searchHistory.value = []
+  if (import.meta.client) {
+    try {
+      localStorage.removeItem(SEARCH_HISTORY_KEY)
+    } catch (e) {
+      console.error('Error clearing search history:', e)
+    }
+  }
+  toast.info('Riwayat pencarian telah dibersihkan.', {
+    title: 'Riwayat Dihapus',
+    tag: 'PENCARIAN',
+    duration: 3000,
+  })
+}
+
+const filteredHistory = computed(() => {
+  if (!searchQuery.value.trim()) {
+    return searchHistory.value
+  }
+  const q = searchQuery.value.toLowerCase().trim()
+  return searchHistory.value.filter(item => item.toLowerCase().includes(q))
+})
+
+const executeKeywordSearch = (keyword: string) => {
+  // Menampilkan log saat tumbler / keyword diklik (sesuai permintaan user)
+  console.log('log tumbler:', keyword)
+  console.log('[Search Log] Keyword diklik:', keyword)
+
+  searchQuery.value = keyword
+  isSearchDropdownOpen.value = false
+  saveToSearchHistory(keyword)
+  closeAllMenus()
+  router.push({
+    path: '/products',
+    query: { search: keyword }
+  })
+}
+
+const executeCategorySearch = (cat: { id: number | string; name: string }) => {
+  console.log('log category:', cat.name)
+  console.log('log tumbler:', cat.name)
+  console.log('[Search Log] Kategori diklik:', cat)
+
+  searchQuery.value = cat.name
+  isSearchDropdownOpen.value = false
+  saveToSearchHistory(cat.name)
+  closeAllMenus()
+  router.push({
+    path: '/products',
+    query: { category_id: String(cat.id) }
+  })
+}
+
+// Logout Confirmation Modal States
+const isLogoutModalOpen = ref(false)
+const isLoggingOut = ref(false)
 
 // Auto-close menus on page change
 watch(
@@ -945,17 +981,24 @@ const closeAllMenus = () => {
   isUserMenuOpen.value = false
   isMobileMenuOpen.value = false
   isMobileSearchOpen.value = false
+  isSearchDropdownOpen.value = false
   if (typeof document !== 'undefined') {
     document.body.style.overflow = ''
   }
 }
 
 const handleSearch = () => {
+  const query = searchQuery.value.trim()
+  console.log('log tumbler:', query)
+  console.log('[Search Log] Pencarian dieksekusi:', query)
+  isSearchDropdownOpen.value = false
   closeAllMenus()
-  if (searchQuery.value.trim()) {
+
+  if (query) {
+    saveToSearchHistory(query)
     router.push({
       path: '/products',
-      query: { search: searchQuery.value.trim() }
+      query: { search: query }
     })
   } else {
     router.push('/products')
@@ -963,7 +1006,22 @@ const handleSearch = () => {
 }
 
 const handleMobileSearch = () => {
-  handleSearch()
+  const query = searchQuery.value.trim()
+  console.log('log tumbler:', query)
+  console.log('[Search Log] Mobile search dieksekusi:', query)
+  isMobileSearchOpen.value = false
+  isSearchDropdownOpen.value = false
+  closeAllMenus()
+
+  if (query) {
+    saveToSearchHistory(query)
+    router.push({
+      path: '/products',
+      query: { search: query }
+    })
+  } else {
+    router.push('/products')
+  }
 }
 
 const openCartFromDrawer = () => {
@@ -998,16 +1056,11 @@ const confirmLogout = async () => {
     await authStore.logout()
     isLogoutModalOpen.value = false
 
-    // Tampilkan Toast Validasi Berhasil Logout
-    logoutToast.value = {
-      show: true,
-      message: `Sampai jumpa kembali, ${userName}! Anda telah berhasil keluar dari akun.`
-    }
-
-    if (logoutToastTimer) clearTimeout(logoutToastTimer)
-    logoutToastTimer = setTimeout(() => {
-      logoutToast.value.show = false
-    }, 4500)
+    // Tampilkan Toast Validasi Berhasil Logout via Global Ultra-Premium Toast
+    toast.success(`Sampai jumpa kembali, ${userName}.`, {
+      title: 'Logout Berhasil',
+      duration: 4500,
+    })
 
     // Redirect ke beranda jika sedang di halaman akun
     if (router.currentRoute.value.path !== '/') {
@@ -1016,14 +1069,12 @@ const confirmLogout = async () => {
   } catch (error) {
     console.error('Logout error:', error)
     isLogoutModalOpen.value = false
-    logoutToast.value = {
-      show: true,
-      message: 'Anda telah berhasil keluar dari sesi akun.'
-    }
-    if (logoutToastTimer) clearTimeout(logoutToastTimer)
-    logoutToastTimer = setTimeout(() => {
-      logoutToast.value.show = false
-    }, 4500)
+    toast.success('Anda telah berhasil keluar dari sesi akun.', {
+      title: 'Logout Berhasil',
+      tag: 'SESI DIAMANKAN',
+      footerNote: 'Sesi belanja Anda telah diamankan',
+      duration: 4500,
+    })
     if (router.currentRoute.value.path !== '/') {
       await router.push('/')
     }
@@ -1069,20 +1120,16 @@ const confirmLogout = async () => {
   display: flex;
   align-items: center;
   cursor: pointer;
-  mask-image: linear-gradient(
-    to right,
-    transparent,
-    black 28px,
-    black calc(100% - 28px),
-    transparent
-  );
-  -webkit-mask-image: linear-gradient(
-    to right,
-    transparent,
-    black 28px,
-    black calc(100% - 28px),
-    transparent
-  );
+  mask-image: linear-gradient(to right,
+      transparent,
+      black 28px,
+      black calc(100% - 28px),
+      transparent);
+  -webkit-mask-image: linear-gradient(to right,
+      transparent,
+      black 28px,
+      black calc(100% - 28px),
+      transparent);
 }
 
 .announcement-marquee-track {
@@ -1143,6 +1190,7 @@ const confirmLogout = async () => {
 }
 
 @keyframes pulse-glow {
+
   0%,
   100% {
     opacity: 1;
@@ -1203,6 +1251,8 @@ const confirmLogout = async () => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
+  flex: 1;
 }
 
 /* Hamburger Button */
@@ -1255,7 +1305,8 @@ const confirmLogout = async () => {
   align-items: center;
   gap: 0.75rem;
   text-decoration: none;
-  flex-shrink: 0;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
 .logo-icon-box {
@@ -1290,16 +1341,20 @@ const confirmLogout = async () => {
 .logo-text-group {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .logo-main {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 1.25rem;
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
   color: #0f172a;
-  line-height: 1.1;
+  line-height: 1.15;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .text-bsi {
@@ -1373,6 +1428,359 @@ const confirmLogout = async () => {
 .search-btn:hover {
   background: #003399;
   transform: translateY(-50%) scale(1.05);
+}
+
+.desktop-clear-search-btn {
+  position: absolute;
+  right: 38px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.desktop-clear-search-btn:hover {
+  background: #94a3b8;
+  color: #ffffff;
+}
+
+/* ========================================================
+   Shopee-Style Search History & Autocomplete Dropdown
+   ======================================================== */
+.search-history-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.14), 0 4px 12px rgba(0, 0, 0, 0.04);
+  z-index: 1000;
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.search-history-dropdown.is-autocomplete-mode {
+  padding: 0.35rem 0;
+  gap: 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* 1. Baris Cari Toko (Shopee Style) */
+.search-suggest-store-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.search-suggest-store-row:hover {
+  background: #fff7ed;
+}
+
+.store-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #ffedd5;
+  flex-shrink: 0;
+}
+
+.suggest-store-text {
+  font-size: 0.875rem;
+  color: #1e293b;
+}
+
+.suggest-store-text strong {
+  color: #ea580c;
+  font-weight: 700;
+}
+
+/* 2. Daftar Autocomplete Items (Shopee Style dengan bold prefix) */
+.search-suggest-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0;
+}
+
+.search-suggest-item {
+  display: flex;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  user-select: none;
+}
+
+.search-suggest-item:hover {
+  background: #f8fafc;
+}
+
+.suggest-item-text {
+  font-size: 0.875rem;
+  color: #334155;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.suggest-item-text strong {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* Dark Mode Autocomplete Styles */
+html.dark .search-history-dropdown {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.5);
+}
+
+html.dark .search-suggest-store-row {
+  border-bottom-color: #334155;
+}
+
+html.dark .search-suggest-store-row:hover {
+  background: #334155;
+}
+
+html.dark .suggest-store-text {
+  color: #f1f5f9;
+}
+
+html.dark .suggest-store-text strong {
+  color: #fb923c;
+}
+
+html.dark .search-suggest-item:hover {
+  background: #334155;
+}
+
+html.dark .suggest-item-text {
+  color: #cbd5e1;
+}
+
+html.dark .suggest-item-text strong {
+  color: #ffffff;
+}
+
+.search-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.search-action-row:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.search-action-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.825rem;
+  color: #1e3a8a;
+}
+
+.search-action-text strong {
+  color: #003399;
+}
+
+/* History Section */
+.history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.history-section-header,
+.popular-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-title,
+.popular-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: flex;
+  align-items: center;
+}
+
+.btn-clear-history {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-clear-history:hover {
+  color: #ef4444;
+  background: #fee2e2;
+}
+
+.history-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.history-chip:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #003399;
+  transform: translateY(-1px);
+}
+
+.chip-text {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chip-remove-btn {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  border: none;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.chip-remove-btn:hover {
+  background: #ef4444;
+  color: #ffffff;
+  transform: scale(1.15);
+}
+
+/* Popular Searches Section */
+.popular-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.popular-section.has-border-top {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 0.65rem;
+}
+
+.popular-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.popular-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 20px;
+  color: #1e293b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.popular-chip:hover {
+  background: #003399;
+  border-color: #002266;
+  color: #ffffff;
+  box-shadow: 0 3px 8px rgba(0, 51, 153, 0.25);
+  transform: translateY(-1px);
+}
+
+.popular-chip:hover svg {
+  color: #fde047 !important;
+}
+
+/* Transitions */
+.search-dropdown-pop-enter-active,
+.search-dropdown-pop-leave-active {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.search-dropdown-pop-enter-from,
+.search-dropdown-pop-leave-to {
+  opacity: 0;
+  transform: translateY(-6px) scale(0.98);
+}
+
+/* Mobile Search Dropdown Container */
+.mobile-search-dropdown-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #f1f5f9;
 }
 
 /* Nav Actions */
@@ -2173,7 +2581,8 @@ const confirmLogout = async () => {
 /* 3. Mobile Landscape & Tablets Portrait (max-width: 768px) */
 @media (max-width: 768px) {
   .top-announcement {
-    padding: 0.28rem 0;
+    padding: 0.3rem 0;
+    line-height: 1.35;
   }
 
   .announcement-item {
@@ -2194,28 +2603,122 @@ const confirmLogout = async () => {
     font-size: 0.7rem;
   }
 
+  .nav-container {
+    padding: 0 12px;
+    gap: 0.5rem;
+  }
+
+  .nav-left {
+    flex: 1;
+    min-width: 0;
+    gap: 0.45rem;
+  }
+
+  .brand-logo {
+    gap: 0.45rem;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .logo-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+  }
+
+  .logo-text-group {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .logo-main {
+    font-size: clamp(0.85rem, 3.8vw, 1.15rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.15;
+  }
+
+  .logo-sub {
+    display: none;
+  }
+
   .nav-search-wrapper {
     display: none;
   }
 
+  .nav-actions {
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
   .mobile-search-btn {
     display: flex;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+  }
+
+  .hamburger-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 7px;
+  }
+
+  /* Jadikan Cart Button circular icon rapi agar tidak terpotong di tepi layar HP */
+  .cart-trigger-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    border-radius: 50%;
+    justify-content: center;
   }
 
   .cart-btn-label {
     display: none;
   }
 
-  .cart-trigger-btn {
-    padding: 0.5rem 0.75rem;
+  .cart-counter-badge {
+    top: -5px;
+    right: -6px;
+    min-width: 17px;
+    height: 17px;
+    font-size: 0.62rem;
+    padding: 1px 4px;
   }
 
-  .user-name-label {
+  /* Notifikasi trigger button di mobile dibuat compact serasi */
+  :deep(.notif-trigger-btn) {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+  }
+
+  :deep(.notif-trigger-btn:hover),
+  :deep(.notif-trigger-btn.is-active) {
+    background: #eff6ff;
+    border-color: #004aad;
+  }
+
+  .user-name-label,
+  .user-chevron {
     display: none;
   }
 
   .user-avatar-btn {
-    padding: 0.25rem 0.5rem;
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    justify-content: center;
+    border-radius: 50%;
   }
 
   .login-btn-label {
@@ -2223,77 +2726,102 @@ const confirmLogout = async () => {
   }
 
   .btn-login {
-    padding: 0.45rem 0.65rem;
+    display: none;
   }
 }
 
 /* 4. Small Mobile Phones (max-width: 480px) */
 @media (max-width: 480px) {
-  .announcement-item {
-    gap: 0.55rem;
-    padding: 0 0.75rem;
-  }
-
-  .announcement-badge {
-    font-size: 0.65rem;
-    padding: 1px 6px;
-  }
-
-  .announcement-text {
-    font-size: 0.7rem;
-  }
-
-  .announcement-info {
-    font-size: 0.68rem;
-  }
-
-  .logo-icon-box {
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-  }
-
-  .logo-svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .logo-main {
-    font-size: 1.05rem;
-  }
-
   .nav-container {
-    gap: 0.5rem;
+    padding: 0 10px;
+    gap: 0.35rem;
   }
 
   .nav-left {
-    gap: 0.4rem;
+    gap: 0.35rem;
   }
 
-  .hamburger-btn {
+  .brand-logo {
+    gap: 0.35rem;
+  }
+
+  .logo-icon-box {
+    width: 32px;
+    height: 32px;
+    border-radius: 7px;
+  }
+
+  .logo-svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .logo-main {
+    font-size: clamp(0.78rem, 3.5vw, 0.95rem);
+  }
+
+  .announcement-item {
+    gap: 0.5rem;
+    padding: 0 0.65rem;
+  }
+
+  .announcement-badge {
+    font-size: 0.62rem;
+    padding: 1px 5px;
+  }
+
+  .announcement-text {
+    font-size: 0.68rem;
+  }
+
+  .announcement-info {
+    font-size: 0.65rem;
+  }
+
+  .hamburger-btn,
+  .action-icon-btn,
+  .cart-trigger-btn,
+  :deep(.notif-trigger-btn),
+  .user-avatar-btn {
     width: 34px;
     height: 34px;
-    padding: 7px;
+    min-width: 34px;
   }
 
-  .action-icon-btn {
-    width: 34px;
-    height: 34px;
-  }
-
-  .cart-trigger-btn {
-    padding: 0.4rem 0.65rem;
+  .nav-actions {
+    gap: 0.25rem;
   }
 }
 
 /* 5. Extra Small Devices (max-width: 360px) */
 @media (max-width: 360px) {
+  .nav-container {
+    padding: 0 6px;
+    gap: 0.25rem;
+  }
+
+  .logo-icon-box {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+  }
+
   .logo-main {
-    font-size: 0.95rem;
+    font-size: 0.74rem;
+  }
+
+  .hamburger-btn,
+  .action-icon-btn,
+  .cart-trigger-btn,
+  :deep(.notif-trigger-btn),
+  .user-avatar-btn {
+    width: 31px;
+    height: 31px;
+    min-width: 31px;
   }
 
   .nav-actions {
-    gap: 0.35rem;
+    gap: 0.2rem;
   }
 }
 
@@ -2306,11 +2834,9 @@ const confirmLogout = async () => {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: radial-gradient(
-    circle at 50% 30%,
-    rgba(0, 51, 153, 0.28) 0%,
-    rgba(15, 23, 42, 0.82) 100%
-  );
+  background: radial-gradient(circle at 50% 30%,
+      rgba(0, 51, 153, 0.28) 0%,
+      rgba(15, 23, 42, 0.82) 100%);
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   display: flex;
@@ -2320,7 +2846,124 @@ const confirmLogout = async () => {
   perspective: 1200px;
 }
 
-/* 2. Modal Card with Layered 3D Depth & Glowing Aesthetics */
+/* 2. Simple Confirmation Modal */
+.simple-confirm-modal {
+  max-width: 400px;
+  padding: 1.75rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.1rem;
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.25);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  position: relative;
+}
+
+.simple-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.simple-modal-close:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.simple-modal-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fff1f2;
+  border: 1px solid #ffe4e6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e11d48;
+}
+
+.simple-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.simple-modal-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.simple-modal-desc {
+  font-size: 0.925rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.simple-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.btn-simple-cancel,
+.btn-simple-logout {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.925rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.btn-simple-cancel {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.btn-simple-cancel:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-simple-logout {
+  background: #e11d48;
+  color: #ffffff;
+  border: 1px solid #be123c;
+}
+
+.btn-simple-logout:hover:not(:disabled) {
+  background: #be123c;
+}
+
+.btn-simple-cancel:disabled,
+.btn-simple-logout:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .logout-modal-card {
   width: 100%;
   max-width: 470px;
@@ -2340,13 +2983,11 @@ const confirmLogout = async () => {
 .logout-modal-lightbar {
   width: 100%;
   height: 4px;
-  background: linear-gradient(
-    90deg,
-    #e11d48 0%,
-    #f43f5e 35%,
-    #f59e0b 70%,
-    #004aad 100%
-  );
+  background: linear-gradient(90deg,
+      #e11d48 0%,
+      #f43f5e 35%,
+      #f59e0b 70%,
+      #004aad 100%);
   box-shadow: 0 0 14px rgba(225, 29, 72, 0.6);
 }
 
@@ -2357,11 +2998,9 @@ const confirmLogout = async () => {
   width: 180px;
   height: 180px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(225, 29, 72, 0.08) 0%,
-    transparent 70%
-  );
+  background: radial-gradient(circle,
+      rgba(225, 29, 72, 0.08) 0%,
+      transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -2390,12 +3029,10 @@ const confirmLogout = async () => {
   position: absolute;
   inset: -6px;
   border-radius: 22px;
-  background: radial-gradient(
-    circle,
-    rgba(225, 29, 72, 0.22) 0%,
-    rgba(225, 29, 72, 0.04) 70%,
-    transparent 100%
-  );
+  background: radial-gradient(circle,
+      rgba(225, 29, 72, 0.22) 0%,
+      rgba(225, 29, 72, 0.04) 70%,
+      transparent 100%);
   animation: emblemHaloPulse 3s ease-in-out infinite alternate;
 }
 
@@ -2812,12 +3449,10 @@ const confirmLogout = async () => {
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.25),
-    transparent
-  );
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.25),
+      transparent);
   transform: skewX(-20deg);
   animation: btnShimmer 3.5s infinite;
 }
@@ -2879,200 +3514,7 @@ const confirmLogout = async () => {
   }
 }
 
-/* ==========================================================================
-   9. ULTRA-PREMIUM LOGOUT SUCCESS TOAST NOTIFICATION
-   ========================================================================== */
-.logout-toast-notification {
-  position: fixed;
-  top: 24px;
-  right: 28px;
-  z-index: 100000;
-  max-width: 440px;
-  width: calc(100vw - 40px);
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(16, 185, 129, 0.35);
-  border-radius: 20px;
-  box-shadow: 0 24px 50px -10px rgba(16, 185, 129, 0.25),
-    0 10px 25px -5px rgba(15, 23, 42, 0.08),
-    0 0 0 1px rgba(255, 255, 255, 0.9) inset;
-  overflow: hidden;
-  backdrop-filter: blur(16px) saturate(160%);
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-}
 
-.toast-glow-accent {
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, #10b981 0%, #06b6d4 50%, #004aad 100%);
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
-}
-
-.toast-content-wrapper {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.95rem;
-  padding: 1.1rem 1.25rem;
-}
-
-.toast-icon-box {
-  position: relative;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border: 1px solid #a7f3d0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
-}
-
-.toast-icon-pulse {
-  position: absolute;
-  inset: -4px;
-  border-radius: 18px;
-  background: radial-gradient(
-    circle,
-    rgba(16, 185, 129, 0.25) 0%,
-    transparent 70%
-  );
-  animation: toastIconPulse 2.5s infinite alternate;
-}
-
-@keyframes toastIconPulse {
-  0% {
-    transform: scale(0.9);
-    opacity: 0.5;
-  }
-
-  100% {
-    transform: scale(1.15);
-    opacity: 1;
-  }
-}
-
-.toast-text-group {
-  flex: 1;
-  min-width: 0;
-}
-
-.toast-header-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.3rem;
-}
-
-.toast-badge-wrap {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.toast-pulse-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 6px #10b981;
-  animation: pulseDot 1.8s infinite;
-}
-
-.toast-tag {
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: #059669;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.toast-time {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #94a3b8;
-}
-
-.toast-msg {
-  font-size: 0.885rem;
-  color: #1e293b;
-  line-height: 1.48;
-  font-weight: 600;
-  margin-bottom: 0.35rem;
-}
-
-.toast-footer-note {
-  font-size: 0.725rem;
-  color: #059669;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-}
-
-.toast-dismiss-btn {
-  color: #94a3b8;
-  padding: 0.3rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  background: transparent;
-  border: none;
-  flex-shrink: 0;
-}
-
-.toast-dismiss-btn:hover {
-  color: #0f172a;
-  background: #f1f5f9;
-  transform: rotate(90deg);
-}
-
-.toast-progress-track {
-  width: 100%;
-  height: 3px;
-  background: #ecfdf5;
-  overflow: hidden;
-}
-
-.toast-progress-bar {
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, #10b981, #06b6d4, #004aad);
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
-  animation: toastProgressBar 4.5s linear forwards;
-}
-
-@keyframes toastProgressBar {
-  from {
-    width: 100%;
-  }
-
-  to {
-    width: 0%;
-  }
-}
-
-/* Toast Animations */
-.toast-pop-enter-active {
-  transition: all 0.38s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.toast-pop-leave-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 1, 1);
-}
-
-.toast-pop-enter-from {
-  opacity: 0;
-  transform: translateY(-24px) scale(0.92);
-}
-
-.toast-pop-leave-to {
-  opacity: 0;
-  transform: translateY(-12px) scale(0.96);
-}
 
 /* 10. Responsive Adjustments */
 @media (max-width: 640px) {
@@ -3109,15 +3551,6 @@ const confirmLogout = async () => {
   .logout-perks-grid {
     grid-template-columns: 1fr;
     gap: 0.5rem;
-  }
-
-  .logout-toast-notification {
-    top: 16px;
-    right: 14px;
-    left: 14px;
-    width: auto;
-    max-width: none;
-    border-radius: 16px;
   }
 }
 </style>

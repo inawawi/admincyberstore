@@ -129,7 +129,7 @@ export async function hydrateOrder(orderId: number) {
   );
   const order = orders[0];
   if (!order) return null;
-  const [items, payments, trackings] = await Promise.all([
+  const [items, payments, trackings, reviews] = await Promise.all([
     rows<RowDataPacket & Record<string, unknown>>(
       `SELECT oi.*, p.slug, p.main_photo, p.stock
          FROM order_items oi LEFT JOIN products p ON p.id = oi.product_id
@@ -144,7 +144,40 @@ export async function hydrateOrder(orderId: number) {
       "SELECT * FROM order_trackings WHERE order_id = ? ORDER BY created_at DESC, id DESC",
       [orderId],
     ),
+    rows<RowDataPacket & Record<string, unknown>>(
+      `SELECT id, product_id, order_id, rating, comment, photo, created_at
+         FROM product_reviews
+        WHERE order_id = ? OR (user_id = ? AND product_id IN (SELECT product_id FROM order_items WHERE order_id = ?))`,
+      [orderId, order.user_id, orderId],
+    ),
   ]);
+
+  const reviewMap = new Map<number, Record<string, unknown>>();
+  for (const rev of reviews) {
+    if (rev.product_id) {
+      reviewMap.set(Number(rev.product_id), rev);
+    }
+  }
+
+  const serializedItems = items.map((item) => {
+    const rev = item.product_id ? reviewMap.get(Number(item.product_id)) : null;
+    return {
+      ...item,
+      is_reviewed: Boolean(rev),
+      review: rev || null,
+      product: item.product_id ? serializeProduct({
+        id: item.product_id,
+        name: item.product_name,
+        slug: item.slug,
+        main_photo: item.main_photo,
+        stock: item.stock,
+      }) : null,
+    };
+  });
+
+  const allItemsReviewed = serializedItems.length > 0 && serializedItems.every((it) => it.is_reviewed);
+  const anyItemReviewed = reviews.length > 0 || serializedItems.some((it) => it.is_reviewed);
+
   return safeJson({
     id: order.id,
     invoice_number: order.invoice_number,
@@ -184,17 +217,10 @@ export async function hydrateOrder(orderId: number) {
       service: order.expedition_service,
       estimated_days: order.estimated_days,
     },
-    items: items.map((item) => ({
-      ...item,
-      is_reviewed: false,
-      product: item.product_id ? serializeProduct({
-        id: item.product_id,
-        name: item.product_name,
-        slug: item.slug,
-        main_photo: item.main_photo,
-        stock: item.stock,
-      }) : null,
-    })),
+    items: serializedItems,
+    is_reviewed: allItemsReviewed,
+    has_reviewed: anyItemReviewed,
+    reviews_count: reviews.length,
     payment: payments[0] || null,
     trackings: trackings.map((tracking) => ({
       ...tracking,

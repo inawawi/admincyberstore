@@ -25,7 +25,10 @@
               </div>
               <div class="showcase-brand-text">
                 <span class="brand-title">
-                  <span class="text-gold">BSI</span> CYBER<span class="text-white">STORE</span>
+                  <span class="text-gold">BSI</span> CYBER<span
+                    class="text-white"
+                    >STORE</span
+                  >
                 </span>
                 <span class="brand-tag">Official Tech Gear & Merchandise</span>
               </div>
@@ -35,14 +38,15 @@
             <div class="showcase-hero">
               <div class="security-pill">
                 <span class="pulse-dot"></span>
-                <span class="pill-text">Sistem Autentikasi Kampus Terenkripsi</span>
+                <span class="pill-text">Produk Original 100%</span>
               </div>
               <h2 class="showcase-heading">
-                Akses Resmi Ekosistem <br />
-                <span class="gradient-text">Teknologi & Lifestyle</span>
+                Akses Toko Resmi <br />
+                <span class="gradient-text">BSI Cyber Store</span>
               </h2>
               <p class="showcase-desc">
-                Masuk untuk mengakses merchandise original, perlengkapan kuliah IT, diskon mahasiswa baru, dan tracking pesanan kilat di Official Store UBSI.
+                Selamat datang di {{ storeName }} Login untuk mengakses
+                merchandise original dan tracking pesanan kilat.
               </p>
             </div>
 
@@ -70,11 +74,11 @@
 
               <div class="feature-item">
                 <div class="feature-icon">
-                  <Icon name="lucide:clock" class="w-5 h-5 text-cyan" />
+                  <Icon name="lucide:shopping-bag" class="w-5 h-5 text-cyan" />
                 </div>
                 <div class="feature-text">
-                  <strong>Tracking Realtime Terintegrasi</strong>
-                  <span>Pantau resi kurir Mandiri, JNE, SiCepat, & TIKI</span>
+                  <strong>Belanja dengan mudah</strong>
+                  <span>Kini anda bisa belanja dengan mudah</span>
                 </div>
               </div>
             </div>
@@ -83,10 +87,15 @@
             <div class="showcase-footer">
               <div class="rating-stars">
                 <span v-for="s in 5" :key="s">
-                  <Icon name="lucide:star" class="w-3.5 h-3.5 fill-amber-400 text-amber-400 inline" />
+                  <Icon
+                    name="lucide:star"
+                    class="w-3.5 h-3.5 fill-amber-400 text-amber-400 inline"
+                  />
                 </span>
               </div>
-              <span class="trust-note">Platform E-Commerce Terpercaya Civitas UBSI</span>
+              <span class="trust-note"
+                >Platform E-Commerce Terpercaya Civitas UBSI</span
+              >
             </div>
           </div>
         </div>
@@ -106,7 +115,9 @@
                 />
               </div>
               <span class="mobile-brand-name">
-                <span class="text-gold">BSI</span> CYBER<span class="text-ubsi">STORE</span>
+                <span class="text-gold">BSI</span> CYBER<span class="text-ubsi"
+                  >STORE</span
+                >
               </span>
             </div>
 
@@ -114,32 +125,49 @@
               <div class="badge-row">
                 <span class="pane-badge">
                   <span class="badge-dot"></span>
-                  Gerbang Autentikasi
+                  Silahkan Login Terlebih Dahulu
                 </span>
               </div>
               <h1 class="auth-title">Masuk ke Akun</h1>
-              <p class="auth-desc">Silakan masukkan kredensial akun Anda untuk melanjutkan belanja.</p>
+              <p class="auth-desc">
+                Silakan masukkan kredensial akun Anda untuk melanjutkan belanja.
+              </p>
             </div>
 
             <!-- Error Alert -->
             <div v-if="errorMessage" class="error-box" role="alert">
-              <Icon name="lucide:alert-circle" class="alert-icon w-5 h-5 text-coral" />
+              <Icon
+                name="lucide:alert-circle"
+                class="alert-icon w-5 h-5 text-coral"
+              />
               <span>{{ errorMessage }}</span>
             </div>
 
             <!-- Success Alert -->
             <div v-if="successMessage" class="success-box" role="status">
-              <Icon name="lucide:check-circle" class="alert-icon w-5 h-5 text-emerald" />
+              <Icon
+                name="lucide:check-circle"
+                class="alert-icon w-5 h-5 text-emerald"
+              />
               <span>{{ successMessage }}</span>
             </div>
 
             <!-- OTP Step -->
-            <form v-if="step === 'otp'" @submit.prevent="handleVerifyOtp" class="auth-form">
+            <form
+              v-if="step === 'otp'"
+              @submit.prevent="handleVerifyOtp"
+              class="auth-form"
+            >
               <div class="otp-notice-box">
-                <div class="otp-icon-wrap"><Icon name="lucide:mail" class="w-6 h-6 text-bsi" /></div>
+                <div class="otp-icon-wrap">
+                  <Icon name="lucide:mail" class="w-6 h-6 text-bsi" />
+                </div>
                 <div class="otp-notice-content">
                   <h4>Verifikasi Keamanan Akun</h4>
-                  <p>Kode OTP 6-digit telah dikirimkan ke email <strong>{{ email }}</strong></p>
+                  <p>
+                    Kode OTP 6-digit telah dikirimkan ke email
+                    <strong>{{ email }}</strong>
+                  </p>
                 </div>
               </div>
 
@@ -156,12 +184,21 @@
                     autofocus
                   />
                 </div>
-                <span class="helper-text">Periksa kotak masuk atau folder spam email Anda.</span>
+                <span class="helper-text"
+                  >Periksa kotak masuk atau folder spam email Anda.</span
+                >
               </div>
 
-              <button type="submit" :disabled="authStore.isLoading" class="btn btn-primary btn-submit">
+              <button
+                type="submit"
+                :disabled="authStore.isLoading"
+                class="btn btn-primary btn-submit"
+              >
                 <span v-if="authStore.isLoading" class="btn-spinner-wrap">
-                  <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
+                  <Icon
+                    name="lucide:loader-2"
+                    class="spinner-icon w-4 h-4 animate-spin"
+                  />
                   <span>Memverifikasi...</span>
                 </span>
                 <span v-else class="btn-content-wrap">
@@ -181,12 +218,18 @@
                     class="btn-resend-link"
                   >
                     <span v-if="isResendingOtp">Mengirim ulang...</span>
-                    <span v-else-if="resendCooldown > 0">Kirim ulang ({{ resendCooldown }}s)</span>
+                    <span v-else-if="resendCooldown > 0"
+                      >Kirim ulang ({{ resendCooldown }}s)</span
+                    >
                     <span v-else>Kirim Ulang Kode</span>
                   </button>
                 </p>
 
-                <button type="button" @click="handleBackToLogin" class="btn-back-link">
+                <button
+                  type="button"
+                  @click="handleBackToLogin"
+                  class="btn-back-link"
+                >
                   ← Kembali ke Form Login
                 </button>
               </div>
@@ -202,13 +245,28 @@
                 class="btn-google"
               >
                 <svg class="google-icon" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                  />
                 </svg>
                 <span v-if="isGoogleLoading" class="btn-spinner-wrap">
-                  <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
+                  <Icon
+                    name="lucide:loader-2"
+                    class="spinner-icon w-4 h-4 animate-spin"
+                  />
                   <span>Mengarahkan ke Google...</span>
                 </span>
                 <span v-else>Masuk dengan Akun Google</span>
@@ -241,9 +299,6 @@
                 <div class="form-group">
                   <div class="label-row">
                     <label class="form-label">Password</label>
-                    <NuxtLink to="/auth/forgot-password" class="forgot-password-link">
-                      Lupa Password?
-                    </NuxtLink>
                   </div>
                   <div class="input-icon-wrapper">
                     <span class="input-left-icon">
@@ -261,24 +316,71 @@
                       type="button"
                       class="password-toggle-btn"
                       @click="showPassword = !showPassword"
-                      :title="showPassword ? 'Sembunyikan password' : 'Lihat password'"
+                      :title="
+                        showPassword ? 'Sembunyikan password' : 'Lihat password'
+                      "
                       tabindex="-1"
                     >
-                      <Icon v-if="showPassword" name="lucide:eye" class="eye-icon w-4 h-4" />
-                      <Icon v-else name="lucide:eye-off" class="eye-icon w-4 h-4" />
+                      <Icon
+                        v-if="showPassword"
+                        name="lucide:eye"
+                        class="eye-icon w-4 h-4"
+                      />
+                      <Icon
+                        v-else
+                        name="lucide:eye-off"
+                        class="eye-icon w-4 h-4"
+                      />
                     </button>
+                  </div>
+                  <div class="flex justify-end mt-1">
+                    <NuxtLink
+                      to="/auth/forgot-password"
+                      class="forgot-password-link"
+                    >
+                      Lupa Password?
+                    </NuxtLink>
                   </div>
                 </div>
 
                 <!-- Submit Button with Gradient & Hover Lift -->
-                <button type="submit" :disabled="authStore.isLoading" class="btn btn-primary btn-submit">
+                <!-- Captcha/Calculation Field -->
+                <div class="form-group">
+                  <label class="form-label"
+                    >Verifikasi Keamanan: {{ num1 }} + {{ num2 }} = ?</label
+                  >
+                  <div class="input-icon-wrapper">
+                    <span class="input-left-icon">
+                      <Icon name="lucide:calculator" class="w-4 h-4 text-bsi" />
+                    </span>
+                    <input
+                      v-model.number="captchaAnswer"
+                      type="string"
+                      placeholder="Masukkan hasil"
+                      required
+                      class="input-cyber input-has-icon"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  :disabled="authStore.isLoading"
+                  class="btn btn-primary btn-submit"
+                >
                   <span v-if="authStore.isLoading" class="btn-spinner-wrap">
-                    <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
+                    <Icon
+                      name="lucide:loader-2"
+                      class="spinner-icon w-4 h-4 animate-spin"
+                    />
                     <span>Memproses Masuk...</span>
                   </span>
                   <span v-else class="btn-content-wrap">
                     <span>Masuk Sekarang</span>
-                    <Icon name="lucide:arrow-right" class="w-4 h-4 arrow-hover" />
+                    <Icon
+                      name="lucide:arrow-right"
+                      class="w-4 h-4 arrow-hover"
+                    />
                   </span>
                 </button>
               </form>
@@ -302,6 +404,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '~/stores/auth'
@@ -312,6 +415,10 @@ const authStore = useAuthStore()
 const config = useRuntimeConfig()
 const storeLogo = ref('/logo-cyberstore.jpg')
 const storeName = ref('BSI Cyber Store')
+const num1 = ref(Math.floor(Math.random() * 10) + 1)
+const num2 = ref(Math.floor(Math.random() * 10) + 1)
+const captchaAnswer = ref<number | null>(null)
+
 const passwordInputRef = ref<HTMLInputElement | null>(null)
 
 const handleLogoError = () => {
@@ -351,7 +458,11 @@ onUnmounted(() => {
 const getSafeRedirect = (target?: string | null): string => {
   if (!target || typeof target !== 'string') return '/'
   const trimmed = target.trim()
-  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.includes('\\')) {
+  if (
+    trimmed.startsWith('/') &&
+    !trimmed.startsWith('//') &&
+    !trimmed.includes('\\')
+  ) {
     return trimmed
   }
   return '/'
@@ -360,6 +471,17 @@ const getSafeRedirect = (target?: string | null): string => {
 const handleLogin = async () => {
   errorMessage.value = ''
   successMessage.value = ''
+
+  // Validate math captcha
+  if (captchaAnswer.value !== num1.value + num2.value) {
+    errorMessage.value = 'Jawaban verifikasi salah. Silakan coba lagi.'
+    // Refresh captcha
+    num1.value = Math.floor(Math.random() * 10) + 1
+    num2.value = Math.floor(Math.random() * 10) + 1
+    captchaAnswer.value = null
+    return
+  }
+
   const result = await authStore.login(email.value, password.value)
 
   if (result.success) {
@@ -379,7 +501,8 @@ const handleVerifyOtp = async () => {
 
   const cleanOtp = String(otpCode.value || '').trim()
   if (!cleanOtp) {
-    errorMessage.value = 'Silakan masukkan 6 digit kode OTP yang dikirimkan ke email Anda.'
+    errorMessage.value =
+      'Silakan masukkan 6 digit kode OTP yang dikirimkan ke email Anda.'
     return
   }
 
@@ -388,7 +511,8 @@ const handleVerifyOtp = async () => {
   if (result.success) {
     router.push(getSafeRedirect(route.query.redirect as string))
   } else {
-    errorMessage.value = result.message || 'Kode OTP tidak valid atau telah kedaluwarsa.'
+    errorMessage.value =
+      result.message || 'Kode OTP tidak valid atau telah kedaluwarsa.'
   }
 }
 
@@ -404,7 +528,9 @@ const handleResendOtp = async () => {
   isResendingOtp.value = false
 
   if (result.success) {
-    successMessage.value = result.message || 'Kode OTP baru telah dikirimkan ke email Anda. Silakan periksa inbox atau spam.'
+    successMessage.value =
+      result.message ||
+      'Kode OTP baru telah dikirimkan ke email Anda. Silakan periksa inbox atau spam.'
     startCooldownTimer(60)
   } else {
     errorMessage.value = result.message || 'Gagal mengirim ulang kode OTP.'
@@ -426,7 +552,11 @@ const handleGoogleLogin = () => {
   errorMessage.value = ''
 
   const clientId = config.public.googleClientId
-  const redirectUri = config.public.googleRedirectUri || (typeof window !== 'undefined' ? `${window.location.origin}/auth/google/callback` : '')
+  const redirectUri =
+    config.public.googleRedirectUri ||
+    (typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/google/callback`
+      : '')
 
   if (!clientId) {
     errorMessage.value = 'Google Client ID belum dikonfigurasi di file .env.'
@@ -436,7 +566,8 @@ const handleGoogleLogin = () => {
   isGoogleLoading.value = true
 
   // Buat random state token untuk memproteksi serangan OAuth Login CSRF
-  const stateToken = Math.random().toString(36).substring(2) + Date.now().toString(36)
+  const stateToken =
+    Math.random().toString(36).substring(2) + Date.now().toString(36)
   const safeRedirect = getSafeRedirect(route.query.redirect as string)
   if (import.meta.client) {
     sessionStorage.setItem('google_oauth_state', stateToken)
@@ -449,7 +580,7 @@ const handleGoogleLogin = () => {
     response_type: 'code',
     scope: 'openid email profile',
     prompt: 'select_account',
-    state: stateToken,
+    state: stateToken
   })
 
   window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
@@ -461,7 +592,8 @@ onMounted(async () => {
     email.value = route.query.email.trim()
   }
   if (route.query.registered === '1' || route.query.registered === 'true') {
-    successMessage.value = 'Verifikasi kode berhasil! Akun Anda telah aktif. Silakan masukkan kata sandi Anda untuk masuk.'
+    successMessage.value =
+      'Verifikasi kode berhasil! Akun Anda telah aktif. Silakan masukkan kata sandi Anda untuk masuk.'
     nextTick(() => {
       passwordInputRef.value?.focus()
     })
@@ -484,7 +616,7 @@ onMounted(async () => {
 })
 
 useHead({
-  title: 'Masuk Akun | Cyber Store',
+  title: 'Masuk Akun | Cyber Store'
 })
 </script>
 
@@ -512,7 +644,12 @@ useHead({
 .orb-1 {
   width: 460px;
   height: 460px;
-  background: radial-gradient(circle, rgba(0, 74, 173, 0.35) 0%, rgba(2, 132, 199, 0.15) 50%, transparent 80%);
+  background: radial-gradient(
+    circle,
+    rgba(0, 74, 173, 0.35) 0%,
+    rgba(2, 132, 199, 0.15) 50%,
+    transparent 80%
+  );
   top: -60px;
   left: -80px;
 }
@@ -520,7 +657,12 @@ useHead({
 .orb-2 {
   width: 480px;
   height: 480px;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.22) 0%, rgba(0, 51, 153, 0.12) 50%, transparent 80%);
+  background: radial-gradient(
+    circle,
+    rgba(245, 158, 11, 0.22) 0%,
+    rgba(0, 51, 153, 0.12) 50%,
+    transparent 80%
+  );
   bottom: -80px;
   right: -80px;
 }
@@ -540,14 +682,21 @@ useHead({
   background: #ffffff;
   border-radius: 24px;
   border: 1px solid rgba(0, 74, 173, 0.16);
-  box-shadow: 0 20px 50px -12px rgba(0, 34, 102, 0.16), 0 0 1px 1px rgba(0, 74, 173, 0.08);
+  box-shadow: 0 20px 50px -12px rgba(0, 34, 102, 0.16),
+    0 0 1px 1px rgba(0, 74, 173, 0.08);
   overflow: hidden;
   min-height: 620px;
 }
 
 /* LEFT SHOWCASE PANEL */
 .auth-showcase {
-  background: linear-gradient(150deg, #001845 0%, #002266 40%, #003399 85%, #004aad 100%);
+  background: linear-gradient(
+    150deg,
+    #001845 0%,
+    #002266 40%,
+    #003399 85%,
+    #004aad 100%
+  );
   color: #ffffff;
   padding: 3.25rem 3rem;
   position: relative;
@@ -563,15 +712,22 @@ useHead({
   right: 0;
   width: 320px;
   height: 320px;
-  background: radial-gradient(circle, rgba(0, 212, 255, 0.28) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(0, 212, 255, 0.28) 0%,
+    transparent 70%
+  );
   pointer-events: none;
 }
 
 .showcase-grid-mesh {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-image: linear-gradient(
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px
+    ),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
 }
@@ -673,8 +829,16 @@ useHead({
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
 }
 
 .pill-text {

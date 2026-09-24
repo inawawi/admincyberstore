@@ -29,7 +29,12 @@
     </section>
 
     <!-- Event Maba (Ormik & Semot) Section -->
-    <EventMabaSection :products="eventMabaProducts" />
+    <EventMabaSection
+      :products="eventMabaProducts"
+      :event-title="storeInfoData?.event_maba_title"
+      :event-heading="storeInfoData?.event_maba_heading"
+      :event-description="storeInfoData?.event_maba_description"
+    />
 
     <!-- Cyber Picks / Recommended Section -->
     <section v-if="recommendedProducts.length > 0" class="section-container">
@@ -102,7 +107,9 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
 
-const { fetchProducts, fetchCategories, fetchBanners } = useApi()
+const { fetchProducts, fetchCategories, fetchBanners, fetchStoreInfo } = useApi()
+const { data: storeInfoData } = await useAsyncData('index_store_info', () => fetchStoreInfo())
+
 
 // Fetch homepage data in parallel with non-blocking lazy transition & payload cache
 const { data: homeData, pending } = await useAsyncData(

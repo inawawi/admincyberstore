@@ -9,7 +9,45 @@ export default defineEventHandler(async (event) => {
     return { address: null }
   }
 
-  // Skenario 1: Nominatim Reverse dengan User-Agent resmi
+  // Skenario 1: Coba Photon Reverse (Cepat & Akurat)
+  try {
+    const photonUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`
+    const pData = await $fetch<any>(photonUrl, {
+      headers: {
+        'User-Agent': 'BsiCyberStoreApp/1.0 (cs@bsicyberstore.ac.id)',
+        'Accept': 'application/json',
+      },
+      timeout: 8000,
+    })
+
+    if (pData?.features && pData.features.length > 0) {
+      const p = pData.features[0].properties || {}
+      const road = p.street || p.name || ''
+      const district = p.district || ''
+      const city = p.city || ''
+      const province = p.state || ''
+      const postalCode = p.postcode || ''
+
+      const cleanParts = [road, district].filter(Boolean)
+      const streetAddress = cleanParts.length > 0 ? cleanParts.join(', ') : (p.name || 'Alamat Terpilih')
+
+      return {
+        address: {
+          latitude: lat,
+          longitude: lng,
+          address: streetAddress,
+          city,
+          province,
+          postal_code: postalCode,
+          district,
+        }
+      }
+    }
+  } catch (photonErr) {
+    console.warn('Photon reverse failed, fallback to Nominatim:', photonErr)
+  }
+
+  // Skenario 2: Fallback ke Nominatim Reverse
   try {
     const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
     const data = await $fetch<any>(nominatimUrl, {
@@ -17,7 +55,7 @@ export default defineEventHandler(async (event) => {
         'User-Agent': 'BsiCyberStoreApp/1.0 (cs@bsicyberstore.ac.id)',
         'Accept-Language': 'id',
       },
-      timeout: 5000,
+      timeout: 8000,
     })
 
     if (data?.address) {
@@ -46,41 +84,7 @@ export default defineEventHandler(async (event) => {
       }
     }
   } catch (nomErr) {
-    console.warn('Nominatim reverse failed, fallback to Photon:', nomErr)
-  }
-
-  // Skenario 2: Photon Reverse
-  try {
-    const photonUrl = `https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`
-    const pData = await $fetch<any>(photonUrl, {
-      timeout: 5000,
-    })
-
-    if (pData?.features && pData.features.length > 0) {
-      const p = pData.features[0].properties || {}
-      const road = p.street || p.name || ''
-      const district = p.district || ''
-      const city = p.city || ''
-      const province = p.state || ''
-      const postalCode = p.postcode || ''
-
-      const cleanParts = [road, district].filter(Boolean)
-      const streetAddress = cleanParts.length > 0 ? cleanParts.join(', ') : (p.name || 'Alamat Terpilih')
-
-      return {
-        address: {
-          latitude: lat,
-          longitude: lng,
-          address: streetAddress,
-          city,
-          province,
-          postal_code: postalCode,
-          district,
-        }
-      }
-    }
-  } catch (photonErr) {
-    console.error('Photon reverse failed:', photonErr)
+    console.error('Nominatim reverse failed:', nomErr)
   }
 
   return { address: null }

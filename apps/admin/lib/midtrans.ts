@@ -94,3 +94,41 @@ export function verifyMidtransSignature(input: {
 export function midtransClientConfig() {
   return { clientKey: env.midtrans.clientKey, production: env.midtrans.production };
 }
+
+// A stable refund key lets an interrupted approval be retried safely.
+export async function refundCancelledOrder(invoice: string, amount: number, reason: string) {
+  if (!env.midtrans.serverKey) throw new ApiError(422, "Server key Midtrans belum dikonfigurasi. Refund tidak dijalankan.");
+  const request = async (path: string, body?: Record<string, unknown>) => {
+    const response = await fetch(`${apiBase()}/v2/${path}`, {
+      method: body ? "POST" : "GET",
+      headers: { Authorization: authorization(), Accept: "application/json", "Content-Type": "application/json" },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const data = await response.json() as Record<string, unknown>;
+    if (!response.ok || String(data.status_code) !== "200") {
+      throw new ApiError(502, `Midtrans: ${String(data.status_message || "Transaksi belum dapat dibatalkan/refund. Coba sinkronkan kembali.")}`);
+    }
+    return data;
+  };
+  const status = await request(`${encodeURIComponent(invoice)}/status`);
+  const state = String(status.transaction_status);
+  if (state === "refund") return "refund";
+  if (["cancel", "expire", "deny", "failure"].includes(state)) return "cancel";
+  const reference = encodeURIComponent(String(status.transaction_id || invoice));
+  if (["pending", "authorize", "capture"].includes(state)) {
+    const result = await request(`${reference}/cancel`, {});
+    if (result.transaction_status !== "cancel") throw new ApiError(502, "Midtrans belum mengonfirmasi pembatalan. Coba lagi.");
+    return "cancel";
+  }
+  if (state !== "settlement") throw new ApiError(422, "Status Midtrans tidak mendukung refund penuh otomatis.");
+  if (!["credit_card", "gopay", "shopeepay", "dana", "ovo", "qris", "kredivo", "akulaku"].includes(String(status.payment_type).toLowerCase())) {
+    throw new ApiError(422, "Metode pembayaran ini tidak mendukung refund otomatis Midtrans. Hubungi Midtrans untuk pengembalian dana; jangan tandai refund selesai.");
+  }
+  if (Number(status.gross_amount) !== amount) throw new ApiError(422, "Nominal pembayaran Midtrans berbeda dari pesanan. Periksa sebelum refund.");
+  const result = await request(`${reference}/refund`, {
+    refund_key: `cancel-${invoice}`, amount, reason: reason.slice(0, 255),
+  });
+  if (result.transaction_status !== "refund") throw new ApiError(502, "Refund penuh belum dikonfirmasi Midtrans. Coba sinkronkan kembali.");
+  return "refund";
+}

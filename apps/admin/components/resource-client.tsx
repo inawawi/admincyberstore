@@ -4,11 +4,13 @@ import { FormEvent, useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import Select from "react-select";
+import Select, { type SingleValue, type StylesConfig } from "react-select";
 import { Icon } from "@/components/icon";
 import type { ResourceField, ResourceMeta } from "@/types";
 import { mabaColorOptions } from "@/lib/constants";
 import { SweetAlert } from "@/components/sweet-alert";
+import { encryptOrderId } from "@/lib/id-cipher";
+import { CyberLoader } from "@/components/cyber-loader";
 
 interface Props {
   meta: ResourceMeta;
@@ -36,6 +38,7 @@ interface Props {
     otherReviews: Array<Record<string, unknown>>;
     customerOrders: Array<Record<string, unknown>>;
   } | null;
+  currentUser?: { id: number; role: string; name?: string; email?: string } | null;
 }
 
 const money = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
@@ -186,8 +189,29 @@ const formatColorOptionLabel = (option: { label?: string; value: string; hex?: s
   );
 };
 
-const reactSelectColorStyles: any = {
-  control: (base: any, state: any) => ({
+type ColorOption = { value: string; label?: string; hex?: string; name?: string };
+
+type ParsedStockColor = { name: string; hex: string; stock?: number };
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function parseStockColor(value: unknown): ParsedStockColor {
+  if (typeof value === "string") {
+    return { name: value, hex: resolveColorHex(value) };
+  }
+  const color = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const name = String(color.name || "");
+  return {
+    name,
+    hex: String(color.hex || resolveColorHex(name)),
+    stock: color.stock !== undefined ? Number(color.stock) : undefined,
+  };
+}
+
+const reactSelectColorStyles: StylesConfig<ColorOption> = {
+  control: (base, state) => ({
     ...base,
     minHeight: "36px",
     height: "36px",
@@ -202,29 +226,29 @@ const reactSelectColorStyles: any = {
       borderColor: state.isFocused ? "var(--accent)" : "var(--control-border)",
     },
   }),
-  valueContainer: (base: any) => ({
+  valueContainer: (base) => ({
     ...base,
     height: "36px",
     padding: "0 10px",
   }),
-  input: (base: any) => ({
+  input: (base) => ({
     ...base,
     margin: 0,
     padding: 0,
     color: "var(--text)",
   }),
-  singleValue: (base: any) => ({
+  singleValue: (base) => ({
     ...base,
     color: "var(--text)",
     display: "flex",
     alignItems: "center",
   }),
-  placeholder: (base: any) => ({
+  placeholder: (base) => ({
     ...base,
     color: "var(--muted)",
     fontSize: "13px",
   }),
-  menu: (base: any) => ({
+  menu: (base) => ({
     ...base,
     backgroundColor: "var(--surface-raised)",
     border: "1px solid var(--border)",
@@ -232,17 +256,17 @@ const reactSelectColorStyles: any = {
     boxShadow: "0 12px 35px rgba(0,0,0,0.25)",
     zIndex: 99999,
   }),
-  menuPortal: (base: any) => ({
+  menuPortal: (base) => ({
     ...base,
     zIndex: 99999,
   }),
-  option: (base: any, state: any) => ({
+  option: (base, state) => ({
     ...base,
     backgroundColor: state.isSelected
       ? "var(--accent)"
       : state.isFocused
-      ? "var(--surface-hover)"
-      : "transparent",
+        ? "var(--surface-hover)"
+        : "transparent",
     color: state.isSelected ? "#ffffff" : "var(--text)",
     fontSize: "13px",
     cursor: "pointer",
@@ -258,7 +282,16 @@ function display(value: unknown, format?: string) {
   if (format === "number") return number.format(Number(value));
   if (format === "date") return <span className="date-cell">{date.format(new Date(String(value)))}</span>;
   if (format === "boolean") return Boolean(value) ? <span className="status-pill success"><span />Aktif</span> : <span className="status-pill neutral"><span />Nonaktif</span>;
-  if (format === "status") return <span className={`status-pill status-${String(value)}`}>{String(value).replaceAll("_", " ")}</span>;
+  if (format === "status") {
+    const raw = String(value);
+    const roleLabels: Record<string, string> = {
+      customer: "Pelanggan",
+      admin: "Admin",
+      superadmin: "Superadmin",
+    };
+    const label = roleLabels[raw] || raw.replaceAll("_", " ");
+    return <span className={`status-pill status-${raw}`}><span />{label}</span>;
+  }
   if (format === "rating") return <span className="rating-value">★ {Number(value).toFixed(1)}</span>;
   if (typeof value === "object") return JSON.stringify(value);
   const text = String(value);
@@ -381,8 +414,8 @@ function StockMovementsView({
       setManualRef("");
       setManualNote("");
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Terjadi kesalahan saat mencatat mutasi stok.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Terjadi kesalahan saat mencatat mutasi stok."), type: "error" });
     } finally {
       setSubmitting(false);
     }
@@ -426,8 +459,8 @@ function StockMovementsView({
         const typeColor = isIn ? "#059669" : "#dc2626";
         const dateFormatted = row.created_at
           ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(
-              new Date(String(row.created_at))
-            )
+            new Date(String(row.created_at))
+          )
           : "-";
         return `
         <tr>
@@ -437,9 +470,8 @@ function StockMovementsView({
             <div style="font-size:11px;color:#6b7280;">Stok saat ini: ${row.current_stock ?? "-"}</div>
           </td>
           <td style="text-align:center;">
-            <span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:600;color:${typeColor};background:${
-          isIn ? "#ecfdf5" : "#fef2f2"
-        };border:1px solid ${isIn ? "#a7f3d0" : "#fecaca"};">
+            <span style="display:inline-block;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:600;color:${typeColor};background:${isIn ? "#ecfdf5" : "#fef2f2"
+          };border:1px solid ${isIn ? "#a7f3d0" : "#fecaca"};">
               ${typeLabel}
             </span>
           </td>
@@ -557,7 +589,7 @@ function StockMovementsView({
             <div className="stock-card-title">
               <span className="stock-title-wave-icon">
                 <svg width="22" height="14" viewBox="0 0 22 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1.5 7.5L6 3L10.5 8L15 4L20.5 10" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M1.5 7.5L6 3L10.5 8L15 4L20.5 10" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </span>
               <h2>Riwayat Mutasi Stok</h2>
@@ -639,12 +671,12 @@ function StockMovementsView({
                     const isIn = row.type === "in";
                     const formattedDate = row.created_at
                       ? new Intl.DateTimeFormat("id-ID", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        }).format(new Date(String(row.created_at)))
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }).format(new Date(String(row.created_at)))
                       : "—";
 
                     return (
@@ -875,6 +907,40 @@ function formatOrderStatus(status: string) {
   return map[status] || { label: status, color: "#94a3b8", bg: "rgba(148, 163, 184, 0.15)", border: "rgba(148, 163, 184, 0.3)" };
 }
 
+function generateAutoResi(expeditionCode?: string | null, expeditionName?: string | null): string {
+  const code = (expeditionCode || expeditionName || "").toLowerCase();
+  const dateStr = new Date().toISOString().slice(2, 10).replace(/-/g, "");
+  const rand = (len: number) => Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
+
+  if (code.includes("j&t") || code.includes("jnt")) {
+    return `JP${dateStr}${rand(4)}`;
+  }
+  if (code.includes("jne")) {
+    return `JNE${dateStr}${rand(6)}`;
+  }
+  if (code.includes("sicepat")) {
+    return `00${dateStr}${rand(6)}`;
+  }
+  if (code.includes("anteraja")) {
+    return `1000${dateStr}${rand(4)}`;
+  }
+  if (code.includes("tiki")) {
+    return `TIKI${dateStr}${rand(5)}`;
+  }
+  if (code.includes("pos")) {
+    return `POS${dateStr}${rand(6)}`;
+  }
+  if (code.includes("ninja")) {
+    return `NLID${dateStr}${rand(5)}`;
+  }
+  if (code.includes("wahana")) {
+    return `WHN${dateStr}${rand(6)}`;
+  }
+
+  const cleanCode = (expeditionCode || "CS").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4) || "CS";
+  return `${cleanCode}${dateStr}${rand(4)}`;
+}
+
 function OrdersView({
   meta,
   result,
@@ -922,28 +988,69 @@ function OrdersView({
   const [trackingModal, setTrackingModal] = useState(false);
   const [trackingInfo, setTrackingInfo] = useState<{ title: string; message: string } | null>(null);
   const [checkingTracking, setCheckingTracking] = useState(false);
+  const [refreshingTrackings, setRefreshingTrackings] = useState(false);
+  const [actionMenuOrderId, setActionMenuOrderId] = useState<string | number | null>(null);
 
   useEffect(() => {
-    if (selectedOrderDetail?.order) {
-      setEditStatus(String(selectedOrderDetail.order.status || "pending_payment"));
-      setEditResi(String(selectedOrderDetail.order.resi_number || ""));
+    function handleOutsideClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".action-dropdown-wrap")) {
+        setActionMenuOrderId(null);
+      }
     }
-  }, [selectedOrderDetail]);
+    document.addEventListener("mousedown", handleOutsideClick);
+
+    // If URL has legacy plain integer order_id, automatically update URL to encrypted token
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      const currentParam = url.searchParams.get("order_id");
+      if (currentParam && /^\d+$/.test(currentParam)) {
+        const encrypted = encryptOrderId(currentParam);
+        url.searchParams.set("order_id", encrypted);
+        window.history.replaceState({}, "", url.pathname + url.search);
+      }
+    }
+
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  // Auto-reload order details & tracking history from API
+  async function refreshOrderDetail(orderId: unknown) {
+    if (!orderId) return;
+    const token = typeof orderId === "string" && orderId.startsWith("ord_") ? orderId : encryptOrderId(Number(orderId));
+    setRefreshingTrackings(true);
+    try {
+      const res = await fetch(`/api/admin/resources/orders/${token}`);
+      const data = await res.json();
+      if (res.ok && data) {
+        setSelectedOrderDetail(data);
+        if (data.order) {
+          setEditStatus(String(data.order.status || "pending_payment"));
+          setEditResi(String(data.order.resi_number || ""));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to auto-refresh order trackings:", err);
+    } finally {
+      setRefreshingTrackings(false);
+    }
+  }
 
   // Open order details
   async function openOrderDetail(row: Record<string, unknown>) {
     const id = Number(row.id);
+    const token = (row.encrypted_id as string) || encryptOrderId(id);
     setLoadingDetail(true);
     try {
-      const res = await fetch(`/api/admin/resources/orders/${id}`);
+      const res = await fetch(`/api/admin/resources/orders/${token || id}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Gagal memuat detail pesanan.");
       setSelectedOrderDetail(data);
       const url = new URL(window.location.href);
-      url.searchParams.set("order_id", String(id));
+      url.searchParams.set("order_id", token);
       window.history.pushState({}, "", url.pathname + url.search);
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membuka detail pesanan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membuka detail pesanan."), type: "error" });
     } finally {
       setLoadingDetail(false);
     }
@@ -966,8 +1073,8 @@ function OrdersView({
       if (!res.ok) throw new Error(data.message || "Gagal membersihkan cache.");
       setMessage({ text: "Cache sistem berhasil dibersihkan!", type: "success" });
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membersihkan cache.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membersihkan cache."), type: "error" });
     } finally {
       setClearingCache(false);
     }
@@ -995,28 +1102,73 @@ function OrdersView({
   }
 
   // Save Status
+  async function handleCancellation(decision: "approved" | "rejected") {
+    const id = selectedOrderDetail?.order?.id;
+    if (!id || savingStatus) return;
+    setSavingStatus(true);
+    try {
+      const response = await fetch(`/api/admin/resources/orders/${id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cancel_request_status: decision }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Gagal memproses pembatalan.");
+      setMessage({ text: decision === "approved" ? "Pembatalan dikonfirmasi Midtrans. Lihat riwayat pengembalian dana." : "Pengajuan pembatalan ditolak.", type: "success" });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : "Gagal memproses pembatalan.", type: "error" });
+    } finally {
+      await refreshOrderDetail(id);
+      router.refresh();
+      setSavingStatus(false);
+    }
+  }
+
   async function handleSaveStatus(e: FormEvent) {
     e.preventDefault();
     if (!selectedOrderDetail?.order?.id) return;
+    const orderId = selectedOrderDetail.order.id;
     setSavingStatus(true);
     try {
-      const res = await fetch(`/api/admin/resources/orders/${selectedOrderDetail.order.id}`, {
+      let resiToSave = editResi.trim();
+      if (editStatus === "shipped" && !resiToSave) {
+        resiToSave = generateAutoResi(
+          selectedOrderDetail.order.expedition_code as string | undefined,
+          selectedOrderDetail.order.expedition_name as string | undefined
+        );
+        setEditResi(resiToSave);
+      }
+
+      const payload: Record<string, unknown> = { status: editStatus };
+      if (editStatus === "shipped" && resiToSave) {
+        payload.resi_number = resiToSave;
+      }
+
+      const res = await fetch(`/api/admin/resources/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: editStatus }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Gagal menyimpan status.");
 
       setSelectedOrderDetail((prev) => prev ? {
         ...prev,
-        order: { ...prev.order, status: editStatus },
+        order: {
+          ...prev.order,
+          status: editStatus,
+          ...(payload.resi_number ? { resi_number: resiToSave } : {}),
+        },
       } : null);
 
-      setMessage({ text: "Status pesanan berhasil diperbarui!", type: "success" });
+      setMessage({
+        text: `Status pesanan berhasil diperbarui!${payload.resi_number ? ` Nomor resi (${resiToSave}) otomatis disimpan.` : ""}`,
+        type: "success",
+      });
+      // Auto-load updated trackings and order data
+      await refreshOrderDetail(orderId);
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal memperbarui status.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal memperbarui status."), type: "error" });
     } finally {
       setSavingStatus(false);
     }
@@ -1026,9 +1178,10 @@ function OrdersView({
   async function handleSaveResi(e: FormEvent) {
     e.preventDefault();
     if (!selectedOrderDetail?.order?.id) return;
+    const orderId = selectedOrderDetail.order.id;
     setSavingResi(true);
     try {
-      const res = await fetch(`/api/admin/resources/orders/${selectedOrderDetail.order.id}`, {
+      const res = await fetch(`/api/admin/resources/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resi_number: editResi.trim() }),
@@ -1036,15 +1189,25 @@ function OrdersView({
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Gagal menyimpan nomor resi.");
 
-      setSelectedOrderDetail((prev) => prev ? {
-        ...prev,
-        order: { ...prev.order, resi_number: editResi.trim() },
-      } : null);
+      setSelectedOrderDetail((prev) => {
+        if (!prev) return null;
+        const currentStatus = String(prev.order?.status || "");
+        const newStatus = (currentStatus === "paid" || currentStatus === "packed") ? "shipped" : currentStatus;
+        if (newStatus === "shipped") {
+          setEditStatus("shipped");
+        }
+        return {
+          ...prev,
+          order: { ...prev.order, resi_number: editResi.trim(), status: newStatus },
+        };
+      });
 
       setMessage({ text: "Nomor resi pengiriman berhasil disimpan!", type: "success" });
+      // Auto-load updated trackings and order data
+      await refreshOrderDetail(orderId);
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal menyimpan nomor resi.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal menyimpan nomor resi."), type: "error" });
     } finally {
       setSavingResi(false);
     }
@@ -1073,7 +1236,10 @@ function OrdersView({
 
       const expedition = String(selectedOrderDetail?.order?.expedition_name || "Ekspedisi").toUpperCase();
       const manifestList = Array.isArray(data.manifest)
-        ? data.manifest.map((m: any) => `• [${m.date}] ${m.description} (${m.city})`).join("\n")
+        ? data.manifest.map((m: unknown) => {
+            const manifest = m && typeof m === "object" ? m as Record<string, unknown> : {};
+            return `• [${manifest.date}] ${manifest.description} (${manifest.city})`;
+          }).join("\n")
         : "";
 
       setTrackingInfo({
@@ -1081,8 +1247,8 @@ function OrdersView({
         message: `Status: ${data.summary?.status || "ON PROCESS / DALAM PENGIRIMAN"}\n\nRiwayat Manifest:\n${manifestList || "Pesanan dalam proses logistik ekspedisi."}`,
       });
       setTrackingModal(true);
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal melacak resi via RajaOngkir.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal melacak resi via RajaOngkir."), type: "error" });
     } finally {
       setCheckingTracking(false);
     }
@@ -1091,10 +1257,11 @@ function OrdersView({
   // Simulate Courier Auto-POD Handler
   async function handleSimulateAutoPOD() {
     if (!selectedOrderDetail?.order?.id) return;
+    const orderId = selectedOrderDetail.order.id;
     setSavingStatus(true);
     try {
       const simulatedResi = editResi.trim() || String(selectedOrderDetail.order.resi_number || "JT89823412398").trim();
-      const res = await fetch(`/api/admin/resources/orders/${selectedOrderDetail.order.id}`, {
+      const res = await fetch(`/api/admin/resources/orders/${orderId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "arrived", resi_number: simulatedResi }),
@@ -1110,9 +1277,11 @@ function OrdersView({
       setEditStatus("arrived");
       setEditResi(simulatedResi);
       setMessage({ text: "Simulasi Kurir Auto-POD Berhasil! Paket telah ditandai diterima (Proof of Delivery) oleh kurir.", type: "success" });
+      // Auto-load updated trackings and order data
+      await refreshOrderDetail(orderId);
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal mensimulasikan Auto-POD kurir.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal mensimulasikan Auto-POD kurir."), type: "error" });
     } finally {
       setSavingStatus(false);
     }
@@ -1401,12 +1570,38 @@ function OrdersView({
           {/* Column 1: Track order */}
           <section className="orders-card order-subcard">
             <div className="order-subcard-header">
-              <h3>Track order</h3>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <h3>Track order</h3>
+                <button
+                  type="button"
+                  onClick={() => selectedOrderDetail?.order?.id && refreshOrderDetail(selectedOrderDetail.order.id)}
+                  disabled={refreshingTrackings}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 4,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    color: refreshingTrackings ? "#0284c7" : "#64748b",
+                    transition: "all 0.2s",
+                  }}
+                  title="Segarkan riwayat pelacakan (Auto-Load)"
+                >
+                  <Icon name="RefreshCw" size={13} className={refreshingTrackings ? "spin" : ""} />
+                </button>
+              </div>
               <span className="order-expedition-badge">
                 {String(order.expedition_name || "Anteraja")}
               </span>
             </div>
             <div className="order-subcard-content">
+              {refreshingTrackings && (
+                <div style={{ padding: "6px 10px", marginBottom: 10, background: "#f0f9ff", borderRadius: 6, border: "1px solid #bae6fd", fontSize: 12, color: "#0284c7", display: "flex", alignItems: "center", gap: 6 }}>
+                  <Icon name="RefreshCw" size={12} className="spin" />
+                  <span>Memperbarui status pelacakan...</span>
+                </div>
+              )}
               <div className="order-timeline">
                 {selectedOrderDetail.trackings && selectedOrderDetail.trackings.length > 0 ? (
                   selectedOrderDetail.trackings.map((t, idx) => {
@@ -1512,7 +1707,7 @@ function OrdersView({
                         {String(payment?.account_number || payment?.va_number || (payment?.transaction_id ? `ID: ${String(payment.transaction_id).slice(0, 10)}...` : "**** **** **** 0000"))}
                       </span>
                     </div>
-                    <span className="order-pay-status-pill green">PAID</span>
+                    <span className="order-pay-status-pill green">{order.cancel_request_status === "refund_processing" ? "KONFIRMASI MIDTRANS" : order.cancel_request_status === "approved" ? "DIBATALKAN / LIHAT RIWAYAT" : String(payment?.status || "waiting_payment").toUpperCase()}</span>
                   </div>
                   <div className="order-pay-info-line">
                     <span>Jumlah Pembayaran:</span>
@@ -1605,6 +1800,24 @@ function OrdersView({
               </div>
             </section>
 
+            {Boolean(order.cancel_request_status) && (
+              <section className="orders-card order-subcard">
+                <div className="order-subcard-header"><h3>Pengajuan Pembatalan</h3></div>
+                <div className="order-subcard-content">
+                  <p>{String(order.cancel_request_reason || "Tanpa alasan")}</p>
+                  <p>Status: {({ pending: "Menunggu keputusan admin", refund_processing: "Menunggu konfirmasi Midtrans. Coba sinkronkan kembali jika gagal.", approved: "Disetujui. Lihat riwayat pengembalian dana.", rejected: "Ditolak, pesanan dilanjutkan" } as Record<string, string>)[String(order.cancel_request_status)] || String(order.cancel_request_status)}</p>
+                  {["pending", "refund_processing"].includes(String(order.cancel_request_status)) && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button type="button" className="order-btn-save-status" disabled={savingStatus} onClick={() => handleCancellation("approved")}>
+                        {savingStatus ? "Memproses..." : order.cancel_request_status === "refund_processing" ? "Coba / Sinkronkan Midtrans" : "Terima & Proses Refund"}
+                      </button>
+                      {order.cancel_request_status === "pending" && <button type="button" className="secondary-button" disabled={savingStatus} onClick={() => handleCancellation("rejected")}>Tolak Pengajuan</button>}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
             {/* Ubah Status & Resi */}
             <section className="orders-card order-subcard">
               <div className="order-subcard-header">
@@ -1616,7 +1829,17 @@ function OrdersView({
                   <label className="order-control-label">Status Pesanan</label>
                   <select
                     value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      setEditStatus(newStatus);
+                      if (newStatus === "shipped" && !editResi.trim()) {
+                        const autoResi = generateAutoResi(
+                          selectedOrderDetail?.order?.expedition_code as string | undefined,
+                          selectedOrderDetail?.order?.expedition_name as string | undefined
+                        );
+                        setEditResi(autoResi);
+                      }
+                    }}
                     className="order-select-control"
                   >
                     <option value="pending_payment">Menunggu Pembayaran (pending_payment)</option>
@@ -1642,7 +1865,23 @@ function OrdersView({
 
                 {/* Resi Form */}
                 <form onSubmit={handleSaveResi} className="order-form-block">
-                  <label className="order-control-label">Nomor Resi Pengiriman</label>
+                  <div className="order-resi-label-row">
+                    <label className="order-control-label">Nomor Resi Pengiriman</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const autoResi = generateAutoResi(
+                          selectedOrderDetail?.order?.expedition_code as string | undefined,
+                          selectedOrderDetail?.order?.expedition_name as string | undefined
+                        );
+                        setEditResi(autoResi);
+                      }}
+                      className="order-btn-generate-resi"
+                      title="Generate nomor resi otomatis sesuai kurir"
+                    >
+                      <Icon name="RefreshCw" size={12} /> Auto Resi
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={editResi}
@@ -1781,7 +2020,7 @@ function OrdersView({
             >
               <option value="">Semua Pengajuan Batal</option>
               <option value="has_request">Ada Pengajuan Batal</option>
-              <option value="pending">Menunggu Persetujuan</option>
+              <option value="pending">Menunggu Persetujuan</option><option value="refund_processing">Diproses Midtrans</option>
               <option value="approved">Pengajuan Disetujui</option>
               <option value="rejected">Pengajuan Ditolak</option>
               <option value="no_request">Tanpa Pengajuan</option>
@@ -1874,15 +2113,45 @@ function OrdersView({
                         )}
                       </td>
                       <td className="orders-date-text">{formatShortDate(row.created_at)}</td>
-                      <td style={{ textAlign: "center" }}>
-                        <button
-                          type="button"
-                          className="orders-action-detail-btn"
-                          onClick={() => openOrderDetail(row)}
-                          title="Lihat Detail Pesanan"
-                        >
-                          <Icon name="FileText" size={16} />
-                        </button>
+                      <td style={{ textAlign: "center", position: "relative" }}>
+                        {(() => {
+                          const rowId = row.id as string | number;
+                          const isMenuOpen = actionMenuOrderId === rowId;
+                          const openUpward = index >= result.data.length - 2 && result.data.length > 2;
+
+                          return (
+                            <div className="action-dropdown-wrap">
+                              <button
+                                type="button"
+                                className={`action-dots-btn ${isMenuOpen ? "is-active" : ""}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionMenuOrderId(isMenuOpen ? null : rowId);
+                                }}
+                                title="Pilihan Aksi"
+                              >
+                                <Icon name="MoreHorizontal" size={16} />
+                              </button>
+
+                              {isMenuOpen && (
+                                <div className={`action-dropdown-popover ${openUpward ? "open-upward" : ""}`}>
+                                  <button
+                                    type="button"
+                                    className="action-dropdown-item"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActionMenuOrderId(null);
+                                      openOrderDetail(row);
+                                    }}
+                                  >
+                                    <Icon name="FileText" size={14} style={{ color: "#465FFF" }} />
+                                    <span>Lihat Detail Pesanan</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -1963,20 +2232,120 @@ function SupportChatView({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setChatList(result.data);
-  }, [result.data]);
-
-  useEffect(() => {
-    if (initialChatDetail) {
-      setSelectedChatDetail(initialChatDetail);
-    }
-  }, [initialChatDetail]);
-
-  useEffect(() => {
     if (selectedChatDetail?.messages?.length) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [selectedChatDetail?.messages]);
+
+  // Web Audio chime for incoming customer chat message
+  function playCustomerChatDing() {
+    if (typeof window === "undefined") return;
+    try {
+      const AudioContextClass = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const ctx = new AudioContextClass();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.exponentialRampToValueAtTime(880.0, now + 0.1);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.05, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.33);
+      setTimeout(() => { ctx.close().catch(() => {}); }, 400);
+    } catch {}
+  }
+
+  // Active chat ID for realtime polling
+  const activeChatId = selectedChatDetail?.chat?.id ? Number(selectedChatDetail.chat.id) : null;
+  const messagesRef = useRef<Array<Record<string, unknown>>>(selectedChatDetail?.messages || []);
+
+  useEffect(() => {
+    messagesRef.current = selectedChatDetail?.messages || [];
+  }, [selectedChatDetail?.messages]);
+
+  // Real-time synchronization for the currently active chat
+  useEffect(() => {
+    if (!activeChatId) return;
+    let active = true;
+
+    async function pollActiveChat() {
+      try {
+        const res = await fetch(`/api/admin/resources/chats/${activeChatId}`);
+        if (!res.ok || !active) return;
+        const data = await res.json();
+        if (!active) return;
+
+        const prevMsgs = messagesRef.current;
+        const newMsgs = data.messages || [];
+
+        if (newMsgs.length > prevMsgs.length) {
+          const lastMsg = newMsgs[newMsgs.length - 1];
+          if (lastMsg?.sender_type === "customer") {
+            playCustomerChatDing();
+          }
+          setSelectedChatDetail(data);
+          setChatList((prev) =>
+            prev.map((c) =>
+              Number(c.id) === activeChatId
+                ? {
+                    ...c,
+                    last_message: lastMsg?.message || c.last_message,
+                    last_message_at: lastMsg?.created_at || c.last_message_at,
+                    unread_count: 0,
+                  }
+                : c
+            )
+          );
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    const interval = setInterval(pollActiveChat, 2600);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [activeChatId]);
+
+  // Periodic refresh for conversations list (every 6.5s)
+  useEffect(() => {
+    let active = true;
+    async function pollChatList() {
+      try {
+        const res = await fetch("/api/admin/resources/chats?perPage=25");
+        if (!res.ok || !active) return;
+        const data = await res.json();
+        if (!active || !data?.data) return;
+
+        setChatList(() => {
+          return data.data.map((c: unknown) => {
+            const chat = c as Record<string, unknown>;
+            if (activeChatId && Number(chat.id) === activeChatId) {
+              return { ...chat, unread_count: 0 };
+            }
+            return chat;
+          });
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    const interval = setInterval(pollChatList, 6500);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [activeChatId]);
 
   async function openChat(chat: Record<string, unknown>) {
     const id = Number(chat.id);
@@ -1994,8 +2363,8 @@ function SupportChatView({
       const url = new URL(window.location.href);
       url.searchParams.set("chat_id", String(id));
       window.history.pushState({}, "", url.pathname + url.search);
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membuka obrolan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membuka obrolan."), type: "error" });
     } finally {
       setLoadingDetail(false);
     }
@@ -2009,8 +2378,8 @@ function SupportChatView({
       if (!res.ok) throw new Error(data.message || "Gagal membersihkan cache.");
       setMessage({ text: "Cache chat & customer berhasil dibersihkan!", type: "success" });
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membersihkan cache.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membersihkan cache."), type: "error" });
     } finally {
       setClearingCache(false);
     }
@@ -2054,10 +2423,10 @@ function SupportChatView({
       setSelectedChatDetail((prev) =>
         prev
           ? {
-              ...prev,
-              chat: { ...prev.chat, last_message_at: new Date().toISOString() },
-              messages: [...prev.messages, newMsg],
-            }
+            ...prev,
+            chat: { ...prev.chat, last_message_at: new Date().toISOString() },
+            messages: [...prev.messages, newMsg],
+          }
           : null
       );
 
@@ -2070,8 +2439,8 @@ function SupportChatView({
       );
 
       setReplyText("");
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal mengirim pesan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal mengirim pesan."), type: "error" });
     } finally {
       setSendingReply(false);
     }
@@ -2105,8 +2474,8 @@ function SupportChatView({
         text: newStatus === "closed" ? "Percakapan ditandai selesai." : "Percakapan dibuka kembali.",
         type: "success",
       });
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal mengubah status.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal mengubah status."), type: "error" });
     } finally {
       setStatusUpdating(false);
     }
@@ -2129,8 +2498,8 @@ function SupportChatView({
       }
       setConfirmDeleteModal(null);
       setMessage({ text: "Percakapan berhasil dihapus.", type: "success" });
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal menghapus percakapan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal menghapus percakapan."), type: "error" });
     }
   }
 
@@ -2253,8 +2622,8 @@ function SupportChatView({
                               {c.last_message_at
                                 ? date.format(new Date(String(c.last_message_at)))
                                 : c.created_at
-                                ? date.format(new Date(String(c.created_at)))
-                                : ""}
+                                  ? date.format(new Date(String(c.created_at)))
+                                  : ""}
                             </span>
                           </div>
 
@@ -2290,6 +2659,10 @@ function SupportChatView({
               <h2 className="chat-card-heading">Detail Obrolan</h2>
               {activeChat && (
                 <div className="chat-conv-header-actions">
+                  <div className="chat-live-pulse-badge" title="Tersambung real-time ke customer">
+                    <span className="chat-live-pulse-dot" />
+                    <span>LIVE SYNC</span>
+                  </div>
                   <span className={`chat-status-pill ${activeChat.status === "closed" ? "pill-closed" : "pill-open"}`}>
                     <span className="status-dot" />
                     {activeChat.status === "closed" ? "Selesai" : "Aktif"}
@@ -2316,9 +2689,8 @@ function SupportChatView({
             </div>
 
             {loadingDetail ? (
-              <div className="chat-loading-overlay">
-                <span className="spinner" />
-                <p>Memuat percakapan...</p>
+              <div className="chat-loading-overlay" style={{ minHeight: "350px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <CyberLoader size="sm" text="MEMUAT PERCAKAPAN..." subtext="Mengambil riwayat pesan terbaru..." />
               </div>
             ) : !activeChat ? (
               /* Welcome / Empty State exactly matching screenshot */
@@ -2498,7 +2870,7 @@ function SupportChatView({
                       {customerOrders.map((ord) => (
                         <Link
                           key={String(ord.id)}
-                          href={`/admin/orders?order_id=${ord.id}`}
+                          href={`/admin/orders?order_id=${(ord.encrypted_id as string) || encryptOrderId(Number(ord.id))}`}
                           className="chat-info-order-card"
                         >
                           <div className="chat-info-order-top">
@@ -2573,17 +2945,6 @@ function ProductReviewsView({
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [confirmDeleteModal, setConfirmDeleteModal] = useState<number | null>(null);
 
-  useEffect(() => {
-    setReviewList(result.data);
-  }, [result.data]);
-
-  useEffect(() => {
-    if (initialReviewDetail) {
-      setSelectedReviewDetail(initialReviewDetail);
-      setReplyText(String(initialReviewDetail.review?.reply || ""));
-    }
-  }, [initialReviewDetail]);
-
   async function openReview(rev: Record<string, unknown>) {
     const id = Number(rev.id);
     setLoadingDetail(true);
@@ -2601,8 +2962,8 @@ function ProductReviewsView({
       const url = new URL(window.location.href);
       url.searchParams.set("review_id", String(id));
       window.history.pushState({}, "", url.pathname + url.search);
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membuka ulasan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membuka ulasan."), type: "error" });
     } finally {
       setLoadingDetail(false);
     }
@@ -2616,8 +2977,8 @@ function ProductReviewsView({
       if (!res.ok) throw new Error(data.message || "Gagal membersihkan cache.");
       setMessage({ text: "Cache ulasan & produk berhasil dibersihkan!", type: "success" });
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membersihkan cache.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membersihkan cache."), type: "error" });
     } finally {
       setClearingCache(false);
     }
@@ -2660,9 +3021,9 @@ function ProductReviewsView({
       setSelectedReviewDetail((prev) =>
         prev
           ? {
-              ...prev,
-              review: { ...prev.review, reply: text, is_read: 1, updated_at: new Date().toISOString() },
-            }
+            ...prev,
+            review: { ...prev.review, reply: text, is_read: 1, updated_at: new Date().toISOString() },
+          }
           : null
       );
 
@@ -2671,8 +3032,8 @@ function ProductReviewsView({
       );
 
       setMessage({ text: "Balasan resmi admin berhasil disimpan!", type: "success" });
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal menyimpan balasan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal menyimpan balasan."), type: "error" });
     } finally {
       setSendingReply(false);
     }
@@ -2695,14 +3056,13 @@ function ProductReviewsView({
       }
       setConfirmDeleteModal(null);
       setMessage({ text: "Ulasan berhasil dihapus.", type: "success" });
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal menghapus ulasan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal menghapus ulasan."), type: "error" });
     }
   }
 
   const activeReview = selectedReviewDetail?.review;
   const otherReviews = selectedReviewDetail?.otherReviews || [];
-  const customerOrders = selectedReviewDetail?.customerOrders || [];
 
   return (
     <div className="page-stack chat-console-page review-console-page">
@@ -2902,9 +3262,8 @@ function ProductReviewsView({
             </div>
 
             {loadingDetail ? (
-              <div className="chat-loading-overlay">
-                <span className="spinner" />
-                <p>Memuat detail ulasan...</p>
+              <div className="chat-loading-overlay" style={{ minHeight: "350px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <CyberLoader size="sm" text="MEMUAT DETAIL ULASAN..." subtext="Mengambil data ulasan & pesanan pelanggan..." />
               </div>
             ) : !activeReview ? (
               /* Welcome / Empty State exactly matching screenshot */
@@ -3168,7 +3527,7 @@ function ProductReviewsView({
                   <div className="chat-info-orders-box">
                     <h5 className="chat-info-subheading">PESANAN TERKAIT</h5>
                     <Link
-                      href={`/admin/orders?order_id=${activeReview.order_id}`}
+                      href={`/admin/orders?order_id=${encryptOrderId(Number(activeReview.order_id))}`}
                       className="chat-info-order-card"
                     >
                       <div className="chat-info-order-top">
@@ -3256,6 +3615,18 @@ function AnnouncementsView({
   const [formTarget, setFormTarget] = useState("all");
   const [formActionUrl, setFormActionUrl] = useState("");
   const [formContent, setFormContent] = useState("");
+  const [actionMenuAnnounceId, setActionMenuAnnounceId] = useState<string | number | null>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".action-dropdown-wrap")) {
+        setActionMenuAnnounceId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   const promoCount = result.data.filter((a) => String(a.type || "").toLowerCase() === "promo").length;
   const systemCount = result.data.filter((a) =>
@@ -3277,8 +3648,8 @@ function AnnouncementsView({
       if (!res.ok) throw new Error("Gagal membersihkan cache.");
       setMessage({ text: "Cache sistem berhasil dibersihkan!", type: "success" });
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal membersihkan cache.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal membersihkan cache."), type: "error" });
     } finally {
       setClearingCache(false);
     }
@@ -3333,8 +3704,8 @@ function AnnouncementsView({
       });
       setDialog(null);
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Terjadi kesalahan.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Terjadi kesalahan."), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -3352,8 +3723,8 @@ function AnnouncementsView({
       setDialog(null);
       setSelected(null);
       router.refresh();
-    } catch (err: any) {
-      setMessage({ text: err.message || "Gagal menghapus pengumuman.", type: "error" });
+    } catch (err: unknown) {
+      setMessage({ text: getErrorMessage(err, "Gagal menghapus pengumuman."), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -3502,18 +3873,18 @@ function AnnouncementsView({
                     categoryType === "promo"
                       ? "status-promo"
                       : categoryType === "warning"
-                      ? "status-warning"
-                      : categoryType === "order"
-                      ? "status-order"
-                      : "status-info";
+                        ? "status-warning"
+                        : categoryType === "order"
+                          ? "status-order"
+                          : "status-info";
                   const categoryLabel =
                     categoryType === "promo"
                       ? "Promo & Diskon"
                       : categoryType === "warning"
-                      ? "Peringatan"
-                      : categoryType === "order"
-                      ? "Status Pesanan"
-                      : "Informasi Umum";
+                        ? "Peringatan"
+                        : categoryType === "order"
+                          ? "Status Pesanan"
+                          : "Informasi Umum";
 
                   return (
                     <tr key={String(row.id)}>
@@ -3541,13 +3912,58 @@ function AnnouncementsView({
                       <td className="date-cell">
                         {row.created_at ? date.format(new Date(String(row.created_at))) : "-"}
                       </td>
-                      <td className="row-actions">
-                        <button className="icon-button edit-action-btn" title="Edit Pengumuman" onClick={() => openEdit(row)}>
-                          <Icon name="Pencil" size={16} />
-                        </button>
-                        <button className="icon-button danger delete-action-btn" title="Hapus Pengumuman" onClick={() => { setSelected(row); setDialog("delete"); }}>
-                          <Icon name="Trash2" size={16} />
-                        </button>
+                      <td className="row-actions" style={{ position: "relative" }}>
+                        {(() => {
+                          const rowId = row.id as string | number;
+                          const isMenuOpen = actionMenuAnnounceId === rowId;
+                          const openUpward = rowIndex >= result.data.length - 2 && result.data.length > 2;
+
+                          return (
+                            <div className="action-dropdown-wrap">
+                              <button
+                                type="button"
+                                className={`action-dots-btn ${isMenuOpen ? "is-active" : ""}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionMenuAnnounceId(isMenuOpen ? null : rowId);
+                                }}
+                                title="Pilihan Aksi"
+                              >
+                                <Icon name="MoreHorizontal" size={16} />
+                              </button>
+
+                              {isMenuOpen && (
+                                <div className={`action-dropdown-popover ${openUpward ? "open-upward" : ""}`}>
+                                  <button
+                                    type="button"
+                                    className="action-dropdown-item"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActionMenuAnnounceId(null);
+                                      openEdit(row);
+                                    }}
+                                  >
+                                    <Icon name="Pencil" size={14} style={{ color: "#465FFF" }} />
+                                    <span>Edit Pengumuman</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="action-dropdown-item danger"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActionMenuAnnounceId(null);
+                                      setSelected(row);
+                                      setDialog("delete");
+                                    }}
+                                  >
+                                    <Icon name="Trash2" size={14} />
+                                    <span>Hapus Pengumuman</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
@@ -3738,59 +4154,41 @@ function SettingsView({
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [storeDesc, setStoreDesc] = useState(
     initialMap.store_description ||
-      "Toko Resmi Merchandise & Perlengkapan Kuliah Kampus UBSI (Universitas Bina Sarana Informatika)"
+    "Toko Resmi Merchandise & Perlengkapan Kuliah Kampus UBSI (Universitas Bina Sarana Informatika)"
   );
   const [storeAddress, setStoreAddress] = useState(
     initialMap.store_address ||
-      "Jl. Kramat Raya No.98, RT.3/RW.9, Kwitang, Senen, Jakarta Pusat, DKI Jakarta 10450"
+    "Jl. Kramat Raya No.98, RT.3/RW.9, Kwitang, Senen, Jakarta Pusat, DKI Jakarta 10450"
   );
   const [storePhone, setStorePhone] = useState(initialMap.store_phone || "08123456789");
   const [storeEmail, setStoreEmail] = useState(initialMap.store_email || "cs@ubsicyberstore.ac.id");
   const [storeHours, setStoreHours] = useState(initialMap.store_hours || "Senin - Jumat (08:00 - 17:00 WIB)");
 
-  // Section 2: RajaOngkir
-  const [rajaApiKey, setRajaApiKey] = useState(initialMap.rajaongkir_api_key || "");
-  const [rajaAccountType, setRajaAccountType] = useState(initialMap.rajaongkir_account_type || "starter");
-  const [rajaOriginCity, setRajaOriginCity] = useState(initialMap.rajaongkir_origin_city || "152");
-  const [rajaCouriers, setRajaCouriers] = useState<string[]>(() => {
-    const raw = initialMap.rajaongkir_couriers || "jne,pos,tiki,jnt,sicepat";
-    try {
-      if (raw.startsWith("[")) return JSON.parse(raw);
-    } catch {}
-    return raw.split(",").map((s) => s.trim()).filter(Boolean);
-  });
-
-  // Section 3: Midtrans
-  const [midtransMode, setMidtransMode] = useState(initialMap.midtrans_mode || "sandbox");
-  const [midtransServerKey, setMidtransServerKey] = useState(initialMap.midtrans_server_key || "");
-  const [midtransClientKey, setMidtransClientKey] = useState(initialMap.midtrans_client_key || "");
-  const [midtransMerchantId, setMidtransMerchantId] = useState(initialMap.midtrans_merchant_id || "");
-
-  // Section 4: Banner Pengumuman Atas (Marquee)
+  // Section 2: Banner Pengumuman Atas (Marquee)
   const [topBannerActive, setTopBannerActive] = useState<boolean>(
     initialMap.top_announcement_active === "1" ||
-      initialMap.top_announcement_active === "true" ||
-      initialMap.top_announcement_active === undefined
+    initialMap.top_announcement_active === "true" ||
+    initialMap.top_announcement_active === undefined
   );
   const [topBannerText, setTopBannerText] = useState(
     initialMap.top_announcement_text ||
-      "📢 Selamat Datang di UBSI Cyber Store! Dapatkan Diskon Khusus Mahasiswa Baru untuk Pembelian Paket Ormik & Semot."
+    "📢 Selamat Datang di UBSI Cyber Store! Dapatkan Diskon Khusus Mahasiswa Baru untuk Pembelian Paket Ormik & Semot."
   );
   const [topBannerBg, setTopBannerBg] = useState(initialMap.top_announcement_bg || "#1e293b");
   const [topBannerColor, setTopBannerColor] = useState(initialMap.top_announcement_color || "#f8fafc");
 
-  // Section 5: Halaman Kebijakan & Dynamic FAQs
+  // Section 3: Halaman Kebijakan & Dynamic FAQs
   const [termsConditions, setTermsConditions] = useState(
     initialMap.terms_conditions ||
-      "1. Pembelian produk merchandise UBSI Cyber Store terbuka untuk mahasiswa, alumni, dan masyarakat umum.\n2. Pembayaran menggunakan Midtrans Snap Gateway yang terverifikasi otomatis.\n3. Harap pastikan alamat pengiriman sudah benar sebelum menyelesaikan pesanan."
+    "1. Pembelian produk merchandise UBSI Cyber Store terbuka untuk mahasiswa, alumni, dan masyarakat umum.\n2. Pembayaran menggunakan Midtrans Snap Gateway yang terverifikasi otomatis.\n3. Harap pastikan alamat pengiriman sudah benar sebelum menyelesaikan pesanan."
   );
   const [returnPolicy, setReturnPolicy] = useState(
     initialMap.return_policy ||
-      "1. Penukaran produk hanya berlaku untuk kesalahan ukuran (size) atau cacat produksi pabrik.\n2. Pengajuan klaim retur maksimal 3x24 jam setelah status pesanan dinyatakan Tiba.\n3. Wajib menyertakan video unboxing utuh tanpa terpotong."
+    "1. Penukaran produk hanya berlaku untuk kesalahan ukuran (size) atau cacat produksi pabrik.\n2. Pengajuan klaim retur maksimal 3x24 jam setelah status pesanan dinyatakan Tiba.\n3. Wajib menyertakan video unboxing utuh tanpa terpotong."
   );
   const [privacyPolicy, setPrivacyPolicy] = useState(
     initialMap.privacy_policy ||
-      "Kami menjaga kerahasiaan data pribadi pengguna (nama, email, nomor HP, dan alamat). Data Anda hanya digunakan untuk kepentingan pengiriman dan layanan transaksi UBSI Cyber Store."
+    "Kami menjaga kerahasiaan data pribadi pengguna (nama, email, nomor HP, dan alamat). Data Anda hanya digunakan untuk kepentingan pengiriman dan layanan transaksi UBSI Cyber Store."
   );
 
   const [faqs, setFaqs] = useState<Array<{ question: string; answer: string }>>(() => {
@@ -3799,7 +4197,7 @@ function SettingsView({
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      } catch {}
+      } catch { }
     }
     return [
       {
@@ -3840,24 +4238,6 @@ function SettingsView({
     if (map.store_email !== undefined) setStoreEmail(map.store_email);
     if (map.store_hours !== undefined) setStoreHours(map.store_hours);
 
-    if (map.rajaongkir_api_key !== undefined) setRajaApiKey(map.rajaongkir_api_key);
-    if (map.rajaongkir_account_type !== undefined) setRajaAccountType(map.rajaongkir_account_type);
-    if (map.rajaongkir_origin_city !== undefined) setRajaOriginCity(map.rajaongkir_origin_city);
-    if (map.rajaongkir_couriers !== undefined) {
-      try {
-        if (map.rajaongkir_couriers.startsWith("[")) {
-          setRajaCouriers(JSON.parse(map.rajaongkir_couriers));
-        } else {
-          setRajaCouriers(map.rajaongkir_couriers.split(",").map((s) => s.trim()).filter(Boolean));
-        }
-      } catch {}
-    }
-
-    if (map.midtrans_mode !== undefined) setMidtransMode(map.midtrans_mode);
-    if (map.midtrans_server_key !== undefined) setMidtransServerKey(map.midtrans_server_key);
-    if (map.midtrans_client_key !== undefined) setMidtransClientKey(map.midtrans_client_key);
-    if (map.midtrans_merchant_id !== undefined) setMidtransMerchantId(map.midtrans_merchant_id);
-
     if (map.top_announcement_active !== undefined) {
       setTopBannerActive(map.top_announcement_active === "1" || map.top_announcement_active === "true");
     }
@@ -3873,15 +4253,9 @@ function SettingsView({
       try {
         const parsed = JSON.parse(map.faqs_json);
         if (Array.isArray(parsed)) setFaqs(parsed);
-      } catch {}
+      } catch { }
     }
   }, [result.data]);
-
-  const toggleCourier = (code: string) => {
-    setRajaCouriers((prev) =>
-      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
-    );
-  };
 
   const handleAddFaq = () => {
     setFaqs((prev) => [...prev, { question: "", answer: "" }]);
@@ -3927,14 +4301,6 @@ function SettingsView({
       store_phone: storePhone,
       store_email: storeEmail,
       store_hours: storeHours,
-      rajaongkir_api_key: rajaApiKey,
-      rajaongkir_account_type: rajaAccountType,
-      rajaongkir_origin_city: rajaOriginCity,
-      rajaongkir_couriers: JSON.stringify(rajaCouriers),
-      midtrans_mode: midtransMode,
-      midtrans_server_key: midtransServerKey,
-      midtrans_client_key: midtransClientKey,
-      midtrans_merchant_id: midtransMerchantId,
       top_announcement_active: topBannerActive ? "1" : "0",
       top_announcement_text: topBannerText,
       top_announcement_bg: topBannerBg,
@@ -3973,7 +4339,7 @@ function SettingsView({
         <div>
           <span className="eyebrow">MANAJEMEN</span>
           <h1>Pengaturan Aplikasi &amp; Identitas Toko</h1>
-          <p>Kelola identitas toko, metode pengiriman, payment gateway, dan kebijakan halaman.</p>
+          <p>Kelola identitas toko, banner pengumuman, dan kebijakan informasi halaman.</p>
         </div>
         <div className="header-action-group">
           <button
@@ -3998,7 +4364,7 @@ function SettingsView({
         onClose={() => setMessage(null)}
       />
 
-      <form onSubmit={handleSubmit} className="settings-form-stack">
+      <form onSubmit={handleSubmit} className="settings-form-stack" suppressHydrationWarning>
         {/* SECTION 1: IDENTITAS & PROFIL TOKO */}
         <div className="form-section-card">
           <div className="section-title">
@@ -4108,139 +4474,7 @@ function SettingsView({
           </div>
         </div>
 
-        {/* SECTION 2: PENGIRIMAN & ASAL PENGIRIMAN (RAJAONGKIR) */}
-        <div className="form-section-card">
-          <div className="section-title">
-            <span className="section-icon-emoji">🚚</span>
-            <div>
-              <h3>PENGIRIMAN &amp; ASAL PENGIRIMAN (RAJAONGKIR)</h3>
-              <p className="section-desc">Konfigurasi API RajaOngkir untuk perhitungan ongkos kirim otomatis.</p>
-            </div>
-          </div>
-
-          <div className="section-grid">
-            <div className="two-col-row span-two">
-              <label className="field-label">
-                <span>RajaOngkir API Key</span>
-                <input
-                  type="text"
-                  value={rajaApiKey}
-                  onChange={(e) => setRajaApiKey(e.target.value)}
-                  placeholder="Masukkan API Key RajaOngkir..."
-                />
-                <small className="field-help">Diperlukan untuk integrasi hitung ongkir otomatis saat checkout.</small>
-              </label>
-
-              <label className="field-label">
-                <span>Tipe Akun RajaOngkir</span>
-                <select value={rajaAccountType} onChange={(e) => setRajaAccountType(e.target.value)}>
-                  <option value="starter">Starter (Gratis - JNE, POS, TIKI)</option>
-                  <option value="basic">Basic (Ekspedisi Lebih Banyak)</option>
-                  <option value="pro">Pro / Enterprise (Kecamatan &amp; Internasional)</option>
-                </select>
-              </label>
-            </div>
-
-            <label className="field-label span-two">
-              <span>Kota / Kabupaten Asal Pengiriman (City ID RajaOngkir)</span>
-              <input
-                type="text"
-                value={rajaOriginCity}
-                onChange={(e) => setRajaOriginCity(e.target.value)}
-                placeholder="Contoh: 152 (Kota Jakarta Pusat)"
-              />
-              <small className="field-help">ID Kota asal toko untuk perhitungan titik keberangkatan paket (Default: 152 = Jakarta Pusat).</small>
-            </label>
-
-            {/* Checkbox Grid Kurir */}
-            <div className="field-label span-two">
-              <span>Kurir Pengiriman Aktif</span>
-              <div className="couriers-checkbox-grid">
-                {[
-                  { code: "jne", label: "JNE Express" },
-                  { code: "pos", label: "POS Indonesia" },
-                  { code: "tiki", label: "TIKI" },
-                  { code: "jnt", label: "J&T Express" },
-                  { code: "sicepat", label: "SiCepat Express" },
-                ].map((courier) => (
-                  <label className="courier-checkbox-item" key={courier.code}>
-                    <input
-                      type="checkbox"
-                      checked={rajaCouriers.includes(courier.code)}
-                      onChange={() => toggleCourier(courier.code)}
-                    />
-                    <span>{courier.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* SECTION 3: INTEGRASI PAYMENT GATEWAY (MIDTRANS) */}
-        <div className="form-section-card">
-          <div className="section-title">
-            <span className="section-icon-emoji">💳</span>
-            <div>
-              <h3>INTEGRASI PAYMENT GATEWAY (MIDTRANS)</h3>
-              <p className="section-desc">Pengaturan mode pembayaran otomatis melalui Midtrans Snap API.</p>
-            </div>
-          </div>
-
-          <div className="section-grid">
-            <label className="field-label span-two">
-              <span>Mode Midtrans</span>
-              <select value={midtransMode} onChange={(e) => setMidtransMode(e.target.value)}>
-                <option value="sandbox">Sandbox (Testing / Pengembangan)</option>
-                <option value="production">Production (Live / Transaksi Real)</option>
-              </select>
-            </label>
-
-            <div className="three-col-row span-two">
-              <label className="field-label">
-                <span>Server Key Midtrans</span>
-                <input
-                  type="password"
-                  value={midtransServerKey}
-                  onChange={(e) => setMidtransServerKey(e.target.value)}
-                  placeholder="SB-Mid-server-..."
-                />
-              </label>
-
-              <label className="field-label">
-                <span>Client Key Midtrans</span>
-                <input
-                  type="text"
-                  value={midtransClientKey}
-                  onChange={(e) => setMidtransClientKey(e.target.value)}
-                  placeholder="SB-Mid-client-..."
-                />
-              </label>
-
-              <label className="field-label">
-                <span>Merchant ID Midtrans</span>
-                <input
-                  type="text"
-                  value={midtransMerchantId}
-                  onChange={(e) => setMidtransMerchantId(e.target.value)}
-                  placeholder="G123456789"
-                />
-              </label>
-            </div>
-
-            {/* Webhook Callout Info Box */}
-            <div className="webhook-callout-box span-two">
-              <div className="webhook-callout-header">
-                <Icon name="Info" size={18} />
-                <strong>URL Webhook Notifikasi Pembayaran (Midtrans Notification)</strong>
-              </div>
-              <p>Daftarkan URL ini di Dashboard Midtrans (Settings &gt; Configuration &gt; Payment Notification URL):</p>
-              <code className="webhook-code-url">https://cyberstore.ubsi.ac.id/api/payment/notification</code>
-            </div>
-          </div>
-        </div>
-
-        {/* SECTION 4: BANNER PENGUMUMAN ATAS (TOP BAR / MARQUEE) */}
+        {/* SECTION 2: BANNER PENGUMUMAN ATAS (TOP BAR / MARQUEE) */}
         <div className="form-section-card">
           <div className="section-title">
             <span className="section-icon-emoji">📢</span>
@@ -4473,73 +4707,9 @@ export function ResourceClient({
   initialChatDetail = null,
   reviewId = "",
   initialReviewDetail = null,
+  currentUser = null,
 }: Props) {
   const router = useRouter();
-  if (meta.key === "stock-movements") {
-    return (
-      <StockMovementsView
-        meta={meta}
-        result={result}
-        search={search}
-        productId={productId}
-        typeFilter={typeFilter}
-      />
-    );
-  }
-  if (meta.key === "orders") {
-    return (
-      <OrdersView
-        meta={meta}
-        result={result}
-        search={search}
-        status={status}
-        cancelStatus={cancelStatus}
-        orderId={orderId}
-        initialOrderDetail={initialOrderDetail}
-      />
-    );
-  }
-  if (meta.key === "chats") {
-    return (
-      <SupportChatView
-        meta={meta}
-        result={result}
-        search={search}
-        chatId={chatId}
-        initialChatDetail={initialChatDetail}
-      />
-    );
-  }
-  if (meta.key === "reviews") {
-    return (
-      <ProductReviewsView
-        meta={meta}
-        result={result}
-        search={search}
-        status={status}
-        reviewId={reviewId}
-        initialReviewDetail={initialReviewDetail}
-      />
-    );
-  }
-  if (meta.key === "announcements") {
-    return (
-      <AnnouncementsView
-        meta={meta}
-        result={result}
-        search={search}
-        status={status}
-      />
-    );
-  }
-  if (meta.key === "settings") {
-    return (
-      <SettingsView
-        meta={meta}
-        result={result}
-      />
-    );
-  }
   const [dialog, setDialog] = useState<"form" | "delete" | null>(null);
   const [selected, setSelected] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -4571,6 +4741,18 @@ export function ResourceClient({
   } | null>(null);
   const [customPaletteName, setCustomPaletteName] = useState("");
   const [customPaletteHex, setCustomPaletteHex] = useState("#dc2626");
+  const [actionMenuRowId, setActionMenuRowId] = useState<string | number | null>(null);
+
+  useEffect(() => {
+    function handleOutsideClick(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest(".action-dropdown-wrap")) {
+        setActionMenuRowId(null);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
 
   function openCustomColorPicker(
     field: "maba_color_ganjil" | "maba_color_genap" | "product_color",
@@ -4598,7 +4780,9 @@ export function ResourceClient({
     if (colorPickerModal.onApply) {
       colorPickerModal.onApply(finalName, customPaletteHex);
     } else if (colorPickerModal.productId) {
-      handleQuickMabaColorChange(colorPickerModal.productId, colorPickerModal.field as any, finalName);
+      if (colorPickerModal.field !== "product_color") {
+        handleQuickMabaColorChange(colorPickerModal.productId, colorPickerModal.field, finalName);
+      }
     } else {
       if (colorPickerModal.field === "maba_color_ganjil") {
         setMabaGanjil(finalName);
@@ -4805,11 +4989,10 @@ export function ResourceClient({
             <small>
               {colorPickerModal.field === "product_color"
                 ? "Pilih warna hex dan tentukan nama untuk varian produk yang belum ada di daftar template"
-                : `Aturan warna seragam untuk ${
-                    colorPickerModal.field === "maba_color_ganjil"
-                      ? "NIM Ganjil (1, 3, 5, 7, 9)"
-                      : "NIM Genap (0, 2, 4, 6, 8)"
-                  }`}
+                : `Aturan warna seragam untuk ${colorPickerModal.field === "maba_color_ganjil"
+                  ? "NIM Ganjil (1, 3, 5, 7, 9)"
+                  : "NIM Genap (0, 2, 4, 6, 8)"
+                }`}
             </small>
           </div>
           <button type="button" className="icon-button" onClick={() => setColorPickerModal(null)}>
@@ -4932,9 +5115,9 @@ export function ResourceClient({
                   backgroundColor: customPaletteHex,
                   color:
                     customPaletteHex.toUpperCase() === "#FFFFFF" ||
-                    customPaletteHex.toUpperCase() === "#FFF" ||
-                    customPaletteHex.toUpperCase() === "#FFFF00" ||
-                    customPaletteHex.toUpperCase() === "#FFD700"
+                      customPaletteHex.toUpperCase() === "#FFF" ||
+                      customPaletteHex.toUpperCase() === "#FFFF00" ||
+                      customPaletteHex.toUpperCase() === "#FFD700"
                       ? "#111827"
                       : "#FFFFFF",
                   fontWeight: 600,
@@ -5016,6 +5199,25 @@ export function ResourceClient({
     );
   }
 
+  if (meta.key === "stock-movements") {
+    return <StockMovementsView meta={meta} result={result} search={search} productId={productId} typeFilter={typeFilter} />;
+  }
+  if (meta.key === "orders") {
+    return <OrdersView meta={meta} result={result} search={search} status={status} cancelStatus={cancelStatus} orderId={orderId} initialOrderDetail={initialOrderDetail} />;
+  }
+  if (meta.key === "chats") {
+    return <SupportChatView meta={meta} result={result} search={search} chatId={chatId} initialChatDetail={initialChatDetail} />;
+  }
+  if (meta.key === "reviews") {
+    return <ProductReviewsView meta={meta} result={result} search={search} status={status} reviewId={reviewId} initialReviewDetail={initialReviewDetail} />;
+  }
+  if (meta.key === "announcements") {
+    return <AnnouncementsView meta={meta} result={result} search={search} status={status} />;
+  }
+  if (meta.key === "settings") {
+    return <SettingsView meta={meta} result={result} />;
+  }
+
   const hasActiveField = ("is_active" in (result.data[0] || {})) || meta.fields.some((f) => f.key === "is_active") || ["products", "categories", "users", "expeditions"].includes(meta.key);
 
   return (
@@ -5044,13 +5246,15 @@ export function ResourceClient({
       <SweetAlert
         isOpen={dialog === "delete"}
         type="warning"
-        title={`${meta.deleteLabel || "Hapus"} ${meta.singular}?`}
+        title={meta.key === "users" ? `Hapus Akun ${selected?.name || "Pengguna"}?` : `${meta.deleteLabel || "Hapus"} ${meta.singular}?`}
         message={
-          typeof meta.deleteDescription === "string"
-            ? meta.deleteDescription
-            : `Data "${String(selected?.name || selected?.title || selected?.invoice_number || selected?.[meta.primaryKey])}" akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.`
+          meta.key === "users"
+            ? `Apakah Anda yakin ingin menghapus akun "${selected?.name}" (${selected?.email})? Jika akun memiliki histori transaksi pesanan, akun akan dinonaktifkan demi menjaga arsip audit.`
+            : (typeof meta.deleteDescription === "string"
+              ? meta.deleteDescription
+              : `Data "${String(selected?.name || selected?.title || selected?.invoice_number || selected?.[meta.primaryKey])}" akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.`)
         }
-        confirmText={`Ya, ${meta.deleteLabel || "Hapus"}`}
+        confirmText={meta.key === "users" ? "Ya, Hapus Akun" : `Ya, ${meta.deleteLabel || "Hapus"}`}
         cancelText="Batal"
         onConfirm={remove}
         onClose={() => setDialog(null)}
@@ -5087,7 +5291,7 @@ export function ResourceClient({
                 {meta.columns.map((column) => (
                   <th key={column.key}>{column.label}</th>
                 ))}
-                {meta.key === "products" && <th>Rule Event MABA</th>}
+                {meta.key === "products" && <th className="maba-column-header">Rule Event MABA</th>}
                 {(meta.canEdit || meta.canDelete) && <th className="action-column">AKSI</th>}
               </tr>
             </thead>
@@ -5159,151 +5363,325 @@ export function ResourceClient({
                             )}
                             <span>{display(row[column.key], column.format)}</span>
                           </span>
+                        ) : meta.key === "products" && column.key === "stock" ? (
+                          (() => {
+                            const parsedColors = (() => {
+                              const raw = row.colors;
+                              if (!raw) return [];
+                              if (Array.isArray(raw)) {
+                                return raw.map(parseStockColor);
+                              }
+                              if (typeof raw === "string" && raw.trim()) {
+                                try {
+                                  const parsed = JSON.parse(raw);
+                                  if (Array.isArray(parsed)) {
+                                    return parsed.map(parseStockColor);
+                                  }
+                                } catch {
+                                  return raw.split(",").map((s) => ({ name: s.trim(), hex: resolveColorHex(s.trim()), stock: undefined }));
+                                }
+                              }
+                              return [];
+                            })();
+
+                            const totalStockNum = Number(row.stock || 0);
+
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                                  <span style={{ fontWeight: 700, fontSize: "13px", color: totalStockNum > 0 ? "var(--text)" : "#ef4444" }}>
+                                    {totalStockNum} unit
+                                  </span>
+                                  {totalStockNum <= 0 && (
+                                    <span style={{ fontSize: "10px", fontWeight: 800, color: "#ef4444", background: "#fee2e2", padding: "1px 5px", borderRadius: "4px" }}>
+                                      Habis
+                                    </span>
+                                  )}
+                                </div>
+                                {parsedColors.length > 0 && (
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", maxWidth: "260px" }}>
+                                    {parsedColors.map((c, cIdx) => {
+                                      const hex = c.hex || resolveColorHex(c.name);
+                                      const isWhite = hex.toUpperCase() === "#FFFFFF" || hex.toUpperCase() === "#FFF";
+                                      const isZero = c.stock !== undefined && c.stock <= 0;
+                                      return (
+                                        <span
+                                          key={cIdx}
+                                          style={{
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: "4px",
+                                            fontSize: "11px",
+                                            fontWeight: 600,
+                                            padding: "2px 6px",
+                                            borderRadius: "4px",
+                                            background: isZero ? "#fef2f2" : "#f1f5f9",
+                                            border: isZero ? "1px solid #fca5a5" : "1px solid #e2e8f0",
+                                            color: isZero ? "#ef4444" : "#334155",
+                                            whiteSpace: "nowrap",
+                                          }}
+                                          title={c.stock !== undefined ? `Stok ${c.name}: ${c.stock} unit` : c.name}
+                                        >
+                                          <span
+                                            style={{
+                                              width: "8px",
+                                              height: "8px",
+                                              borderRadius: "50%",
+                                              backgroundColor: hex,
+                                              border: isWhite ? "1px solid #cbd5e1" : "1px solid rgba(0,0,0,0.15)",
+                                              flexShrink: 0,
+                                            }}
+                                          />
+                                          <span>{c.name}</span>
+                                          {c.stock !== undefined && (
+                                            <strong style={{ color: isZero ? "#dc2626" : "#003399" }}>
+                                              ({c.stock})
+                                            </strong>
+                                          )}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()
                         ) : (
                           display(row[column.key], column.format)
                         )}
                       </td>
                     ))}
-                  {meta.key === "products" && (
-                    <td>
-                      {isEnabled(row.is_event_maba) ? (
-                        (() => {
-                          const prodId = Number(row[meta.primaryKey]);
-                          const currentGanjil =
-                            inlineMabaColors[prodId]?.ganjil !== undefined
-                              ? inlineMabaColors[prodId].ganjil
-                              : String(row.maba_color_ganjil || "Putih");
-                          const currentGenap =
-                            inlineMabaColors[prodId]?.genap !== undefined
-                              ? inlineMabaColors[prodId].genap
-                              : String(row.maba_color_genap || "Biru");
+                    {meta.key === "products" && (
+                      <td className="maba-column-cell">
+                        {isEnabled(row.is_event_maba) ? (
+                          (() => {
+                            const prodId = Number(row[meta.primaryKey]);
+                            const currentGanjil =
+                              inlineMabaColors[prodId]?.ganjil !== undefined
+                                ? inlineMabaColors[prodId].ganjil
+                                : String(row.maba_color_ganjil || "Putih");
+                            const currentGenap =
+                              inlineMabaColors[prodId]?.genap !== undefined
+                                ? inlineMabaColors[prodId].genap
+                                : String(row.maba_color_genap || "Biru");
 
-                          const hexGanjil = mabaHexMap[currentGanjil] || resolveColorHex(currentGanjil);
-                          const hexGenap = mabaHexMap[currentGenap] || resolveColorHex(currentGenap);
-                          const isWhiteGanjil = hexGanjil.toUpperCase() === "#FFFFFF" || hexGanjil.toUpperCase() === "#FFF";
-                          const isWhiteGenap = hexGenap.toUpperCase() === "#FFFFFF" || hexGenap.toUpperCase() === "#FFF";
+                            const hexGanjil = mabaHexMap[currentGanjil] || resolveColorHex(currentGanjil);
+                            const hexGenap = mabaHexMap[currentGenap] || resolveColorHex(currentGenap);
+                            const isWhiteGanjil = hexGanjil.toUpperCase() === "#FFFFFF" || hexGanjil.toUpperCase() === "#FFF";
+                            const isWhiteGenap = hexGenap.toUpperCase() === "#FFFFFF" || hexGenap.toUpperCase() === "#FFF";
 
-                          const isUpdatingGanjil = updatingMabaKey === `${prodId}-maba_color_ganjil`;
-                          const isUpdatingGenap = updatingMabaKey === `${prodId}-maba_color_genap`;
+                            const isUpdatingGanjil = updatingMabaKey === `${prodId}-maba_color_ganjil`;
+                            const isUpdatingGenap = updatingMabaKey === `${prodId}-maba_color_genap`;
+
+                            return (
+                              <div className="maba-inline-editor">
+                                <div
+                                  className={`maba-pill-select-wrapper ${isUpdatingGanjil ? "is-updating" : ""}`}
+                                  title="Klik untuk ubah warna seragam NIM Ganjil"
+                                >
+                                  <span
+                                    className="color-swatch-dot"
+                                    style={{
+                                      backgroundColor: hexGanjil,
+                                      border: isWhiteGanjil ? "1px solid #d1d5db" : "1px solid rgba(0,0,0,0.25)",
+                                    }}
+                                  />
+                                  <span className="maba-pill-prefix">Ganjil:</span>
+                                  <span className="maba-pill-val">{currentGanjil}</span>
+                                  <span className="maba-select-arrow">▾</span>
+                                  <select
+                                    className="maba-inline-select-overlay"
+                                    value={currentGanjil}
+                                    disabled={isUpdatingGanjil}
+                                    onChange={(e) => {
+                                      if (e.target.value === "__MORE__") {
+                                        openCustomColorPicker("maba_color_ganjil", currentGanjil, prodId);
+                                      } else {
+                                        handleQuickMabaColorChange(prodId, "maba_color_ganjil", e.target.value);
+                                      }
+                                    }}
+                                  >
+                                    {!mabaColorOptions.some((opt) => opt.value.toLowerCase() === currentGanjil.toLowerCase()) && (
+                                      <option value={currentGanjil}>{currentGanjil} (Kustom)</option>
+                                    )}
+                                    {mabaColorOptions.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.value}
+                                      </option>
+                                    ))}
+                                    <option value="__MORE__">🎨 + More (Palet Warna)...</option>
+                                  </select>
+                                </div>
+
+                                <div
+                                  className={`maba-pill-select-wrapper ${isUpdatingGenap ? "is-updating" : ""}`}
+                                  title="Klik untuk ubah warna seragam NIM Genap"
+                                >
+                                  <span
+                                    className="color-swatch-dot"
+                                    style={{
+                                      backgroundColor: hexGenap,
+                                      border: isWhiteGenap ? "1px solid #d1d5db" : "1px solid rgba(0,0,0,0.25)",
+                                    }}
+                                  />
+                                  <span className="maba-pill-prefix">Genap:</span>
+                                  <span className="maba-pill-val">{currentGenap}</span>
+                                  <span className="maba-select-arrow">▾</span>
+                                  <select
+                                    className="maba-inline-select-overlay"
+                                    value={currentGenap}
+                                    disabled={isUpdatingGenap}
+                                    onChange={(e) => {
+                                      if (e.target.value === "__MORE__") {
+                                        openCustomColorPicker("maba_color_genap", currentGenap, prodId);
+                                      } else {
+                                        handleQuickMabaColorChange(prodId, "maba_color_genap", e.target.value);
+                                      }
+                                    }}
+                                  >
+                                    {!mabaColorOptions.some((opt) => opt.value.toLowerCase() === currentGenap.toLowerCase()) && (
+                                      <option value={currentGenap}>{currentGenap} (Kustom)</option>
+                                    )}
+                                    {mabaColorOptions.map((opt) => (
+                                      <option key={opt.value} value={opt.value}>
+                                        {opt.value}
+                                      </option>
+                                    ))}
+                                    <option value="__MORE__">🎨 + More (Palet Warna)...</option>
+                                  </select>
+                                </div>
+                              </div>
+                            );
+                          })()
+                        ) : (
+                          <span className="muted">Non-MABA</span>
+                        )}
+                      </td>
+                    )}
+                    {(meta.canEdit || meta.canDelete) && (
+                      <td className="row-actions" style={{ position: "relative" }}>
+                        {(() => {
+                          const rowId = (row[meta.primaryKey] ?? rowIndex) as string | number;
+                          const isMenuOpen = actionMenuRowId === rowId;
+                          const openUpward = rowIndex >= result.data.length - 2 && result.data.length > 2;
+
+                          const isUserRes = meta.key === "users";
+                          const isSelf = isUserRes && row.id === currentUser?.id;
+                          const isSuperAdmin = currentUser?.role === "superadmin";
+                          const isStaffAccount = isUserRes && (row.role === "admin" || row.role === "superadmin");
+
+                          // Jika Admin biasa melihat akun Admin lain atau Superadmin -> Terkunci penuh
+                          if (isUserRes && !isSuperAdmin && isStaffAccount && !isSelf) {
+                            return (
+                              <span
+                                className="status-pill status-closed"
+                                style={{ fontSize: "0.75rem", padding: "3px 8px", display: "inline-flex", alignItems: "center", gap: "4px", whiteSpace: "nowrap" }}
+                                title="Hanya Superadmin yang berhak mengelola atau menghapus akun Admin / Superadmin"
+                              >
+                                <Icon name="Lock" size={12} />
+                                Terkunci
+                              </span>
+                            );
+                          }
+
+                          // Hak Edit: Superadmin bisa edit siapa saja. Admin biasa bisa edit akun sendiri atau akun pelanggan.
+                          const canEdit = meta.canEdit && (!isUserRes || isSuperAdmin || isSelf || row.role === "customer");
+
+                          // Hak Delete:
+                          // - Akun sendiri tidak boleh dihapus demi keamanan sesi aktif.
+                          // - Superadmin bisa menghapus semua akun pengguna (selain diri sendiri).
+                          // - Admin biasa HANYA bisa menghapus akun Pelanggan (customer).
+                          const canDelete = meta.canDelete && (!isUserRes || (
+                            !isSelf && (isSuperAdmin || (currentUser?.role === "admin" && row.role === "customer"))
+                          ));
+
+                          const canToggle = canEdit && hasActiveField && !isSelf;
+
+                          if (!canEdit && !canDelete && !canToggle) {
+                            return <span className="muted">—</span>;
+                          }
 
                           return (
-                            <div className="maba-inline-editor">
-                              <div
-                                className={`maba-pill-select-wrapper ${isUpdatingGanjil ? "is-updating" : ""}`}
-                                title="Klik untuk ubah warna seragam NIM Ganjil"
+                            <div className="action-dropdown-wrap">
+                              <button
+                                type="button"
+                                className={`action-dots-btn ${isMenuOpen ? "is-active" : ""}`}
+                                title="Pilihan Aksi"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActionMenuRowId(isMenuOpen ? null : rowId);
+                                }}
                               >
-                                <span
-                                  className="color-swatch-dot"
-                                  style={{
-                                    backgroundColor: hexGanjil,
-                                    border: isWhiteGanjil ? "1px solid #d1d5db" : "1px solid rgba(0,0,0,0.25)",
-                                  }}
-                                />
-                                <span className="maba-pill-prefix">Ganjil:</span>
-                                <select
-                                  className="maba-inline-select"
-                                  value={currentGanjil}
-                                  disabled={isUpdatingGanjil}
-                                  onChange={(e) => {
-                                    if (e.target.value === "__MORE__") {
-                                      openCustomColorPicker("maba_color_ganjil", currentGanjil, prodId);
-                                    } else {
-                                      handleQuickMabaColorChange(prodId, "maba_color_ganjil", e.target.value);
-                                    }
-                                  }}
-                                >
-                                  {!mabaColorOptions.some((opt) => opt.value.toLowerCase() === currentGanjil.toLowerCase()) && (
-                                    <option value={currentGanjil}>{currentGanjil} (Kustom)</option>
-                                  )}
-                                  {mabaColorOptions.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                      {opt.value}
-                                    </option>
-                                  ))}
-                                  <option value="__MORE__">🎨 + More (Palet Warna)...</option>
-                                </select>
-                                <span className="maba-select-arrow">▾</span>
-                              </div>
+                                <Icon name="MoreHorizontal" size={16} />
+                              </button>
 
-                              <div
-                                className={`maba-pill-select-wrapper ${isUpdatingGenap ? "is-updating" : ""}`}
-                                title="Klik untuk ubah warna seragam NIM Genap"
-                              >
-                                <span
-                                  className="color-swatch-dot"
-                                  style={{
-                                    backgroundColor: hexGenap,
-                                    border: isWhiteGenap ? "1px solid #d1d5db" : "1px solid rgba(0,0,0,0.25)",
-                                  }}
-                                />
-                                <span className="maba-pill-prefix">Genap:</span>
-                                <select
-                                  className="maba-inline-select"
-                                  value={currentGenap}
-                                  disabled={isUpdatingGenap}
-                                  onChange={(e) => {
-                                    if (e.target.value === "__MORE__") {
-                                      openCustomColorPicker("maba_color_genap", currentGenap, prodId);
-                                    } else {
-                                      handleQuickMabaColorChange(prodId, "maba_color_genap", e.target.value);
-                                    }
-                                  }}
-                                >
-                                  {!mabaColorOptions.some((opt) => opt.value.toLowerCase() === currentGenap.toLowerCase()) && (
-                                    <option value={currentGenap}>{currentGenap} (Kustom)</option>
+                              {isMenuOpen && (
+                                <div className={`action-dropdown-popover ${openUpward ? "open-upward" : ""}`}>
+                                  {canEdit && (
+                                    <button
+                                      type="button"
+                                      className="action-dropdown-item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuRowId(null);
+                                        openEdit(row);
+                                      }}
+                                    >
+                                      <Icon name="Pencil" size={14} style={{ color: "#465FFF" }} />
+                                      <span>Edit Data</span>
+                                    </button>
                                   )}
-                                  {mabaColorOptions.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                      {opt.value}
-                                    </option>
-                                  ))}
-                                  <option value="__MORE__">🎨 + More (Palet Warna)...</option>
-                                </select>
-                                <span className="maba-select-arrow">▾</span>
-                              </div>
+
+                                  {canToggle && (
+                                    <button
+                                      type="button"
+                                      className="action-dropdown-item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuRowId(null);
+                                        toggleStatus(row);
+                                      }}
+                                    >
+                                      {isEnabled(row.is_active) ? (
+                                        <>
+                                          <Icon name="EyeOff" size={14} style={{ color: "#F59E0B" }} />
+                                          <span>Nonaktifkan</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Icon name="CheckCircle2" size={14} style={{ color: "#10B981" }} />
+                                          <span>Aktifkan</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {canDelete && (
+                                    <button
+                                      type="button"
+                                      className="action-dropdown-item danger"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActionMenuRowId(null);
+                                        setSelected(row);
+                                        setDialog("delete");
+                                      }}
+                                    >
+                                      <Icon name={meta.deleteLabel ? "UserRoundX" : "Trash2"} size={14} />
+                                      <span>{meta.deleteLabel || "Hapus Data"}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
-                        })()
-                      ) : (
-                        <span className="muted">Non-MABA</span>
-                      )}
-                    </td>
-                  )}
-                  {(meta.canEdit || meta.canDelete) && (
-                    <td className="row-actions">
-                      {meta.canEdit && (
-                        <button className="icon-button edit-action-btn" title="Edit Data" onClick={() => openEdit(row)}>
-                          <Icon name="Pencil" size={16} />
-                        </button>
-                      )}
-                      {meta.canEdit && hasActiveField && (
-                        <button
-                          type="button"
-                          className={`icon-button toggle-status-btn ${isEnabled(row.is_active) ? "is-active" : "is-inactive"}`}
-                          title={isEnabled(row.is_active) ? "Nonaktifkan" : "Aktifkan"}
-                          onClick={() => toggleStatus(row)}
-                        >
-                          <Icon name={isEnabled(row.is_active) ? "Ban" : "CheckCircle"} size={16} />
-                        </button>
-                      )}
-                      {meta.canDelete && (
-                        <button
-                          className="icon-button danger delete-action-btn"
-                          title={meta.deleteLabel || "Hapus Data"}
-                          onClick={() => {
-                            setSelected(row);
-                            setDialog("delete");
-                          }}
-                        >
-                          <Icon name={meta.deleteLabel ? "UserRoundX" : "Trash2"} size={16} />
-                        </button>
-                      )}
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
+                        })()}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
           </table>
           {!result.data.length && (
             <div className="empty-state table-empty">
@@ -5355,6 +5733,7 @@ export function ResourceClient({
                   key={field.key}
                   field={field}
                   row={selected}
+                  currentUser={currentUser}
                   onToggle={(checked) => {
                     if (field.key === "has_sizes") setHasSizes(checked);
                     if (field.key === "is_event_maba") setEventMaba(checked);
@@ -5464,53 +5843,71 @@ function ProductFormSections({
   const [sizeChartUrl, setSizeChartUrl] = useState<string | null>(
     !removeSizeChart
       ? (row?.size_chart_url as string) ||
-          (row?.size_chart
-            ? `/storage/${String(row.size_chart).replace(/^\/?storage\/?/, "")}`
-            : null)
+      (row?.size_chart
+        ? `/storage/${String(row.size_chart).replace(/^\/?storage\/?/, "")}`
+        : null)
       : null
-  );
-
-  // Stock state & helper text
-  const [currentStock, setCurrentStock] = useState<number>(
-    Number(row?.stock ?? 50)
   );
 
   // Colors management state
   const initialColors = (() => {
     const raw = row?.colors;
+    const fallbackTotalStock = Number(row?.stock ?? 50);
     if (Array.isArray(raw)) {
+      const defaultStockPerColor = raw.length > 0 ? Math.max(0, Math.floor(fallbackTotalStock / raw.length)) : 10;
       return raw.map((c) =>
         typeof c === "string"
-          ? { name: c, hex: resolveColorHex(c) }
-          : { name: String(c.name || ""), hex: String(c.hex || resolveColorHex(String(c.name || ""))) }
+          ? { name: c, hex: resolveColorHex(c), stock: defaultStockPerColor }
+          : {
+              name: String(c.name || ""),
+              hex: String(c.hex || resolveColorHex(String(c.name || ""))),
+              stock: c.stock !== undefined && c.stock !== null ? Number(c.stock) : defaultStockPerColor,
+            }
       );
     }
     if (typeof raw === "string" && raw.trim()) {
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
+          const defaultStockPerColor = parsed.length > 0 ? Math.max(0, Math.floor(fallbackTotalStock / parsed.length)) : 10;
           return parsed.map((c) =>
             typeof c === "string"
-              ? { name: c, hex: resolveColorHex(c) }
-              : { name: String(c.name || ""), hex: String(c.hex || resolveColorHex(String(c.name || ""))) }
+              ? { name: c, hex: resolveColorHex(c), stock: defaultStockPerColor }
+              : {
+                  name: String(c.name || ""),
+                  hex: String(c.hex || resolveColorHex(String(c.name || ""))),
+                  stock: c.stock !== undefined && c.stock !== null ? Number(c.stock) : defaultStockPerColor,
+                }
           );
         }
       } catch {
-        return raw.split(",").map((s) => ({
-          name: s.trim(),
-          hex: resolveColorHex(s.trim()),
+        const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+        const defaultStockPerColor = parts.length > 0 ? Math.max(0, Math.floor(fallbackTotalStock / parts.length)) : 10;
+        return parts.map((s) => ({
+          name: s,
+          hex: resolveColorHex(s),
+          stock: defaultStockPerColor,
         }));
       }
     }
     return [
-      { name: "Kuning Emas", hex: "#FFD700" },
-      { name: "Putih", hex: "#FFFFFF" },
+      { name: "Kuning Emas", hex: "#FFD700", stock: 25 },
+      { name: "Putih", hex: "#FFFFFF", stock: 25 },
     ];
   })();
 
-  const [activeColors, setActiveColors] = useState<Array<{ name: string; hex: string }>>(initialColors);
+  const [activeColors, setActiveColors] = useState<Array<{ name: string; hex: string; stock: number }>>(initialColors);
   const [newColorName, setNewColorName] = useState("");
   const [newColorHex, setNewColorHex] = useState("#dc2626");
+  const [newColorStock, setNewColorStock] = useState<number>(20);
+
+  // Stock state: calculated automatically from colors sum
+  const [currentStock, setCurrentStock] = useState<number>(() => {
+    if (initialColors.length > 0) {
+      return initialColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0);
+    }
+    return Number(row?.stock ?? 50);
+  });
 
   function handleMultiImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
@@ -5566,11 +5963,26 @@ function ProductFormSections({
       setNewColorName("");
       return;
     }
-    setActiveColors((prev) => [...prev, { name: finalName, hex: newColorHex }]);
+    const colorStock = Number.isFinite(newColorStock) && newColorStock >= 0 ? Number(newColorStock) : 20;
+    const nextColors = [...activeColors, { name: finalName, hex: newColorHex, stock: colorStock }];
+    setActiveColors(nextColors);
+    setCurrentStock(nextColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0));
     setNewColorName("");
+    setNewColorStock(20);
   }
 
-  function handleSelectTemplate(selected: { value: string; label: string; hex: string; name: string } | null) {
+  function updateColorStock(idx: number, stockVal: number) {
+    setActiveColors((prev) => {
+      const next = [...prev];
+      if (next[idx]) {
+        next[idx] = { ...next[idx], stock: Math.max(0, stockVal) };
+      }
+      setCurrentStock(next.reduce((sum, c) => sum + (Number(c.stock) || 0), 0));
+      return next;
+    });
+  }
+
+  function handleSelectTemplate(selected: ColorOption | null) {
     if (!selected) {
       setNewColorName("");
       return;
@@ -5582,7 +5994,9 @@ function ProductFormSections({
         undefined,
         (customName, customHex) => {
           if (!activeColors.some((c) => c.name.toLowerCase() === customName.toLowerCase())) {
-            setActiveColors((prev) => [...prev, { name: customName, hex: customHex }]);
+            const nextColors = [...activeColors, { name: customName, hex: customHex, stock: newColorStock || 20 }];
+            setActiveColors(nextColors);
+            setCurrentStock(nextColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0));
           }
           setNewColorName(customName);
           setNewColorHex(customHex);
@@ -5591,11 +6005,15 @@ function ProductFormSections({
       return;
     }
     setNewColorName(selected.name || selected.value);
-    setNewColorHex(selected.hex);
+    setNewColorHex(selected.hex || resolveColorHex(selected.value));
   }
 
   function removeColor(idx: number) {
-    setActiveColors((prev) => prev.filter((_, i) => i !== idx));
+    setActiveColors((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      setCurrentStock(next.reduce((sum, c) => sum + (Number(c.stock) || 0), 0));
+      return next;
+    });
   }
 
   const categoryField = fields.find((f) => f.key === "category_id");
@@ -5793,10 +6211,40 @@ function ProductFormSections({
 
           <div className="three-col-row span-two">
             <label className="field-label">
-              <span>Stok <strong className="required-star">*</strong></span>
-              <input type="number" name="stock" defaultValue={String(row?.stock ?? 50)} required placeholder="50" onChange={(e) => setCurrentStock(Number(e.target.value))} />
+              <span>Stok Total (Otomatis) <strong className="required-star">*</strong></span>
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <input
+                  type="number"
+                  name="stock"
+                  value={currentStock}
+                  readOnly
+                  style={{
+                    background: "#f1f5f9",
+                    cursor: "not-allowed",
+                    fontWeight: 700,
+                    color: currentStock > 0 ? "#0f172a" : "#ef4444",
+                    borderColor: "#cbd5e1",
+                    paddingRight: "70px",
+                  }}
+                  title="Stok total terkunci dan dihitung otomatis dari rincian stok masing-masing varian warna di Bagian 4 (Warna & Palet)."
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    pointerEvents: "none",
+                  }}
+                >
+                  🔒 Terkunci
+                </span>
+              </div>
               <span className="field-subtext stock-subtext">
-                ✓ Stok aman ({currentStock} unit).
+                {activeColors.length > 0
+                  ? `🔒 Dihitung otomatis dari akumulasi ${activeColors.length} varian warna (${currentStock} unit). Kelola stok per warna di Bagian 4.`
+                  : `✓ Stok produk (${currentStock} unit).`}
               </span>
             </label>
 
@@ -5813,6 +6261,47 @@ function ProductFormSections({
               </span>
             </label>
           </div>
+
+          {activeColors.length > 0 && (
+            <div className="span-two" style={{ marginTop: "4px", padding: "10px 14px", background: "#f8fafc", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "block", marginBottom: "6px" }}>
+                🎨 Rincian Stok per Varian Warna (dapat diedit langsung di Bagian 4 di bawah):
+              </span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {activeColors.map((col, idx) => (
+                  <span
+                    key={idx}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      background: (col.stock ?? 0) <= 0 ? "#fef2f2" : "#ffffff",
+                      border: (col.stock ?? 0) <= 0 ? "1px solid #fca5a5" : "1px solid #cbd5e1",
+                      color: (col.stock ?? 0) <= 0 ? "#ef4444" : "#1e293b",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "10px",
+                        height: "10px",
+                        borderRadius: "50%",
+                        backgroundColor: col.hex || resolveColorHex(col.name),
+                        border: "1px solid rgba(0,0,0,0.15)",
+                      }}
+                    />
+                    <span>{col.name}:</span>
+                    <strong style={{ color: (col.stock ?? 0) <= 0 ? "#ef4444" : "#003399" }}>
+                      {(col.stock ?? 0) <= 0 ? "0 (Habis)" : `${col.stock} unit`}
+                    </strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -5863,14 +6352,23 @@ function ProductFormSections({
                           className="hidden-file-input"
                           onChange={(e) => {
                             const f = e.target.files?.[0];
-                            if (f) setSizeChartUrl(URL.createObjectURL(f));
+                            if (f) {
+                              setSizeChartUrl(URL.createObjectURL(f));
+                              setRemoveSizeChart(false);
+                            }
                           }}
                         />
                       </label>
-                      <label className="checkbox-inline-delete">
-                        <input type="checkbox" name="remove_size_chart" onChange={(e) => setRemoveSizeChart(e.target.checked)} />
+                      <button
+                        type="button"
+                        className="secondary-button subtle-button text-danger"
+                        onClick={() => {
+                          setSizeChartUrl(null);
+                          setRemoveSizeChart(true);
+                        }}
+                      >
                         🗑 Hapus
-                      </label>
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -5883,13 +6381,17 @@ function ProductFormSections({
                       className="hidden-file-input"
                       onChange={(e) => {
                         const f = e.target.files?.[0];
-                        if (f) setSizeChartUrl(URL.createObjectURL(f));
+                        if (f) {
+                          setSizeChartUrl(URL.createObjectURL(f));
+                          setRemoveSizeChart(false);
+                        }
                       }}
                     />
                   </label>
                 )}
+                {removeSizeChart && <input type="hidden" name="remove_size_chart" value="true" />}
                 <p className="size-chart-help">
-                  Upload gambar tabel/panduan ukuran khusus (maks 2MB). Jika dikosongkan, aplikasi akan otomatis menyajikan tabel ukuran interaktif berdasarkan varian ukuran yang diisi.
+                  Upload gambar tabel/panduan ukuran khusus (maks 2MB). Jika dikosongkan atau tidak diupload, produk otomatis tidak memiliki foto ukuran.
                 </p>
               </div>
             </div>
@@ -5900,24 +6402,81 @@ function ProductFormSections({
         <div className="color-palette-section">
           <span className="field-section-label">Warna & Palet</span>
 
-          {/* 1: Active Color Pills with working delete button */}
-          <div className="active-color-pills">
+          {/* 1: Active Color Variants with individual stock inputs */}
+          <div className="active-color-variants-list" style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "14px" }}>
             {activeColors.map((col, idx) => {
               const hexVal = col.hex || resolveColorHex(col.name);
               const isWhite = hexVal.toUpperCase() === "#FFFFFF" || hexVal.toUpperCase() === "#FFF";
+              const isOutOfStock = (col.stock ?? 0) <= 0;
               return (
-                <span className="color-pill-item" key={`${col.name}-${idx}`}>
+                <div
+                  key={`${col.name}-${idx}`}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    background: "#f8fafc",
+                    border: isOutOfStock ? "1.5px dashed #ef4444" : "1px solid #cbd5e1",
+                    borderRadius: "8px",
+                    padding: "6px 10px",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                >
                   <span
                     className="color-dot-circle"
                     style={{
+                      width: "18px",
+                      height: "18px",
+                      borderRadius: "50%",
                       backgroundColor: hexVal,
-                      border: isWhite ? "1px solid #d1d5db" : "1px solid rgba(0,0,0,0.25)",
+                      border: isWhite ? "1px solid #94a3b8" : "1px solid rgba(0,0,0,0.2)",
+                      flexShrink: 0,
                     }}
                   />
-                  <span className="color-pill-name">{col.name}</span>
+                  <span style={{ fontWeight: 600, fontSize: "13px", color: "#1e293b" }}>{col.name}</span>
+
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", marginLeft: "4px" }}>
+                    <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600 }}>Stok:</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={col.stock ?? 0}
+                      onChange={(e) => updateColorStock(idx, parseInt(e.target.value, 10) || 0)}
+                      style={{
+                        width: "60px",
+                        height: "26px",
+                        padding: "2px 6px",
+                        fontSize: "12px",
+                        fontWeight: 700,
+                        textAlign: "center",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "5px",
+                        background: "#ffffff",
+                        color: isOutOfStock ? "#ef4444" : "#0f172a",
+                      }}
+                      title={`Jumlah stok untuk varian ${col.name}`}
+                    />
+                  </div>
+
+                  {isOutOfStock && (
+                    <span style={{ fontSize: "10px", color: "#ef4444", fontWeight: 700, background: "#fee2e2", padding: "1px 5px", borderRadius: "4px" }}>
+                      Habis
+                    </span>
+                  )}
+
                   <button
                     type="button"
                     className="remove-pill-btn"
+                    style={{
+                      background: "transparent",
+                      border: "none",
+                      color: "#94a3b8",
+                      cursor: "pointer",
+                      fontSize: "16px",
+                      lineHeight: 1,
+                      padding: "2px 4px",
+                      marginLeft: "2px",
+                    }}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -5928,13 +6487,13 @@ function ProductFormSections({
                   >
                     ×
                   </button>
-                </span>
+                </div>
               );
             })}
           </div>
 
-          {/* 2 & 3: Color Template Dropdown & Custom Palette Adder */}
-          <div className="color-adder-row">
+          {/* 2 & 3: Color Template Dropdown, Name, Hex, Initial Stock, & Custom Palette Adder */}
+          <div className="color-adder-row" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px" }}>
             <div className="template-color-select-container">
               <Select
                 styles={reactSelectColorStyles}
@@ -5948,14 +6507,14 @@ function ProductFormSections({
                 value={
                   newColorName
                     ? colorTemplateOptionsWithMore.find((o) => o.value.toLowerCase() === newColorName.toLowerCase()) || {
-                        value: newColorName,
-                        label: `${newColorName} (${newColorHex})`,
-                        hex: newColorHex,
-                        name: newColorName,
-                      }
+                      value: newColorName,
+                      label: `${newColorName} (${newColorHex})`,
+                      hex: newColorHex,
+                      name: newColorName,
+                    }
                     : null
                 }
-                onChange={(selected: any) => handleSelectTemplate(selected)}
+                onChange={(selected) => handleSelectTemplate(selected as SingleValue<ColorOption>)}
               />
             </div>
 
@@ -5980,6 +6539,27 @@ function ProductFormSections({
               title="Pilih Palet Warna Hex (Klik untuk membuka spektrum warna native)"
             />
 
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+              <span style={{ fontSize: "12px", color: "#475569", fontWeight: 600 }}>Stok:</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="20"
+                value={newColorStock}
+                onChange={(e) => setNewColorStock(parseInt(e.target.value, 10) || 0)}
+                style={{
+                  width: "65px",
+                  height: "36px",
+                  padding: "4px 8px",
+                  fontSize: "13px",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "6px",
+                  textAlign: "center",
+                }}
+                title="Stok awal untuk warna baru"
+              />
+            </div>
+
             <button
               type="button"
               className="secondary-button subtle-button more-palette-trigger-btn"
@@ -6000,7 +6580,9 @@ function ProductFormSections({
                   undefined,
                   (customName, customHex) => {
                     if (!activeColors.some((c) => c.name.toLowerCase() === customName.toLowerCase())) {
-                      setActiveColors((prev) => [...prev, { name: customName, hex: customHex }]);
+                      const nextColors = [...activeColors, { name: customName, hex: customHex, stock: newColorStock || 20 }];
+                      setActiveColors(nextColors);
+                      setCurrentStock(nextColors.reduce((sum, c) => sum + (Number(c.stock) || 0), 0));
                     }
                     setNewColorName(customName);
                     setNewColorHex(customHex);
@@ -6016,7 +6598,7 @@ function ProductFormSections({
               + Tambah
             </button>
           </div>
-          <input type="hidden" name="colors" value={JSON.stringify(activeColors.map((c) => c.name))} />
+          <input type="hidden" name="colors" value={JSON.stringify(activeColors)} />
           <p className="field-subtext">Pilih dari template, klik More... untuk palet kustom, atau gunakan kotak hex untuk menambah varian warna.</p>
         </div>
       </div>
@@ -6078,11 +6660,13 @@ function ProductFormSections({
                         name: mabaGanjil,
                       }
                     }
-                    onChange={(sel: any) => {
-                      if (sel?.value === "__MORE__") {
+                    onChange={(sel) => {
+                      const option = sel as SingleValue<ColorOption>;
+                      if (!option) return;
+                      if (option.value === "__MORE__") {
                         onOpenCustomColorPicker("maba_color_ganjil", mabaGanjil, undefined, (name) => setMabaGanjil(name));
-                      } else if (sel) {
-                        setMabaGanjil(sel.value || sel.name);
+                      } else {
+                        setMabaGanjil(option.value || option.name || mabaGanjil);
                       }
                     }}
                   />
@@ -6122,11 +6706,13 @@ function ProductFormSections({
                         name: mabaGenap,
                       }
                     }
-                    onChange={(sel: any) => {
-                      if (sel?.value === "__MORE__") {
+                    onChange={(sel) => {
+                      const option = sel as SingleValue<ColorOption>;
+                      if (!option) return;
+                      if (option.value === "__MORE__") {
                         onOpenCustomColorPicker("maba_color_genap", mabaGenap, undefined, (name) => setMabaGenap(name));
-                      } else if (sel) {
-                        setMabaGenap(sel.value || sel.name);
+                      } else {
+                        setMabaGenap(option.value || option.name || mabaGenap);
                       }
                     }}
                   />
@@ -6179,7 +6765,17 @@ function ProductFormSections({
   );
 }
 
-function EditorField({ field, row, onToggle }: { field: ResourceField; row: Record<string, unknown> | null; onToggle?: (checked: boolean) => void }) {
+function EditorField({
+  field,
+  row,
+  onToggle,
+  currentUser,
+}: {
+  field: ResourceField;
+  row: Record<string, unknown> | null;
+  onToggle?: (checked: boolean) => void;
+  currentUser?: { id: number; role: string; name?: string; email?: string } | null;
+}) {
   const value = fieldDefault(field, row);
   if (field.kind === "boolean") {
     return (
@@ -6239,16 +6835,42 @@ function EditorField({ field, row, onToggle }: { field: ResourceField; row: Reco
     );
   }
   if (field.kind === "select") {
+    let options = field.options;
+    const isRoleField = field.key === "role";
+    const isRestrictedRole = isRoleField && currentUser?.role !== "superadmin";
+
+    if (isRestrictedRole) {
+      options = field.options?.filter((opt) => opt.value === "customer");
+    }
+
     return (
       <label className="field-label">
         <span>{field.label}{field.required && " *"}</span>
-        <select name={field.key} defaultValue={value} required={field.required} disabled={field.readonly}>
-          {field.placeholder && <option value="" disabled>{field.placeholder}</option>}
-          {field.options?.map((option) => (
-            <option value={option.value} key={option.value}>{option.label}</option>
+        <select
+          name={field.key}
+          defaultValue={value}
+          required={field.required}
+          disabled={field.readonly || (isRestrictedRole && row?.role !== "customer" && !!row)}
+          className="field-select-control"
+          style={{ backgroundColor: "var(--surface-solid, #ffffff)", color: "var(--text, #0f172a)" }}
+        >
+          {field.placeholder && <option value="" disabled style={{ backgroundColor: "#ffffff", color: "#64748b" }}>{field.placeholder}</option>}
+          {options?.map((option) => (
+            <option
+              value={option.value}
+              key={option.value}
+              style={{ backgroundColor: "#ffffff", color: "#0f172a" }}
+            >
+              {option.label}
+            </option>
           ))}
         </select>
-        {field.placeholder && <small className="field-help">{field.placeholder}</small>}
+        {isRestrictedRole && (
+          <small className="field-help" style={{ color: "#e11d48", fontWeight: 600 }}>
+            Hanya Superadmin yang berhak menetapkan peran Admin atau Superadmin.
+          </small>
+        )}
+        {field.placeholder && !isRestrictedRole && <small className="field-help">{field.placeholder}</small>}
       </label>
     );
   }
@@ -6257,12 +6879,12 @@ function EditorField({ field, row, onToggle }: { field: ResourceField; row: Reco
       field.key === "size_chart_file"
         ? row?.size_chart
         : field.key === "image_file"
-        ? (row?.image_path || row?.image)
-        : field.key === "photo_file"
-        ? row?.photo
-        : field.key === "main_photo_file"
-        ? row?.main_photo
-        : (row?.[field.key] || row?.image_path || row?.photo || row?.image || row?.main_photo);
+          ? (row?.image_path || row?.image)
+          : field.key === "photo_file"
+            ? row?.photo
+            : field.key === "main_photo_file"
+              ? row?.main_photo
+              : (row?.[field.key] || row?.image_path || row?.photo || row?.image || row?.main_photo);
 
     const existingUrl =
       rawPath && typeof rawPath === "string"

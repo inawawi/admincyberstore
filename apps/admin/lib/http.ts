@@ -71,17 +71,116 @@ export async function requestData(request: Request): Promise<Record<string, unkn
   return parsed as Record<string, unknown>;
 }
 
+const attempts = new Map<string, { count: number; resetsAt: number }>();
+let lastPrunedAt = Date.now();
+
+function pruneExpiredAttempts(now: number) {
+  if (now - lastPrunedAt < 60_000 && attempts.size < 500) return;
+  lastPrunedAt = now;
+  for (const [key, record] of attempts.entries()) {
+    if (record.resetsAt <= now) {
+      attempts.delete(key);
+    }
+  }
+}
+
+export function checkRateLimit(
+  request: Request,
+  actionKey: string,
+  rule: { max: number; windowMs: number },
+) {
+  const now = Date.now();
+  pruneExpiredAttempts(now);
+
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "local";
+  const key = `${ip}:${actionKey}`;
+
+  const current = attempts.get(key);
+  if (!current || current.resetsAt <= now) {
+    attempts.set(key, { count: 1, resetsAt: now + rule.windowMs });
+    return;
+  }
+
+  current.count += 1;
+  if (current.count > rule.max) {
+    const retry = Math.max(1, Math.ceil((current.resetsAt - now) / 1000));
+    throw new ApiError(429, `Terlalu banyak percobaan. Silakan tunggu ${retry} detik.`, {
+      retry_after: [String(retry)],
+    });
+  }
+}
+
+function isOriginAllowed(origin: string): boolean {
+  if (!origin) return false;
+
+  const customOrigins = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (customOrigins.includes(origin)) return true;
+
+  try {
+    const url = new URL(origin);
+    const host = url.hostname;
+
+    if (["localhost", "127.0.0.1", "0.0.0.0"].includes(host)) {
+      return true;
+    }
+
+    if (host === "cyberstore.kandangdev.com" || host.endsWith(".kandangdev.com")) {
+      return true;
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      if (
+        host.startsWith("192.168.") ||
+        host.startsWith("10.") ||
+        host.startsWith("172.16.")
+      ) {
+        return true;
+      }
+    }
+
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      const appUrl = new URL(process.env.NEXT_PUBLIC_APP_URL);
+      if (appUrl.origin === url.origin) return true;
+    }
+
+    if (process.env.STOREFRONT_URL) {
+      const storefrontUrl = new URL(process.env.STOREFRONT_URL);
+      if (storefrontUrl.origin === url.origin) return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
+}
+
 export function getCorsHeaders(request?: Request) {
-  const origin = request?.headers.get("origin") || "*";
   const reqHeaders =
     request?.headers.get("access-control-request-headers") ||
     "Content-Type, Authorization, X-Encrypted, Accept, X-Requested-With, ngrok-skip-browser-warning, x-encrypted";
-  return {
-    "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Credentials": "true",
+
+  const requestOrigin = request?.headers.get("origin") || "";
+  const allowed = isOriginAllowed(requestOrigin);
+
+  const headers: Record<string, string> = {
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": reqHeaders,
   };
+
+  if (allowed) {
+    headers["Access-Control-Allow-Origin"] = requestOrigin;
+    headers["Access-Control-Allow-Credentials"] = "true";
+  } else if (!requestOrigin) {
+    headers["Access-Control-Allow-Origin"] = "*";
+  }
+
+  return headers;
 }
 
 export function apiResponse(

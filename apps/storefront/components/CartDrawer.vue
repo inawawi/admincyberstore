@@ -65,6 +65,12 @@
                 <div class="cart-item-variants">
                   <span v-if="item.selectedSize" class="variant-chip">Size: {{ item.selectedSize }}</span>
                   <span v-if="item.selectedColor" class="variant-chip">Color: {{ item.selectedColor }}</span>
+                  <span v-if="item.nim" class="variant-chip" style="background: rgba(139, 92, 246, 0.15); color: #7c3aed; border: 1px solid rgba(139, 92, 246, 0.3);">
+                    NIM: {{ item.nim }}
+                  </span>
+                  <span v-if="item.product.is_event_maba" class="variant-chip" style="background: #eff6ff; color: #004aad; border: 1px solid #bfdbfe; font-weight: 700;">
+                    Maks. 1 unit
+                  </span>
                 </div>
 
                 <div class="cart-item-price-row">
@@ -85,6 +91,8 @@
                     <button
                       @click="cartStore.updateQuantity(item.id, item.quantity + 1)"
                       class="qty-btn"
+                      :disabled="item.quantity >= (item.product.is_event_maba ? 1 : item.product.stock)"
+                      :title="item.product.is_event_maba ? 'Maksimal 1 unit untuk produk Event Maba' : undefined"
                       aria-label="Tambah Jumlah"
                     >
                       +
@@ -345,9 +353,16 @@ const { getImageUrl } = useApi()
   background: #f1f5f9;
 }
 
-.qty-btn:hover {
+.qty-btn:hover:not(:disabled) {
   background: #004aad;
   color: #ffffff;
+}
+
+.qty-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  background: #f1f5f9;
+  color: #94a3b8;
 }
 
 .qty-val {

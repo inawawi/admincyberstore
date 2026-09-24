@@ -6,7 +6,10 @@ import { hashPassword } from "@/lib/auth";
 import { saveImage } from "@/lib/media";
 import { planProductGallery } from "@/lib/product-images";
 import type { TransactionDb } from "@/lib/db";
-import { asBoolean, asNumber, cleanNullable, nowSql, parseJsonArray, publicUrl, slugify } from "@/lib/utils";
+import { asBoolean, asNumber, cleanNullable, nowSql, parseColorsArray, parseJsonArray, publicUrl, slugify } from "@/lib/utils";
+import { clearCatalogCache } from "@/lib/cache";
+import { decideCancellation } from "@/lib/order-cancellation";
+import { encryptOrderId, decryptOrderId } from "@/lib/id-cipher";
 
 type AnyRow = RowDataPacket & Record<string, unknown>;
 
@@ -37,6 +40,7 @@ const definitions: Record<string, ResourceMeta> = {
     description: "Katalog, varian, panduan ukuran, aturan MABA, harga, stok, dan foto produk.", canCreate: true, canEdit: true, canDelete: true,
     columns: [
       { key: "name", label: "Produk" }, { key: "category_name", label: "Kategori" },
+      { key: "material", label: "Bahan" },
       { key: "price", label: "Harga", format: "currency" }, { key: "stock", label: "Stok", format: "number" },
       { key: "is_active", label: "Status", format: "boolean" },
     ],
@@ -46,6 +50,10 @@ const definitions: Record<string, ResourceMeta> = {
       { key: "sku", label: "Kode SKU", kind: "text", placeholder: "Contoh: PRD-UBSI-001" },
       { key: "category_id", label: "Kategori", kind: "select", required: true, options: [], placeholder: "Pilih kategori produk dari daftar..." },
       { key: "description", label: "Deskripsi lengkap", kind: "textarea", placeholder: "Tuliskan deskripsi lengkap produk, bahan kain, ukuran, serta keunggulan di sini..." },
+      { key: "material", label: "Jenis Bahan / Material", kind: "text", placeholder: "Contoh: 100% Premium Cotton Combed 24s / Stainless SUS304 / Taslan Waterproof" },
+      { key: "material_gramasi", label: "Gramasi / Ketebalan Bahan", kind: "text", placeholder: "Contoh: 185 - 195 gsm (Tebal, nyaman & tidak menerawang)" },
+      { key: "material_karakteristik", label: "Karakteristik & Tekstur Bahan", kind: "text", placeholder: "Contoh: Tekstur halus lembut, sejuk, menyerap keringat, & anti-bakteri" },
+      { key: "material_perawatan", label: "Petunjuk Perawatan Bahan", kind: "textarea", placeholder: "Contoh: Cuci suhu normal < 30°C, jangan pakai pemutih klorin, jemur terbalik, setrika suhu sedang." },
       { key: "price", label: "Harga jual (Rp)", kind: "currency", required: true, placeholder: "Contoh: 150000 (Harga jual utama dalam Rupiah)" },
       { key: "original_price", label: "Harga awal / coret (Rp)", kind: "currency", placeholder: "Contoh: 180000 (Harga sebelum diskon)" },
       { key: "stock", label: "Stok fisik awal", kind: "number", required: true, placeholder: "Contoh: 50 (Jumlah unit yang tersedia)" },
@@ -91,7 +99,7 @@ const definitions: Record<string, ResourceMeta> = {
       { key: "note", label: "Catatan pesanan / internal", kind: "textarea", placeholder: "Tuliskan catatan internal atau petunjuk khusus pengiriman..." },
       { key: "cancel_request_status", label: "Status tanggapan pembatalan", kind: "select", options: [
         { label: "Belum ada pengajuan", value: "" }, { label: "Menunggu persetujuan", value: "pending" },
-        { label: "Disetujui (Dibatalkan)", value: "approved" }, { label: "Ditolak (Lanjut kirim)", value: "rejected" },
+        { label: "Diproses Midtrans", value: "refund_processing" }, { label: "Disetujui (Dibatalkan)", value: "approved" }, { label: "Ditolak (Lanjut kirim)", value: "rejected" },
       ], placeholder: "Pilih tanggapan atas pengajuan pembatalan pelanggan..." },
     ],
   },
@@ -107,8 +115,8 @@ const definitions: Record<string, ResourceMeta> = {
   users: {
     key: "users", label: "Pengguna", singular: "Pengguna", icon: "Users", primaryKey: "id",
     description: "Akun admin dan pelanggan beserta status aksesnya.", canCreate: true, canEdit: true, canDelete: true,
-    deleteLabel: "Nonaktifkan",
-    deleteDescription: "Akun akan dinonaktifkan dan token login dicabut. Histori pesanan tetap aman untuk audit.",
+    deleteLabel: "Hapus Akun",
+    deleteDescription: "Akun akan dihapus atau dinonaktifkan dan token login dicabut. Superadmin dapat menghapus akun apapun, sedangkan Admin hanya dapat menghapus akun Pelanggan.",
     columns: [
       { key: "name", label: "Nama" }, { key: "email", label: "Email" }, { key: "role", label: "Peran", format: "status" },
       { key: "is_active", label: "Status", format: "boolean" }, { key: "created_at", label: "Dibuat", format: "date" },
@@ -393,8 +401,8 @@ function listQuery(key: string, search: string, status = "", productId = "", typ
       values: [search, like],
     },
     settings: {
-      select: `SELECT * FROM settings WHERE (? = '' OR \`key\` LIKE ? OR \`value\` LIKE ?) ORDER BY \`key\``,
-      count: "SELECT COUNT(*) AS total FROM settings WHERE (? = '' OR \`key\` LIKE ? OR \`value\` LIKE ?)",
+      select: `SELECT * FROM settings WHERE \`key\` NOT LIKE 'rajaongkir_%' AND \`key\` NOT LIKE 'midtrans_%' AND (? = '' OR \`key\` LIKE ? OR \`value\` LIKE ?) ORDER BY \`key\``,
+      count: "SELECT COUNT(*) AS total FROM settings WHERE `key` NOT LIKE 'rajaongkir_%' AND `key` NOT LIKE 'midtrans_%' AND (? = '' OR `key` LIKE ? OR `value` LIKE ?)",
       values: [search, like, like],
     },
   };
@@ -506,10 +514,18 @@ export async function listResource(
         .map((image) => ({ ...image, image_url: publicUrl(image.image) }));
     }
   }
+  if (key === "orders" && data.length) {
+    for (const order of data) {
+      order.encrypted_id = encryptOrderId(Number(order.id));
+    }
+  }
   return { data, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
 }
 
-export async function getOrderDetail(orderId: number) {
+export async function getOrderDetail(orderId: number | string) {
+  const numericId = decryptOrderId(orderId) ?? (typeof orderId === "number" ? orderId : parseInt(String(orderId), 10));
+  if (!numericId || !Number.isFinite(numericId)) return null;
+
   const [order] = await rows<AnyRow>(
     `SELECT o.*,
         u.name AS customer_name, u.email AS customer_email, u.phone AS customer_phone,
@@ -520,9 +536,10 @@ export async function getOrderDetail(orderId: number) {
      LEFT JOIN expeditions e ON e.id = o.expedition_id
      LEFT JOIN customer_addresses ca ON ca.id = o.customer_address_id
      WHERE o.id = ? LIMIT 1`,
-    [orderId]
+    [numericId]
   );
   if (!order) return null;
+  order.encrypted_id = encryptOrderId(Number(order.id));
 
   const items = await rows<AnyRow>(
     `SELECT oi.*, p.main_photo, p.name AS catalog_name
@@ -530,17 +547,17 @@ export async function getOrderDetail(orderId: number) {
      LEFT JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ?
      ORDER BY oi.id ASC`,
-    [orderId]
+    [numericId]
   );
 
   const [payment] = await rows<AnyRow>(
     `SELECT * FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1`,
-    [orderId]
+    [numericId]
   );
 
   const trackings = await rows<AnyRow>(
     `SELECT * FROM order_trackings WHERE order_id = ? ORDER BY created_at DESC, id DESC`,
-    [orderId]
+    [numericId]
   );
 
   return { order, items, payment: payment || null, trackings: trackings || [] };
@@ -666,16 +683,22 @@ export async function createResource(key: string, data: Record<string, unknown>,
     const sku = String(data.sku || "").trim() || `PRD-${Date.now()}`;
     const desc = cleanNullable(data.description as string);
     const origPrice = data.original_price !== undefined && data.original_price !== "" ? asNumber(data.original_price) : null;
-    const stock = asNumber(data.stock, 0);
-    const weight = asNumber(data.weight, 100);
-    const ratingVal = data.rating !== undefined && data.rating !== "" ? asNumber(data.rating, 0) : 0;
     const hasSizes = asBoolean(data.has_sizes);
     const sizesArr = hasSizes ? parseJsonArray(data.sizes) : null;
-    const colorsArr = parseJsonArray(data.colors);
+    const colorsArr = parseColorsArray(data.colors);
+    let stock = asNumber(data.stock, 0);
+    if (colorsArr && colorsArr.length > 0) {
+      const colorSum = colorsArr.reduce((sum, c) => sum + (c.stock || 0), 0);
+      if (colorSum > 0 || colorsArr.some((c) => c.stock !== undefined)) {
+        stock = colorSum;
+      }
+    }
     const sizeChartFile = hasSizes ? await uploadMedia(data.size_chart_file, "products") : null;
     const mainPhotoFile = await uploadMedia(data.main_photo_file, "products");
     const isActive = data.is_active !== undefined ? asBoolean(data.is_active) : true;
     const isRecommended = asBoolean(data.is_recommended);
+    const weight = data.weight !== undefined && data.weight !== "" ? asNumber(data.weight, 250) : 250;
+    const ratingVal = data.rating !== undefined && data.rating !== "" ? asNumber(data.rating, 4.8) : 4.8;
 
     const isEventMaba = asBoolean(data.is_event_maba);
     const mabaGanjil = cleanNullable(data.maba_color_ganjil as string);
@@ -685,12 +708,18 @@ export async function createResource(key: string, data: Record<string, unknown>,
       if (mabaGenap && !String(mabaGenap).trim()) throw new ApiError(422, "Warna MABA NIM genap tidak valid.");
     }
 
+    const material = cleanNullable(data.material as string);
+    const materialGramasi = cleanNullable(data.material_gramasi as string);
+    const materialKarakteristik = cleanNullable(data.material_karakteristik as string);
+    const materialPerawatan = cleanNullable(data.material_perawatan as string);
+
     const insertedId = await transaction(async (tx) => {
       const res = await tx.execute(
-        `INSERT INTO products (name, slug, sku, category_id, description, price, original_price, stock, weight, rating, sizes, size_chart, colors, main_photo, is_active, is_recommended, is_event_maba, maba_color_ganjil, maba_color_genap, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        `INSERT INTO products (name, slug, sku, category_id, description, price, original_price, stock, weight, material, material_gramasi, material_karakteristik, material_perawatan, rating, sizes, size_chart, colors, main_photo, is_active, is_recommended, is_event_maba, maba_color_ganjil, maba_color_genap, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
         [
-          name, slug, sku, categoryId, desc, price, origPrice, stock, weight, ratingVal,
+          name, slug, sku, categoryId, desc, price, origPrice, stock, weight,
+          material, materialGramasi, materialKarakteristik, materialPerawatan, ratingVal,
           sizesArr ? JSON.stringify(sizesArr) : null, sizeChartFile,
           colorsArr ? JSON.stringify(colorsArr) : null, mainPhotoFile,
           isActive ? 1 : 0, isRecommended ? 1 : 0, isEventMaba ? 1 : 0,
@@ -710,6 +739,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
       }
       return newId;
     });
+    clearCatalogCache();
     return insertedId;
   }
 
@@ -723,6 +753,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
       "INSERT INTO categories (name, slug, description, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
       [name, slug, desc, isActive ? 1 : 0]
     );
+    clearCatalogCache();
     return res.insertId;
   }
 
@@ -730,10 +761,19 @@ export async function createResource(key: string, data: Record<string, unknown>,
     const name = String(data.name || "").trim();
     const email = String(data.email || "").trim().toLowerCase();
     const password = String(data.password || "");
-    const role = String(data.role || "customer");
+    const requestedRole = String(data.role || "customer");
     assert(name, "Nama pengguna wajib diisi.");
     assert(email, "Email wajib diisi.");
     assert(password.length >= 6, "Password minimal 6 karakter.");
+
+    let role = requestedRole;
+    if (_adminUser.role !== "superadmin") {
+      if (["admin", "superadmin"].includes(requestedRole)) {
+        throw new ApiError(403, "Hanya Superadmin yang berhak menambahkan akun Admin atau Superadmin.");
+      }
+      role = "customer";
+    }
+
     const existing = await row<AnyRow>("SELECT id FROM users WHERE email = ?", [email]);
     if (existing) throw new ApiError(422, "Email sudah terdaftar.");
     const hash = await hashPassword(password);
@@ -837,6 +877,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
 
     if (Object.keys(settingsObj).length > 0) {
       for (const [k, v] of Object.entries(settingsObj)) {
+        if (k.startsWith("rajaongkir_") || k.startsWith("midtrans_")) continue;
         await execute(
           "INSERT INTO settings (`key`, `value`, created_at, updated_at) VALUES (?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()",
           [k, v === null || v === undefined ? "" : String(v)]
@@ -848,6 +889,9 @@ export async function createResource(key: string, data: Record<string, unknown>,
     const settingKey = String(data.key || "").trim();
     const settingVal = String(data.value || "").trim();
     assert(Boolean(settingKey), "Kunci pengaturan wajib diisi.");
+    if (settingKey.startsWith("rajaongkir_") || settingKey.startsWith("midtrans_")) {
+      throw new ApiError(403, "Pengaturan kredensial RajaOngkir dan Midtrans dikonfigurasi melalui file server environment (.env) demi keamanan.");
+    }
     const res = await execute(
       "INSERT INTO settings (`key`, `value`, created_at, updated_at) VALUES (?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()",
       [settingKey, settingVal]
@@ -877,7 +921,6 @@ export async function updateResource(key: string, id: number, data: Record<strin
     const sku = data.sku !== undefined ? String(data.sku).trim() : String(existing.sku);
     const desc = data.description !== undefined ? cleanNullable(data.description as string) : (existing.description as string | null);
     const origPrice = data.original_price !== undefined ? (data.original_price !== "" ? asNumber(data.original_price) : null) : (existing.original_price as number | null);
-    const stock = data.stock !== undefined ? asNumber(data.stock, 0) : Number(existing.stock);
     const weight = data.weight !== undefined ? asNumber(data.weight, 100) : Number(existing.weight);
     
     // Determine whether product has sizes
@@ -886,7 +929,14 @@ export async function updateResource(key: string, id: number, data: Record<strin
     if (!hasSizes) {
       sizesArr = null;
     }
-    const colorsArr = data.colors !== undefined ? parseJsonArray(data.colors) : parseJsonArray(existing.colors);
+    const colorsArr = data.colors !== undefined ? parseColorsArray(data.colors) : parseColorsArray(existing.colors);
+    let stock = data.stock !== undefined ? asNumber(data.stock, 0) : Number(existing.stock);
+    if (colorsArr && colorsArr.length > 0) {
+      const colorSum = colorsArr.reduce((sum, c) => sum + (c.stock || 0), 0);
+      if (colorSum > 0 || colorsArr.some((c) => c.stock !== undefined)) {
+        stock = colorSum;
+      }
+    }
 
     // Size chart handling
     let sizeChart = (existing.size_chart || null) as string | null;
@@ -918,15 +968,21 @@ export async function updateResource(key: string, id: number, data: Record<strin
       if (mabaGenap && !String(mabaGenap).trim()) throw new ApiError(422, "Warna MABA NIM genap tidak valid.");
     }
 
+    const material = data.material !== undefined ? cleanNullable(data.material as string) : (existing.material as string | null);
+    const materialGramasi = data.material_gramasi !== undefined ? cleanNullable(data.material_gramasi as string) : (existing.material_gramasi as string | null);
+    const materialKarakteristik = data.material_karakteristik !== undefined ? cleanNullable(data.material_karakteristik as string) : (existing.material_karakteristik as string | null);
+    const materialPerawatan = data.material_perawatan !== undefined ? cleanNullable(data.material_perawatan as string) : (existing.material_perawatan as string | null);
+
     const prevStock = Number(existing.stock || 0);
     const stockDiff = stock - prevStock;
 
     await transaction(async (tx) => {
       await tx.execute(
-        `UPDATE products SET name = ?, slug = ?, sku = ?, category_id = ?, description = ?, price = ?, original_price = ?, stock = ?, weight = ?, rating = ?, sizes = ?, size_chart = ?, colors = ?, main_photo = ?, is_active = ?, is_recommended = ?, is_event_maba = ?, maba_color_ganjil = ?, maba_color_genap = ?, updated_at = NOW()
+        `UPDATE products SET name = ?, slug = ?, sku = ?, category_id = ?, description = ?, price = ?, original_price = ?, stock = ?, weight = ?, material = ?, material_gramasi = ?, material_karakteristik = ?, material_perawatan = ?, rating = ?, sizes = ?, size_chart = ?, colors = ?, main_photo = ?, is_active = ?, is_recommended = ?, is_event_maba = ?, maba_color_ganjil = ?, maba_color_genap = ?, updated_at = NOW()
          WHERE id = ?`,
         [
-          name, slug, sku, categoryId, desc, price, origPrice, stock, weight, ratingVal,
+          name, slug, sku, categoryId, desc, price, origPrice, stock, weight,
+          material, materialGramasi, materialKarakteristik, materialPerawatan, ratingVal,
           sizesArr ? JSON.stringify(sizesArr) : null, sizeChart,
           colorsArr ? JSON.stringify(colorsArr) : null, mainPhoto,
           isActive ? 1 : 0, isRecommended ? 1 : 0, isEventMaba ? 1 : 0,
@@ -945,6 +1001,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
         );
       }
     });
+    clearCatalogCache();
     return;
   }
 
@@ -960,6 +1017,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       "UPDATE categories SET name = ?, slug = ?, description = ?, is_active = ?, updated_at = NOW() WHERE id = ?",
       [name, slug, desc, isActive ? 1 : 0, id]
     );
+    clearCatalogCache();
     return;
   }
 
@@ -967,6 +1025,13 @@ export async function updateResource(key: string, id: number, data: Record<strin
     const existing = await row<AnyRow>("SELECT * FROM orders WHERE id = ?", [id]);
     if (!existing) throw new ApiError(404, "Pesanan tidak ditemukan.");
 
+    if (["approved", "rejected"].includes(String(data.cancel_request_status)) || (data.cancel_request_status !== undefined && String(data.cancel_request_status || "") !== String(existing.cancel_request_status || ""))) {
+      await decideCancellation(id, String(data.cancel_request_status), Number(adminUser.id));
+      return;
+    }
+    assert(!["pending", "refund_processing"].includes(String(existing.cancel_request_status)), "Tanggapi pengajuan pembatalan terlebih dahulu.");
+    assert(existing.status !== "cancelled", "Pesanan yang dibatalkan tidak dapat diubah lagi.");
+    assert(data.status !== "cancelled" && data.status !== "expired", "Pembatalan harus melalui pengajuan dan persetujuan admin agar dana dan stok diproses.");
     let statusInput = data.status !== undefined ? String(data.status).trim() : String(existing.status);
     const resiNumber = data.resi_number !== undefined ? cleanNullable(data.resi_number as string) : (existing.resi_number as string | null);
     const note = data.note !== undefined ? cleanNullable(data.note as string) : (existing.note as string | null);
@@ -986,6 +1051,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       statusInput = String(existing.status) || "pending_payment";
     }
 
+    assert(statusInput !== "cancelled", "Gunakan persetujuan pengajuan pembatalan untuk membatalkan pesanan.");
     let finalStatus = statusInput;
     if (cancelStatus === "approved") {
       finalStatus = "cancelled";
@@ -995,10 +1061,11 @@ export async function updateResource(key: string, id: number, data: Record<strin
       finalStatus = "shipped";
     }
 
-    await execute(
-      `UPDATE orders SET status = ?, resi_number = ?, note = ?, cancel_request_status = ?, updated_at = NOW() WHERE id = ?`,
-      [finalStatus, resiNumber, note, cancelStatus, id]
+    const updated = await execute(
+      `UPDATE orders SET status = ?, resi_number = ?, note = ?, updated_at = NOW() WHERE id = ? AND status = ? AND COALESCE(cancel_request_status, '') = ?`,
+      [finalStatus, resiNumber, note, id, existing.status, existing.cancel_request_status || ""]
     );
+    assert(updated.affectedRows === 1, "Pesanan berubah. Muat ulang sebelum menyimpan.", 409);
 
     if (finalStatus !== String(existing.status) || (resiNumber && resiNumber !== String(existing.resi_number || ""))) {
       const statusLabels: Record<string, { desc: string; loc: string }> = {
@@ -1024,9 +1091,20 @@ export async function updateResource(key: string, id: number, data: Record<strin
     const existing = await row<AnyRow>("SELECT * FROM users WHERE id = ?", [id]);
     if (!existing) throw new ApiError(404, "Pengguna tidak ditemukan.");
 
+    if (adminUser.role !== "superadmin") {
+      if (existing.role === "superadmin" || (existing.role === "admin" && existing.id !== adminUser.id)) {
+        throw new ApiError(403, "Hanya Superadmin yang berhak mengelola akun Admin / Superadmin.");
+      }
+      if (data.role !== undefined && ["admin", "superadmin"].includes(String(data.role)) && existing.role === "customer") {
+        throw new ApiError(403, "Hanya Superadmin yang dapat mengubah hak akses menjadi Admin atau Superadmin.");
+      }
+    }
+
     const name = data.name !== undefined ? String(data.name).trim() : String(existing.name);
     const email = data.email !== undefined ? String(data.email).trim().toLowerCase() : String(existing.email);
-    const role = data.role !== undefined ? String(data.role) : String(existing.role);
+    const role = (adminUser.role === "superadmin" && data.role !== undefined) 
+      ? String(data.role) 
+      : String(existing.role);
     assert(name, "Nama pengguna wajib diisi.");
     assert(email, "Email wajib diisi.");
 
@@ -1144,6 +1222,15 @@ export async function updateResource(key: string, id: number, data: Record<strin
     const settingKey = data.key !== undefined ? String(data.key).trim() : String(existing.key);
     const settingVal = data.value !== undefined ? String(data.value).trim() : String(existing.value);
 
+    if (
+      settingKey.startsWith("rajaongkir_") ||
+      settingKey.startsWith("midtrans_") ||
+      String(existing.key).startsWith("rajaongkir_") ||
+      String(existing.key).startsWith("midtrans_")
+    ) {
+      throw new ApiError(403, "Pengaturan kredensial RajaOngkir dan Midtrans dikonfigurasi melalui file server environment (.env) demi keamanan.");
+    }
+
     await execute(
       "UPDATE settings SET `key` = ?, `value` = ?, updated_at = NOW() WHERE id = ?",
       [settingKey, settingVal, id]
@@ -1159,13 +1246,47 @@ export async function deleteResource(key: string, id: number, _adminUser: ApiUse
   if (!meta || !meta.canDelete) throw new ApiError(403, `Modul ${key} tidak mendukung penghapusan.`);
 
   if (key === "users") {
-    await execute("UPDATE users SET is_active = 0, updated_at = NOW() WHERE id = ?", [id]);
-    await execute("DELETE FROM personal_access_tokens WHERE tokenable_type = 'App\\\\Models\\\\User' AND tokenable_id = ?", [id]);
-    return "deactivated";
+    const existing = await row<AnyRow>("SELECT * FROM users WHERE id = ?", [id]);
+    if (!existing) throw new ApiError(404, "Pengguna tidak ditemukan.");
+
+    if (existing.id === _adminUser.id) {
+      throw new ApiError(400, "Anda tidak dapat menghapus atau menonaktifkan akun Anda sendiri yang sedang aktif digunakan.");
+    }
+
+    if (_adminUser.role !== "superadmin") {
+      if (existing.role !== "customer") {
+        throw new ApiError(403, "Hanya Superadmin yang berhak menghapus akun Admin atau Superadmin. Admin hanya dapat menghapus akun Pelanggan.");
+      }
+    }
+
+    const orderCount = await row<AnyRow>("SELECT COUNT(*) AS total FROM orders WHERE user_id = ?", [id]);
+    const hasOrders = Number(orderCount?.total || 0) > 0;
+
+    if (hasOrders) {
+      await execute("UPDATE users SET is_active = 0, updated_at = NOW() WHERE id = ?", [id]);
+      await execute("DELETE FROM personal_access_tokens WHERE tokenable_type = 'App\\\\Models\\\\User' AND tokenable_id = ?", [id]);
+      return "deactivated";
+    }
+
+    await transaction(async (tx) => {
+      await tx.execute("DELETE FROM personal_access_tokens WHERE tokenable_type = 'App\\\\Models\\\\User' AND tokenable_id = ?", [id]);
+      await tx.execute("DELETE FROM password_reset_tokens WHERE email = ?", [existing.email]);
+      await tx.execute("DELETE FROM user_notifications WHERE user_id = ?", [id]);
+      await tx.execute("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = ?)", [id]);
+      await tx.execute("DELETE FROM carts WHERE user_id = ?", [id]);
+      await tx.execute("DELETE FROM customer_addresses WHERE user_id = ?", [id]);
+      await tx.execute("DELETE FROM chat_messages WHERE sender_id = ? OR chat_id IN (SELECT id FROM chats WHERE customer_id = ?)", [id, id]);
+      await tx.execute("DELETE FROM chats WHERE customer_id = ?", [id]);
+      await tx.execute("DELETE FROM product_review_replies WHERE user_id = ?", [id]);
+      await tx.execute("DELETE FROM product_reviews WHERE user_id = ?", [id]);
+      await tx.execute("DELETE FROM users WHERE id = ?", [id]);
+    });
+    return "deleted";
   }
 
   if (key === "products") {
     await execute("DELETE FROM products WHERE id = ?", [id]);
+    clearCatalogCache();
     return "deleted";
   }
 
@@ -1173,6 +1294,7 @@ export async function deleteResource(key: string, id: number, _adminUser: ApiUse
     const count = await row<AnyRow>("SELECT COUNT(*) AS total FROM products WHERE category_id = ?", [id]);
     if (Number(count?.total || 0) > 0) throw new ApiError(422, "Kategori tidak dapat dihapus karena masih digunakan oleh produk.");
     await execute("DELETE FROM categories WHERE id = ?", [id]);
+    clearCatalogCache();
     return "deleted";
   }
 
@@ -1224,6 +1346,37 @@ export async function dashboardData() {
     `SELECT o.*, u.name AS customer_name FROM orders o LEFT JOIN users u ON u.id = o.user_id ORDER BY o.created_at DESC LIMIT 5`
   );
 
+  const monthlyOrdersRows = await rows<AnyRow>(
+    `SELECT 
+       MONTH(created_at) AS month_num,
+       COUNT(*) AS total_orders,
+       COALESCE(SUM(grand_total), 0) AS total_sales
+     FROM orders
+     WHERE YEAR(created_at) = YEAR(NOW())
+     GROUP BY MONTH(created_at)
+     ORDER BY MONTH(created_at) ASC`
+  );
+
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthlyMap = new Map<number, { orders: number; revenue: number }>();
+  for (const r of monthlyOrdersRows) {
+    monthlyMap.set(Number(r.month_num), {
+      orders: Number(r.total_orders || 0),
+      revenue: Number(r.total_sales || 0),
+    });
+  }
+
+  const monthlySales = monthNames.map((month, idx) => {
+    const data = monthlyMap.get(idx + 1) || { orders: 0, revenue: 0 };
+    return {
+      month,
+      monthNum: idx + 1,
+      orders: data.orders,
+      revenue: data.revenue,
+      sales: data.orders,
+    };
+  });
+
   return {
     stats: {
       revenue: Number(totalSalesRow?.total || 0),
@@ -1236,6 +1389,7 @@ export async function dashboardData() {
       unreadReviews: Number(unreadReviewsRow?.total || 0),
     },
     recentOrders,
+    monthlySales,
   };
 }
 

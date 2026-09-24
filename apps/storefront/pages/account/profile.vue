@@ -268,7 +268,7 @@
             </div>
 
             <!-- Role / Tipe Akun -->
-            <div class="form-group">
+            <!-- <div class="form-group">
               <label class="form-label">Tipe Akun</label>
               <input
                 type="text"
@@ -276,7 +276,7 @@
                 disabled
                 class="input-cyber input-disabled"
               />
-            </div>
+            </div> -->
           </div>
 
           <!-- Alamat Utama / Domisili -->
@@ -680,6 +680,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'

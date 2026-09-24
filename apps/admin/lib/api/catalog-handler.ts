@@ -5,6 +5,7 @@ import { hydrateProducts } from "@/lib/api/serializers";
 import { asNumber, publicUrl } from "@/lib/utils";
 import { findCityId, shippingCost } from "@/lib/shipping";
 import type { ApiContext, HandledResult } from "@/lib/api/types";
+import { catalogCache } from "@/lib/cache";
 
 async function settingsMap() {
   const values = await rows<RowDataPacket & { key: string; value: string | null }>("SELECT `key`, value FROM settings");
@@ -15,13 +16,25 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
   const path = ctx.segments.join("/");
 
   if (ctx.method === "GET" && path === "categories") {
+    const cacheKey = "categories";
+    const cached = catalogCache.get<unknown>(cacheKey);
+    if (cached) return { data: cached };
+
     const categories = await rows<RowDataPacket & Record<string, unknown>>(
       "SELECT * FROM categories WHERE is_active = 1 ORDER BY name",
     );
-    return { data: { categories: categories.map((category) => ({ ...category, is_active: Boolean(category.is_active) })) } };
+    const result = { categories: categories.map((category) => ({ ...category, is_active: Boolean(category.is_active) })) };
+    catalogCache.set(cacheKey, result, 5 * 60 * 1000); // Cache kategori 5 menit
+    return { data: result };
   }
 
   if (ctx.method === "GET" && path === "products") {
+    const cacheKey = `products:${ctx.url.search || "all"}`;
+    const cached = catalogCache.get<unknown>(cacheKey);
+    if (cached) {
+      return { data: cached };
+    }
+
     const page = Math.max(1, asNumber(ctx.url.searchParams.get("page"), 1));
     const perPage = Math.min(100, Math.max(1, asNumber(ctx.url.searchParams.get("per_page"), 12)));
     const where = ["p.is_active = 1"];
@@ -44,12 +57,18 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
       `SELECT p.* FROM products p WHERE ${where.join(" AND ")} ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`,
       [...params, perPage, (page - 1) * perPage],
     );
-    return { data: pagination(ctx.request.url, await hydrateProducts(products), count?.total || 0, page, perPage) };
+    const result = pagination(ctx.request.url, await hydrateProducts(products), count?.total || 0, page, perPage);
+    catalogCache.set(cacheKey, result); // Cache hasil list/search 3 menit
+    return { data: result };
   }
 
   const productMatch = path.match(/^products\/([^/]+)$/);
   if (ctx.method === "GET" && productMatch) {
     const key = decodeURIComponent(productMatch[1]);
+    const cacheKey = `product:${key}`;
+    const cached = catalogCache.get<unknown>(cacheKey);
+    if (cached) return { data: cached };
+
     const product = await row<RowDataPacket & Record<string, unknown>>(
       /^\d+$/.test(key)
         ? "SELECT * FROM products WHERE id = ? AND is_active = 1 LIMIT 1"
@@ -58,7 +77,9 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
     );
     if (!product) throw new ApiError(404, "Produk tidak ditemukan.");
     const hydrated = await hydrateProducts([product]);
-    return { data: { product: hydrated[0] } };
+    const result = { product: hydrated[0] };
+    catalogCache.set(cacheKey, result);
+    return { data: result };
   }
 
   const reviewsMatch = path.match(/^products\/([^/]+)\/reviews$/);
@@ -87,6 +108,96 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
       user: { id: review.user_id, name: review.user_name, photo: review.user_photo, photo_url: publicUrl(review.user_photo) },
       replies: replies.filter((reply) => Number(reply.product_review_id) === Number(review.id)),
     })) };
+  }
+
+  const reviewEligibilityMatch = path.match(/^products\/([^/]+)\/review-eligibility$/);
+  if (ctx.method === "GET" && reviewEligibilityMatch) {
+    const key = decodeURIComponent(reviewEligibilityMatch[1]);
+    const product = await row<RowDataPacket & { id: number }>(
+      /^\d+$/.test(key) ? "SELECT id FROM products WHERE id = ?" : "SELECT id FROM products WHERE slug = ?",
+      [key],
+    );
+    if (!product) throw new ApiError(404, "Produk tidak ditemukan.");
+
+    const userId = Number(ctx.user?.id);
+    if (!userId) {
+      return {
+        data: {
+          can_review: false,
+          has_purchased: false,
+          reason: "unauthenticated",
+          message: "Silakan masuk ke akun untuk memberikan ulasan.",
+        },
+      };
+    }
+
+    // Check if user already reviewed this product
+    const existingReview = await row<RowDataPacket & { id: number }>(
+      "SELECT id FROM product_reviews WHERE product_id = ? AND user_id = ? LIMIT 1",
+      [product.id, userId],
+    );
+    if (existingReview) {
+      return {
+        data: {
+          can_review: false,
+          has_purchased: true,
+          has_reviewed: true,
+          reason: "already_reviewed",
+          message: "Anda sudah memberikan ulasan untuk produk ini.",
+        },
+      };
+    }
+
+    // Check orders containing this product
+    const userOrders = await rows<RowDataPacket & { order_id: number; status: string }>(
+      `SELECT o.id AS order_id, o.status
+         FROM orders o
+         JOIN order_items oi ON oi.order_id = o.id
+        WHERE o.user_id = ? AND oi.product_id = ?
+        ORDER BY o.id DESC`,
+      [userId, product.id],
+    );
+
+    if (!userOrders.length) {
+      return {
+        data: {
+          can_review: false,
+          has_purchased: false,
+          has_reviewed: false,
+          reason: "not_purchased",
+          message: "Hanya pembeli yang telah membeli produk ini yang dapat memberikan penilaian.",
+        },
+      };
+    }
+
+    // Check if there is any completed or arrived order
+    const completedOrder = userOrders.find((o) => o.status === "completed" || o.status === "arrived");
+    if (completedOrder) {
+      return {
+        data: {
+          can_review: true,
+          has_purchased: true,
+          has_reviewed: false,
+          order_id: completedOrder.order_id,
+          order_status: completedOrder.status,
+          message: "Anda dapat memberikan penilaian untuk produk ini.",
+        },
+      };
+    }
+
+    // Otherwise, order exists but not arrived/completed yet
+    const latestOrder = userOrders[0];
+    return {
+      data: {
+        can_review: false,
+        has_purchased: true,
+        has_reviewed: false,
+        reason: "not_arrived",
+        order_id: latestOrder.order_id,
+        order_status: latestOrder.status,
+        message: "Paket sedang dalam perjalanan / belum tiba di tujuan.",
+      },
+    };
   }
 
   if (ctx.method === "GET" && path === "expeditions") {

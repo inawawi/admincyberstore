@@ -6,11 +6,11 @@
           <div class="section-title-group">
             <span class="section-subtitle text-gold inline-flex items-center gap-1">
               <Icon name="lucide:graduation-cap" class="w-4 h-4 text-gold" />
-              <span>RESMI KEGIATAN MAHASISWA BARU 2026</span>
+              <span>{{ eventTitle || 'RESMI KEGIATAN MAHASISWA BARU 2026' }}</span>
             </span>
-            <h2 class="section-title">Perlengkapan Ormik & Semot UBSI</h2>
+            <h2 class="section-title">{{ eventHeading || 'Perlengkapan Ormik & Semot UBSI' }}</h2>
             <p class="event-subtitle-desc">
-              Seragam resmi dan atribut wajib kegiatan Orientasi Akademik & Seminar Motivasi. Warna kaos otomatis disesuaikan dengan digit terakhir NIM Anda (Ganjil: Kaos Putih, Genap: Kaos Biru).
+              {{ eventDescription || 'Seragam resmi dan atribut wajib kegiatan Orientasi Akademik & Seminar Motivasi. Warna kaos otomatis disesuaikan dengan digit terakhir NIM Anda (Ganjil: Kaos Putih, Genap: Kaos Biru).' }}
             </p>
           </div>
           <NuxtLink to="/products?is_event_maba=1" class="view-all-link event-link">
@@ -34,6 +34,9 @@
 <script setup lang="ts">
 interface Props {
   products: any[]
+  eventTitle?: string
+  eventHeading?: string
+  eventDescription?: string
 }
 
 defineProps<Props>()

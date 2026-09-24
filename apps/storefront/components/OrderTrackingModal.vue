@@ -193,10 +193,19 @@
                     </div>
                     <!-- Action Buttons: Tulis Penilaian & Lihat Produk (jika status arrived / completed) -->
                     <div v-if="order.status === 'arrived' || order.status === 'completed'" class="modal-item-actions">
-                      <NuxtLink :to="`/products/${item.product_id}/reviews?order_id=${order.id}&openModal=true`"
+                      <NuxtLink
+                        v-if="!item.is_reviewed"
+                        :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}/reviews?order_id=${order.id}&openModal=true`"
                         class="btn-modal-review" title="Tulis penilaian dan unggah foto bukti" @click="$emit('close')">
-                        <Icon name="lucide:message-square-plus" class="w-3 h-3 mr-1 inline" />
+                        <Icon name="lucide:star" class="w-3 h-3 mr-1 inline text-amber-500" />
                         <span>Nilai</span>
+                      </NuxtLink>
+                      <NuxtLink
+                        v-else
+                        :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}/reviews?order_id=${order.id}`"
+                        class="btn-modal-review btn-modal-reviewed" title="Lihat ulasan dan penilaian produk" @click="$emit('close')">
+                        <Icon name="lucide:check-circle-2" class="w-3 h-3 mr-1 inline text-emerald-500" />
+                        <span>Lihat Penilaian</span>
                       </NuxtLink>
                       <NuxtLink :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}`"
                         class="btn-modal-view" title="Lihat halaman produk" @click="$emit('close')">
@@ -241,16 +250,16 @@
             </button>
 
             <!-- Print Invoice button if paid -->
-            <button v-if="isPaid(order.status)" type="button" class="btn btn-secondary btn-print-tracking-modal"
+            <!-- <button v-if="isPaid(order.status)" type="button" class="btn btn-secondary btn-print-tracking-modal"
               @click="$emit('print-invoice', order)" title="Cetak Bukti Pembayaran / Invoice">
               <Icon name="lucide:printer" class="w-3.5 h-3.5 mr-1 text-bsi inline" />
               <span>Cetak Invoice</span>
-            </button>
+            </button> -->
 
             <!-- Check Payment Status button if waiting payment -->
             <button v-if="order.status === 'pending_payment'" type="button"
               class="btn btn-secondary btn-check-status-modal" :disabled="isCheckingPayment"
-              @click="handleCheckPaymentStatus" title="Cek langsung status pembayaran dari Midtrans">
+              @click="handleCheckPaymentStatus()" title="Cek langsung status pembayaran dari Midtrans">
               <Icon name="lucide:refresh-cw" class="w-3.5 h-3.5 mr-1 inline"
                 :class="{ 'animate-spin': isCheckingPayment }" />
               <span>{{ isCheckingPayment ? 'Mengecek...' : 'Cek Status Bayar' }}</span>
@@ -282,7 +291,10 @@
             </NuxtLink> -->
 
             <!-- Status Pengajuan Pembatalan (Jika sedang diproses Admin) -->
-            <div v-if="order.cancel_request_status === 'pending'" class="cancel-pending-pill">
+            <p v-if="order.cancel_request_status === 'refund_processing'" role="status">Pembatalan sedang dikonfirmasi ke Midtrans. Pengembalian dana mengikuti proses penyedia pembayaran.</p>
+              <p v-if="order.cancel_request_status === 'approved'" role="status">Pembatalan disetujui. Lihat riwayat pesanan untuk proses pengembalian dana ke metode pembayaran asal.</p>
+              <p v-if="order.cancel_request_status === 'rejected'" role="status">Pengajuan pembatalan ditolak admin. Pesanan dilanjutkan.</p>
+              <div v-if="order.cancel_request_status === 'pending'" class="cancel-pending-pill">
               <span class="pulse-amber-dot"></span>
               <span>Pengajuan Pembatalan Sedang Diproses</span>
             </div>
@@ -302,7 +314,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import { useApi } from '~/composables/useApi'
 import { useFormat } from '~/composables/useFormat'
 
@@ -333,9 +345,10 @@ const isSyncing = ref(false)
 const isSimulating = ref(false)
 const isCheckingPayment = ref(false)
 
-const handleCheckPaymentStatus = async () => {
+const handleCheckPaymentStatus = async (silent: boolean | unknown = false) => {
   if (!props.order) return
-  isCheckingPayment.value = true
+  const isSilent = silent === true
+  if (!isSilent) isCheckingPayment.value = true
   try {
     let res: any = null
     if (props.order.payment?.id) {
@@ -350,19 +363,84 @@ const handleCheckPaymentStatus = async () => {
     const currentStatus = res?.order?.status || res?.payment?.status
     if (currentStatus === 'paid') {
       props.order.status = 'paid'
-      alert('Pembayaran berhasil diverifikasi! Pesanan Anda telah lunas.')
+      if (!isSilent) {
+        alert('Pembayaran berhasil diverifikasi! Pesanan Anda telah lunas.')
+      }
     } else if (currentStatus === 'cancelled') {
       props.order.status = 'cancelled'
-      alert('Pesanan dibatalkan (Waktu pembayaran habis atau transaksi dibatalkan).')
-    } else {
+      if (!isSilent) {
+        alert('Pesanan dibatalkan (Waktu pembayaran habis atau transaksi dibatalkan).')
+      }
+    } else if (!isSilent) {
       alert(res?.message || 'Status pembayaran berhasil dicek. Masih menunggu pembayaran.')
     }
   } catch (err: any) {
-    alert(err.data?.message || err.message || 'Gagal mengecek status pembayaran ke Midtrans.')
+    if (!isSilent) {
+      alert(err.data?.message || err.message || 'Gagal mengecek status pembayaran ke Midtrans.')
+    }
   } finally {
-    isCheckingPayment.value = false
+    if (!isSilent) isCheckingPayment.value = false
   }
 }
+
+// Auto polling while tracking modal is open so admin status updates & resi appear automatically
+let autoSyncTimer: any = null
+
+const pollOrderDetail = async () => {
+  if (!props.isOpen || !props.order?.id) return
+  try {
+    // If pending payment, also check payment status silently
+    if (props.order.status === 'pending_payment') {
+      await handleCheckPaymentStatus(true)
+    }
+
+    const res = await fetchOrderDetail(props.order.id)
+    if (res?.order) {
+      const fresh = res.order
+      const hasChanged =
+        fresh.status !== props.order.status ||
+        fresh.resi_number !== props.order.resi_number ||
+        fresh.cancel_request_status !== props.order.cancel_request_status ||
+        (fresh.trackings?.length || 0) !== (props.order.trackings?.length || 0)
+
+      if (hasChanged) {
+        Object.assign(props.order, fresh)
+        emit('refresh')
+      }
+    }
+  } catch (err) {
+    // Silent fail in polling
+  }
+}
+
+const startAutoSync = () => {
+  stopAutoSync()
+  autoSyncTimer = setInterval(pollOrderDetail, 4000)
+}
+
+const stopAutoSync = () => {
+  if (autoSyncTimer) {
+    clearInterval(autoSyncTimer)
+    autoSyncTimer = null
+  }
+}
+
+watch(
+  () => [props.isOpen, props.order?.id],
+  ([isOpen, orderId]) => {
+    if (isOpen && orderId) {
+      pollOrderDetail()
+      startAutoSync()
+    } else {
+      stopAutoSync()
+    }
+  },
+  { immediate: true }
+)
+
+onUnmounted(() => {
+  stopAutoSync()
+})
 
 // Validasi apakah pesanan dapat dibatalkan:
 // 1. Toko BELUM memperbarui status menjadi diproses (packed, shipped, arrived, completed, cancelled)
@@ -375,7 +453,7 @@ const isOrderCancellable = (order: any): boolean => {
     return false
   }
 
-  if (order.cancel_request_status === 'pending' || order.cancel_request_status === 'approved') {
+  if (['pending', 'approved', 'refund_processing'].includes(order.cancel_request_status)) {
     return false
   }
 
@@ -1161,6 +1239,18 @@ const openLightbox = (url: string) => {
 .btn-modal-review:hover {
   background: #003399;
   color: #ffffff;
+}
+
+.btn-modal-reviewed {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+
+.btn-modal-reviewed:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #003399;
 }
 
 .btn-modal-view {

@@ -80,6 +80,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'

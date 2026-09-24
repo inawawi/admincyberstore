@@ -19,6 +19,7 @@
     "typecheck": "npm run typecheck --workspace=apps/admin",
     "test": "npm run test --workspace=apps/admin",
     "db:setup": "npm run db:setup --workspace=apps/admin",
+    "seed:admin": "npm run seed:admin --workspace=apps/admin",
     "ngrok": "ngrok http 3100 --host-header=rewrite"
   },
   "devDependencies": { "concurrently": "^9.2.1" }

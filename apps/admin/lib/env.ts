@@ -24,7 +24,9 @@ export const env = {
     localOnlyAuthSecret,
   usingLocalAuthSecret:
     !process.env.AUTH_SECRET && !process.env.APP_KEY,
-  apiEncryptionKey: process.env.API_ENCRYPTION_KEY || "",
+  get apiEncryptionKey() {
+    return process.env.API_ENCRYPTION_KEY || "";
+  },
   mediaRoot: path.resolve(
     /* turbopackIgnore: true */ process.cwd(),
     process.env.MEDIA_ROOT || "./public/storage",

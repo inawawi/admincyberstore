@@ -14,7 +14,7 @@
       <div class="loader-info">
         <div class="tech-badge">
           <span class="status-pulse"></span>
-          <span>SYSTEM PROTOCOL</span>
+          <span>Harap Tunggu</span>
         </div>
         <div class="loader-title">{{ text || 'MEMUAT SISTEM...' }}</div>
         <div v-if="subtext" class="loader-subtext">{{ subtext }}</div>
@@ -75,9 +75,20 @@ withDefaults(
   justify-content: center;
 }
 
-.size-sm .rings-wrapper { width: 44px; height: 44px; }
-.size-md .rings-wrapper { width: 68px; height: 68px; }
-.size-lg .rings-wrapper { width: 92px; height: 92px; }
+.size-sm .rings-wrapper {
+  width: 44px;
+  height: 44px;
+}
+
+.size-md .rings-wrapper {
+  width: 68px;
+  height: 68px;
+}
+
+.size-lg .rings-wrapper {
+  width: 92px;
+  height: 92px;
+}
 
 .outer-ring {
   position: absolute;
@@ -119,8 +130,15 @@ withDefaults(
   animation: pulseDot 1.4s ease-in-out infinite alternate;
 }
 
-.size-sm .core-dot { width: 5px; height: 5px; }
-.size-lg .core-dot { width: 12px; height: 12px; }
+.size-sm .core-dot {
+  width: 5px;
+  height: 5px;
+}
+
+.size-lg .core-dot {
+  width: 12px;
+  height: 12px;
+}
 
 /* Status Text & Typography */
 .loader-info {
@@ -162,8 +180,13 @@ withDefaults(
   text-transform: uppercase;
 }
 
-.size-sm .loader-title { font-size: 0.8rem; }
-.size-lg .loader-title { font-size: 1.15rem; }
+.size-sm .loader-title {
+  font-size: 0.8rem;
+}
+
+.size-lg .loader-title {
+  font-size: 1.15rem;
+}
 
 .loader-subtext {
   font-size: 0.78rem;
@@ -174,22 +197,46 @@ withDefaults(
 
 /* Animations */
 @keyframes spinClockwise {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes spinCounter {
-  from { transform: rotate(360deg); }
-  to { transform: rotate(0deg); }
+  from {
+    transform: rotate(360deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
 }
 
 @keyframes pulseDot {
-  0% { transform: scale(0.8); opacity: 0.6; }
-  100% { transform: scale(1.3); opacity: 1; }
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1.3);
+    opacity: 1;
+  }
 }
 
 @keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.2;
+  }
 }
 </style>

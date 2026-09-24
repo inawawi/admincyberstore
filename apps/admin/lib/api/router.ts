@@ -1,12 +1,10 @@
 import { authenticateApi } from "@/lib/auth";
-import { handleApiError, apiResponse, requestData, ApiError } from "@/lib/http";
+import { handleApiError, apiResponse, requestData, ApiError, checkRateLimit } from "@/lib/http";
 import { handleAuth } from "@/lib/api/auth-handler";
 import { handleCatalog } from "@/lib/api/catalog-handler";
 import { handleCustomer } from "@/lib/api/customer-handler";
 import { handleCommerce } from "@/lib/api/commerce-handler";
 import type { ApiContext } from "@/lib/api/types";
-
-const attempts = new Map<string, { count: number; resetsAt: number }>();
 
 function limit(request: Request, path: string) {
   const rules: Record<string, { max: number; window: number }> = {
@@ -17,21 +15,7 @@ function limit(request: Request, path: string) {
   };
   const rule = rules[path];
   if (!rule) return;
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-  const key = `${ip}:${path}`;
-  const now = Date.now();
-  const current = attempts.get(key);
-  if (!current || current.resetsAt <= now) {
-    attempts.set(key, { count: 1, resetsAt: now + rule.window });
-    return;
-  }
-  current.count += 1;
-  if (current.count > rule.max) {
-    const retry = Math.max(1, Math.ceil((current.resetsAt - now) / 1000));
-    throw new ApiError(429, `Terlalu banyak percobaan. Silakan tunggu ${retry} detik.`, {
-      retry_after: [String(retry)],
-    });
-  }
+  checkRateLimit(request, path, { max: rule.max, windowMs: rule.window });
 }
 
 function publicEndpoint(method: string, path: string) {
@@ -47,7 +31,7 @@ function publicEndpoint(method: string, path: string) {
     "payments/midtrans-callback",
   ].includes(path)) return true;
   if (method === "GET" && ["categories", "products", "expeditions", "about", "help", "store-info", "banners", "auth/google/callback"].includes(path)) return true;
-  if (method === "GET" && /^products\/[^/]+(?:\/reviews)?$/.test(path)) return true;
+  if (method === "GET" && /^products\/[^/]+(?:\/(?:reviews|review-eligibility))?$/.test(path)) return true;
   return false;
 }
 

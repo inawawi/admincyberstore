@@ -15,13 +15,8 @@
             <!-- Brand Badge -->
             <div class="showcase-brand">
               <div class="showcase-logo-box">
-                <img
-                  v-if="storeLogo"
-                  :src="storeLogo"
-                  :alt="storeName || 'BSI Cyber Store'"
-                  class="showcase-logo-img"
-                  @error="handleLogoError"
-                />
+                <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="showcase-logo-img"
+                  @error="handleLogoError" />
               </div>
               <div class="showcase-brand-text">
                 <span class="brand-title">
@@ -42,7 +37,8 @@
                 <span class="gradient-text">BSI Cyber Store</span>
               </h2>
               <p class="showcase-desc">
-                Daftarkan akun Anda untuk kemudahan membeli merchandise resmi kampus, kaos edisi khusus, apparel kuliah, dan gear teknologi dengan garansi terpercaya.
+                Daftarkan akun Anda untuk kemudahan berbelanja merchandise resmi kampus, kaos edisi khusus, dan
+                produk original lainnya dengan harga terpercaya.
               </p>
             </div>
 
@@ -53,8 +49,8 @@
                   <Icon name="lucide:gift" class="w-5 h-5 text-cyan" />
                 </div>
                 <div class="feature-text">
-                  <strong>Akses Promo & Edisi Mahasiswa</strong>
-                  <span>Potongan harga khusus civitas akademika & maba</span>
+                  <strong>100% Produk Original</strong>
+                  <span>Produk resmi langsung dari BSI Cyber Store</span>
                 </div>
               </div>
 
@@ -97,13 +93,8 @@
             <!-- Mobile Brand Logo (Visible on mobile only) -->
             <div class="mobile-brand-header">
               <div class="mobile-logo-box">
-                <img
-                  v-if="storeLogo"
-                  :src="storeLogo"
-                  :alt="storeName || 'BSI Cyber Store'"
-                  class="logo-img"
-                  @error="handleLogoError"
-                />
+                <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="logo-img"
+                  @error="handleLogoError" />
               </div>
               <span class="mobile-brand-name">
                 <span class="text-gold">BSI</span> CYBER<span class="text-ubsi">STORE</span>
@@ -134,35 +125,56 @@
             </div>
 
             <!-- OTP Step -->
-            <form v-if="step === 'otp'" @submit.prevent="handleVerifyOtp" class="auth-form">
+            <form v-if="step === 'otp'" @submit.prevent="handleVerifyOtp" class="auth-form otp-premium-form">
               <div class="otp-notice-box">
-                <div class="otp-icon-wrap"><Icon name="lucide:mail" class="w-6 h-6 text-bsi" /></div>
+                <div class="otp-icon-wrap">
+                  <Icon name="lucide:shield-check" class="w-6 h-6 text-bsi" />
+                </div>
                 <div class="otp-notice-content">
                   <h4>Verifikasi Email Anda</h4>
-                  <p>Kode OTP 6-digit telah dikirimkan ke email <strong>{{ email }}</strong></p>
+                  <p>Masukkan 6 digit kode keamanan yang dikirimkan ke <strong>{{ email }}</strong></p>
                 </div>
               </div>
 
-              <div class="form-group">
-                <label class="form-label">Kode Verifikasi OTP</label>
-                <div class="otp-input-wrapper">
-                  <input
-                    v-model="otpCode"
-                    type="text"
-                    maxlength="6"
-                    placeholder="• • • • • •"
-                    required
-                    class="input-cyber input-otp font-mono tracking-widest text-center"
-                    autofocus
-                  />
+              <div class="form-group otp-group-wrap">
+                <div class="otp-header-row">
+                  <label class="form-label mb-0">Kode Verifikasi (OTP)</label>
+                  <span class="otp-expiry-badge">
+                    <Icon name="lucide:clock" class="w-3.5 h-3.5" />
+                    Berlaku 10 Menit
+                  </span>
                 </div>
-                <span class="helper-text">Periksa kotak masuk atau folder spam email Anda.</span>
+
+                <!-- Premium 6-Digit Segmented Boxes -->
+                <div class="otp-boxes-container" @paste="handleOtpPaste">
+                  <div v-for="(digit, index) in otpDigits" :key="index" class="otp-box-cell" :class="{
+                    'is-filled': digit !== '',
+                    'is-active': activeOtpIndex === index
+                  }">
+                    <input :ref="(el) => { if (el) otpInputs[index] = el as HTMLInputElement }" type="text"
+                      inputmode="numeric" pattern="[0-9]*" maxlength="1" :value="digit" class="otp-box-input font-mono"
+                      autocomplete="one-time-code" @focus="activeOtpIndex = index" @blur="activeOtpIndex = -1"
+                      @input="(e) => handleOtpInput(index, e)" @keydown="(e) => handleOtpKeydown(index, e)" />
+                    <div class="otp-box-glow"></div>
+                  </div>
+                </div>
+
+                <div class="otp-helper-row">
+                  <span class="helper-text mb-0">
+                    <Icon name="lucide:info" class="w-3.5 h-3.5 inline mr-1 text-slate-400" />
+                    Periksa folder <strong>Inbox</strong> atau <strong>Spam</strong> email Anda.
+                  </span>
+                  <button v-if="otpDigits.some(d => d !== '')" type="button" class="btn-clear-otp" @click="clearOtp">
+                    Reset Kode
+                  </button>
+                </div>
               </div>
 
-              <button type="submit" :disabled="authStore.isLoading" class="btn btn-primary btn-submit">
+              <button type="submit" :disabled="authStore.isLoading || otpCode.length < 6"
+                class="btn btn-primary btn-submit btn-verify-otp">
                 <span v-if="authStore.isLoading" class="btn-spinner-wrap">
                   <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
-                  <span>Memverifikasi...</span>
+                  <span>Memverifikasi Akun...</span>
                 </span>
                 <span v-else class="btn-content-wrap">
                   <span>Verifikasi & Selesai</span>
@@ -172,19 +184,19 @@
 
               <!-- Kirim Ulang OTP Section -->
               <div class="otp-actions-wrapper">
-                <p class="resend-desc">
-                  Belum menerima kode OTP?
-                  <button
-                    type="button"
-                    :disabled="isResendingOtp || resendCooldown > 0"
-                    @click="handleResendOtp"
-                    class="btn-resend-link"
-                  >
+                <div class="resend-card">
+                  <span class="resend-label">Belum menerima kode?</span>
+                  <button type="button" :disabled="isResendingOtp || resendCooldown > 0" @click="handleResendOtp"
+                    class="btn-resend-pill" :class="{ 'is-disabled': isResendingOtp || resendCooldown > 0 }">
+                    <Icon v-if="isResendingOtp" name="lucide:loader-2" class="w-3.5 h-3.5 animate-spin" />
+                    <Icon v-else-if="resendCooldown > 0" name="lucide:timer" class="w-3.5 h-3.5 text-amber-500" />
+                    <Icon v-else name="lucide:rotate-cw" class="w-3.5 h-3.5" />
+
                     <span v-if="isResendingOtp">Mengirim ulang...</span>
-                    <span v-else-if="resendCooldown > 0">Kirim ulang ({{ resendCooldown }}s)</span>
-                    <span v-else>Kirim Ulang Kode</span>
+                    <span v-else-if="resendCooldown > 0">Kirim ulang dalam {{ resendCooldown }}s</span>
+                    <span v-else>Kirim Ulang Kode OTP</span>
                   </button>
-                </p>
+                </div>
 
                 <button type="button" @click="handleBackToRegister" class="btn-back-link">
                   <Icon name="lucide:arrow-left" class="w-4 h-4 inline mr-1" />
@@ -202,13 +214,8 @@
                   <span class="input-left-icon">
                     <Icon name="lucide:user" class="w-4 h-4 text-bsi" />
                   </span>
-                  <input
-                    v-model="name"
-                    type="text"
-                    placeholder="Contoh: Alex Pratama"
-                    required
-                    class="input-cyber input-has-icon"
-                  />
+                  <input v-model="name" type="text" placeholder="Contoh: Alex Pratama" required
+                    class="input-cyber input-has-icon" />
                 </div>
               </div>
 
@@ -219,13 +226,8 @@
                   <span class="input-left-icon">
                     <Icon name="lucide:mail" class="w-4 h-4 text-bsi" />
                   </span>
-                  <input
-                    v-model="email"
-                    type="email"
-                    placeholder="nama@email.com"
-                    required
-                    class="input-cyber input-has-icon"
-                  />
+                  <input v-model="email" type="email" placeholder="nama@email.com" required
+                    class="input-cyber input-has-icon" />
                 </div>
               </div>
 
@@ -236,15 +238,8 @@
                   <span class="input-left-icon">
                     <Icon name="lucide:phone" class="w-4 h-4 text-bsi" />
                   </span>
-                  <input
-                    v-model="phone"
-                    type="tel"
-                    inputmode="numeric"
-                    placeholder="Contoh: 081234567890"
-                    required
-                    class="input-cyber input-has-icon"
-                    @input="handlePhoneInput"
-                  />
+                  <input v-model="phone" type="tel" inputmode="numeric" placeholder="Contoh: 081234567890" required
+                    class="input-cyber input-has-icon" @input="handlePhoneInput" />
                 </div>
                 <span class="helper-text">Digunakan untuk konfirmasi pesanan dan update kurir pengiriman.</span>
               </div>
@@ -256,21 +251,10 @@
                   <span class="input-left-icon">
                     <Icon name="lucide:lock" class="w-4 h-4 text-bsi" />
                   </span>
-                  <input
-                    v-model="password"
-                    :type="showPassword ? 'text' : 'password'"
-                    placeholder="Minimal 8 karakter"
-                    required
-                    minlength="8"
-                    class="input-cyber input-has-icon input-password"
-                  />
-                  <button
-                    type="button"
-                    class="password-toggle-btn"
-                    @click="showPassword = !showPassword"
-                    :title="showPassword ? 'Sembunyikan password' : 'Lihat password'"
-                    tabindex="-1"
-                  >
+                  <input v-model="password" :type="showPassword ? 'text' : 'password'" placeholder="Minimal 8 karakter"
+                    required minlength="8" class="input-cyber input-has-icon input-password" />
+                  <button type="button" class="password-toggle-btn" @click="showPassword = !showPassword"
+                    :title="showPassword ? 'Sembunyikan password' : 'Lihat password'" tabindex="-1">
                     <Icon v-if="showPassword" name="lucide:eye" class="eye-icon w-4 h-4" />
                     <Icon v-else name="lucide:eye-off" class="eye-icon w-4 h-4" />
                   </button>
@@ -284,20 +268,11 @@
                   <span class="input-left-icon">
                     <Icon name="lucide:shield-check" class="w-4 h-4 text-bsi" />
                   </span>
-                  <input
-                    v-model="passwordConfirmation"
-                    :type="showPasswordConfirm ? 'text' : 'password'"
-                    placeholder="Ulangi kata sandi di atas"
-                    required
-                    class="input-cyber input-has-icon input-password"
-                  />
-                  <button
-                    type="button"
-                    class="password-toggle-btn"
-                    @click="showPasswordConfirm = !showPasswordConfirm"
-                    :title="showPasswordConfirm ? 'Sembunyikan password' : 'Lihat password'"
-                    tabindex="-1"
-                  >
+                  <input v-model="passwordConfirmation" :type="showPasswordConfirm ? 'text' : 'password'"
+                    placeholder="Ulangi kata sandi di atas" required
+                    class="input-cyber input-has-icon input-password" />
+                  <button type="button" class="password-toggle-btn" @click="showPasswordConfirm = !showPasswordConfirm"
+                    :title="showPasswordConfirm ? 'Sembunyikan password' : 'Lihat password'" tabindex="-1">
                     <Icon v-if="showPasswordConfirm" name="lucide:eye" class="eye-icon w-4 h-4" />
                     <Icon v-else name="lucide:eye-off" class="eye-icon w-4 h-4" />
                   </button>
@@ -350,7 +325,8 @@
           <div class="modal-content-wrap">
             <h3 class="modal-title">Verifikasi Berhasil!</h3>
             <p class="modal-subtitle">
-              Kode OTP valid. Email <strong class="text-highlight">{{ email }}</strong> berhasil diverifikasi dan akun Anda telah aktif.
+              Kode OTP valid. Email <strong class="text-highlight">{{ email }}</strong> berhasil diverifikasi dan akun
+              Anda telah aktif.
             </p>
             <div class="modal-info-box">
               <Icon name="lucide:info" class="w-4 h-4 info-icon text-bsi" />
@@ -372,7 +348,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { useHead } from '#imports'
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
@@ -388,6 +365,76 @@ const passwordConfirmation = ref('')
 const showPassword = ref(false)
 const showPasswordConfirm = ref(false)
 const otpCode = ref('')
+const otpDigits = ref<string[]>(['', '', '', '', '', ''])
+const otpInputs = ref<HTMLInputElement[]>([])
+const activeOtpIndex = ref<number>(-1)
+
+watch(
+  otpDigits,
+  () => {
+    otpCode.value = otpDigits.value.join('')
+  },
+  { deep: true }
+)
+
+const handleOtpInput = (index: number, event: Event) => {
+  const input = event.target as HTMLInputElement
+  const raw = input.value.replace(/\D/g, '')
+
+  if (!raw) {
+    otpDigits.value[index] = ''
+    return
+  }
+
+  // Jika input lebih dari 1 digit (misal autofill browser)
+  if (raw.length > 1) {
+    const chars = raw.slice(0, 6).split('')
+    chars.forEach((c, i) => {
+      if (index + i < 6) otpDigits.value[index + i] = c
+    })
+    const nextIdx = Math.min(5, index + chars.length)
+    otpInputs.value[nextIdx]?.focus()
+    return
+  }
+
+  otpDigits.value[index] = raw.slice(-1)
+  if (index < 5 && raw) {
+    otpInputs.value[index + 1]?.focus()
+  }
+}
+
+const handleOtpKeydown = (index: number, event: KeyboardEvent) => {
+  if (event.key === 'Backspace') {
+    if (!otpDigits.value[index] && index > 0) {
+      otpDigits.value[index - 1] = ''
+      otpInputs.value[index - 1]?.focus()
+    } else {
+      otpDigits.value[index] = ''
+    }
+  } else if (event.key === 'ArrowLeft' && index > 0) {
+    otpInputs.value[index - 1]?.focus()
+  } else if (event.key === 'ArrowRight' && index < 5) {
+    otpInputs.value[index + 1]?.focus()
+  }
+}
+
+const handleOtpPaste = (event: ClipboardEvent) => {
+  event.preventDefault()
+  const pasted = (event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6)
+  if (!pasted) return
+  pasted.split('').forEach((char, i) => {
+    if (i < 6) otpDigits.value[i] = char
+  })
+  const nextIdx = Math.min(5, pasted.length)
+  otpInputs.value[nextIdx]?.focus()
+}
+
+const clearOtp = () => {
+  otpDigits.value = ['', '', '', '', '', '']
+  otpCode.value = ''
+  otpInputs.value[0]?.focus()
+}
+
 const step = ref<'register' | 'otp'>('register')
 const errorMessage = ref('')
 const successMessage = ref('')
@@ -471,6 +518,11 @@ const handleRegister = async () => {
   if (result.success) {
     if (result.requireOtp) {
       step.value = 'otp'
+      otpDigits.value = ['', '', '', '', '', '']
+      otpCode.value = ''
+      nextTick(() => {
+        otpInputs.value[0]?.focus()
+      })
       successMessage.value = 'Registrasi berhasil! Kode OTP verifikasi telah dikirim ke email Anda.'
       startCooldownTimer(60)
     } else {
@@ -671,7 +723,7 @@ useHead({
   position: absolute;
   inset: 0;
   background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
 }
@@ -773,8 +825,17 @@ useHead({
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.85); }
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
 }
 
 .pill-text {
@@ -1180,11 +1241,179 @@ useHead({
   line-height: 1.4;
 }
 
-.input-otp {
-  font-size: 1.4rem;
-  letter-spacing: 0.3em;
+/* Premium 6-Digit Segmented Boxes Styling */
+.otp-group-wrap {
+  margin-top: 0.25rem;
+}
+
+.otp-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.65rem;
+}
+
+.otp-expiry-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0284c7;
+  background: rgba(2, 132, 199, 0.08);
+  border: 1px solid rgba(2, 132, 199, 0.2);
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.otp-boxes-container {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.85rem 0;
+}
+
+@media (min-width: 640px) {
+  .otp-boxes-container {
+    gap: 0.75rem;
+  }
+}
+
+.otp-box-cell {
+  position: relative;
+  aspect-ratio: 1 / 1.15;
+  background: var(--surface, #ffffff);
+  border: 1.5px solid var(--border, #cbd5e1);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme="dark"] .otp-box-cell {
+  background: rgba(15, 23, 42, 0.7);
+  border-color: rgba(51, 65, 85, 0.8);
+}
+
+.otp-box-input {
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text, #0f172a);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  caret-color: #004aad;
+  z-index: 2;
+}
+
+:root[data-theme="dark"] .otp-box-input {
+  color: #f8fafc;
+  caret-color: #38bdf8;
+}
+
+.otp-box-cell.is-filled {
+  border-color: #004aad;
+  background: rgba(0, 74, 173, 0.03);
+}
+
+:root[data-theme="dark"] .otp-box-cell.is-filled {
+  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+.otp-box-cell.is-active {
+  border-color: #004aad;
+  box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.18), 0 4px 12px rgba(0, 74, 173, 0.12);
+  transform: translateY(-2px);
+}
+
+:root[data-theme="dark"] .otp-box-cell.is-active {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25), 0 4px 14px rgba(56, 189, 248, 0.2);
+}
+
+.otp-helper-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.btn-clear-otp {
+  font-size: 0.75rem;
+  color: #ef4444;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.btn-clear-otp:hover {
+  background: rgba(239, 68, 68, 0.08);
+  text-decoration: underline;
+}
+
+.resend-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  background: var(--surface-subtle, rgba(241, 245, 249, 0.6));
+  border: 1px dashed var(--border, #cbd5e1);
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+}
+
+:root[data-theme="dark"] .resend-card {
+  background: rgba(30, 41, 59, 0.5);
+  border-color: rgba(51, 65, 85, 0.8);
+}
+
+.resend-label {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.btn-resend-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.825rem;
   font-weight: 700;
-  height: 52px;
+  color: #004aad;
+  background: rgba(0, 74, 173, 0.08);
+  border: 1px solid rgba(0, 74, 173, 0.2);
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-resend-pill:hover:not(:disabled) {
+  background: #004aad;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(0, 74, 173, 0.2);
+}
+
+.btn-resend-pill.is-disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: rgba(148, 163, 184, 0.1);
+  border-color: rgba(148, 163, 184, 0.25);
+  color: var(--text-secondary, #64748b);
 }
 
 .otp-actions-wrapper {
@@ -1446,6 +1675,7 @@ useHead({
     opacity: 0;
     transform: scale(0.92) translateY(12px);
   }
+
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -1457,9 +1687,11 @@ useHead({
     transform: scale(0.5);
     opacity: 0;
   }
+
   60% {
     transform: scale(1.15);
   }
+
   100% {
     transform: scale(1);
     opacity: 1;

@@ -2,17 +2,27 @@ import { deleteResource, getChatDetail, getOrderDetail, getReviewDetail, updateR
 import { requireAdmin } from "@/lib/auth";
 import { row } from "@/lib/db";
 import { ApiError, handleApiError, requestData } from "@/lib/http";
+import { decryptOrderId } from "@/lib/id-cipher";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 interface Context { params: Promise<{ resource: string; id: string }> }
 
+function resolveResourceId(resource: string, rawId: string): number {
+  let id = Number(rawId);
+  if (!Number.isFinite(id) && resource === "orders") {
+    const dec = decryptOrderId(rawId);
+    if (dec) id = dec;
+  }
+  return id;
+}
+
 export async function GET(request: Request, context: Context) {
   try {
     await requireAdmin();
     const { resource, id: rawId } = await context.params;
-    const id = Number(rawId);
+    const id = resolveResourceId(resource, rawId);
     if (!Number.isFinite(id)) throw new ApiError(400, "ID tidak valid.");
 
     if (resource === "orders") {
@@ -45,7 +55,7 @@ export async function PATCH(request: Request, context: Context) {
   try {
     const admin = await requireAdmin();
     const { resource, id: rawId } = await context.params;
-    const id = Number(rawId);
+    const id = resolveResourceId(resource, rawId);
     if (!Number.isFinite(id)) throw new ApiError(400, "ID tidak valid.");
     await updateResource(resource, id, await requestData(request), admin);
     return Response.json({ message: "Perubahan berhasil disimpan." });
@@ -58,7 +68,7 @@ export async function DELETE(request: Request, context: Context) {
   try {
     const admin = await requireAdmin();
     const { resource, id: rawId } = await context.params;
-    const id = Number(rawId);
+    const id = resolveResourceId(resource, rawId);
     if (!Number.isFinite(id)) throw new ApiError(400, "ID tidak valid.");
     const action = await deleteResource(resource, id, admin);
     return Response.json({ message: action === "deactivated" ? "Pengguna berhasil dinonaktifkan dan token login dicabut." : "Data berhasil dihapus." });

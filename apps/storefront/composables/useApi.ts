@@ -1,3 +1,4 @@
+import { $fetch } from 'ofetch'
 import { useAuthStore } from '~/stores/auth'
 
 export const useApi = () => {
@@ -5,15 +6,17 @@ export const useApi = () => {
 
   // ─── Base URLs ─────────────────────────────────────────────────────────────
   // Prioritas: .env (NUXT_PUBLIC_API_BASE / NUXT_PUBLIC_STORAGE_BASE)
-  // Fallback dev lokal: http://localhost:3000
-  let rawApiBase = String(config.public.apiBase || 'http://localhost:3000/api/v1').trim()
-  let rawStorageBase = String(config.public.storageBase || 'http://localhost:3000/storage').trim()
+  let rawApiBase = String(config.public.apiBase || '/api/v1').trim()
+  let rawStorageBase = String(config.public.storageBase || '/storage').trim()
 
-  // Pastikan protokol ada (tambahkan https jika tidak ada http/https)
-  if (!rawApiBase.startsWith('http://') && !rawApiBase.startsWith('https://')) {
+  const isRelativeApi = rawApiBase.startsWith('/')
+  const isRelativeStorage = rawStorageBase.startsWith('/')
+
+  // Hanya tambahkan https:// jika BUKAN path relatif dan belum memiliki protokol
+  if (!isRelativeApi && !rawApiBase.startsWith('http://') && !rawApiBase.startsWith('https://')) {
     rawApiBase = `https://${rawApiBase}`
   }
-  if (!rawStorageBase.startsWith('http://') && !rawStorageBase.startsWith('https://')) {
+  if (!isRelativeStorage && !rawStorageBase.startsWith('http://') && !rawStorageBase.startsWith('https://')) {
     rawStorageBase = `https://${rawStorageBase}`
   }
 
@@ -31,8 +34,15 @@ export const useApi = () => {
     rawStorageBase = `${rawStorageBase.replace(/\/api(\/v1)?$/, '')}/storage`
   }
 
-  const apiBase = rawApiBase
-  const storageBase = rawStorageBase
+  // Di sisi server (SSR Node.js), path relatif butuh host absolut agar $fetch Node tidak gagal
+  // Nuxt routeRules mem-proxy /api/** ke http://127.0.0.1:3000/api/**
+  let apiBase = rawApiBase
+  if (import.meta.server && isRelativeApi) {
+    apiBase = `http://127.0.0.1:3000${rawApiBase}`
+  }
+
+  // Selalu gunakan '/storage' relatif agar di-proxy langsung oleh Nuxt server.
+  const storageBase = '/storage'
 
   const getHeaders = () => {
     const authStore = useAuthStore()
@@ -69,7 +79,11 @@ export const useApi = () => {
         result = normalized
       }
     } else {
-      const cleanPath = normalized.startsWith('/') ? normalized.slice(1) : normalized
+      let cleanPath = normalized.startsWith('/') ? normalized.slice(1) : normalized
+
+      if (cleanPath.startsWith('storage/')) {
+        cleanPath = cleanPath.slice(8)
+      }
 
       if (cleanPath.startsWith('assets/') || cleanPath.startsWith('img/')) {
         const backendUrl = apiBase.replace(/\/api\/v1\/?$/, '')
@@ -86,7 +100,28 @@ export const useApi = () => {
     return result
   }
 
-  // Fetch product list with filters
+  // Client-side Memory Cache dengan TTL untuk respon instan (0 ms)
+  const clientApiCache = new Map<string, { data: any; expiresAt: number }>()
+
+  const getFromClientCache = (key: string) => {
+    const cached = clientApiCache.get(key)
+    if (!cached) return null
+    if (Date.now() > cached.expiresAt) {
+      clientApiCache.delete(key)
+      return null
+    }
+    return cached.data
+  }
+
+  const setClientCache = (key: string, data: any, ttlMs = 60_000) => {
+    if (clientApiCache.size > 200) {
+      const firstKey = clientApiCache.keys().next().value
+      if (firstKey !== undefined) clientApiCache.delete(firstKey)
+    }
+    clientApiCache.set(key, { data, expiresAt: Date.now() + ttlMs })
+  }
+
+  // Fetch product list with filters & cache
   const fetchProducts = async (params: {
     page?: number
     per_page?: number
@@ -95,16 +130,23 @@ export const useApi = () => {
     is_recommended?: boolean | number
     is_event_maba?: boolean | number
   } = {}) => {
+    const cacheKey = `products:${JSON.stringify(params)}`
+    const cached = getFromClientCache(cacheKey)
+    if (cached) return cached
+
     return await $fetch<any>(`${apiBase}/products`, {
       params,
       headers: getHeaders(),
+    }).then((res) => {
+      setClientCache(cacheKey, res, 60_000) // Cache 1 menit di sisi browser
+      return res
     }).catch((err) => {
       console.error('Failed to fetch products:', err)
       return { data: [], total: 0, current_page: 1, last_page: 1 }
     })
   }
 
-  // Fetch single product detail dengan sanitasi ketat anti-injeksi
+  // Fetch single product detail dengan sanitasi ketat anti-injeksi & cache
   const fetchProductDetail = async (id: number | string) => {
     if (!id) return null
     const rawId = String(id).trim()
@@ -116,18 +158,32 @@ export const useApi = () => {
     }
 
     const cleanId = encodeURIComponent(rawId)
+    const cacheKey = `product:${cleanId}`
+    const cached = getFromClientCache(cacheKey)
+    if (cached) return cached
+
     return await $fetch<{ product: any }>(`${apiBase}/products/${cleanId}`, {
       headers: getHeaders(),
+    }).then((res) => {
+      setClientCache(cacheKey, res, 60_000)
+      return res
     }).catch((err) => {
       console.error(`Failed to fetch product ${cleanId}:`, err)
       return null
     })
   }
 
-  // Fetch active categories
+  // Fetch active categories dengan cache
   const fetchCategories = async () => {
+    const cacheKey = 'categories'
+    const cached = getFromClientCache(cacheKey)
+    if (cached) return cached
+
     return await $fetch<{ categories: any[] }>(`${apiBase}/categories`, {
       headers: getHeaders(),
+    }).then((res) => {
+      setClientCache(cacheKey, res, 300_000) // Cache 5 menit di sisi browser
+      return res
     }).catch((err) => {
       console.error('Failed to fetch categories:', err)
       return { categories: [] }
@@ -146,19 +202,28 @@ export const useApi = () => {
 
   // Fetch product reviews dengan sanitasi ketat
   const fetchProductReviews = async (productId: number | string) => {
-    if (!productId) return { reviews: [] }
+    if (!productId) return { data: [], reviews: [] }
     const rawId = String(productId).trim()
 
     if (/[^a-zA-Z0-9\-_=.]/.test(rawId)) {
-      return { reviews: [] }
+      return { data: [], reviews: [] }
     }
 
     const cleanId = encodeURIComponent(rawId)
-    return await $fetch<{ reviews: any[] }>(`${apiBase}/products/${cleanId}/reviews`, {
+    return await $fetch<any>(`${apiBase}/products/${cleanId}/reviews`, {
       headers: getHeaders(),
+    }).then((res) => {
+      const list = Array.isArray(res)
+        ? res
+        : Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.reviews)
+            ? res.reviews
+            : []
+      return { data: list, reviews: list }
     }).catch((err) => {
       console.error(`Failed to fetch reviews for product ${cleanId}:`, err)
-      return { reviews: [] }
+      return { data: [], reviews: [] }
     })
   }
 
@@ -274,10 +339,13 @@ export const useApi = () => {
   }
 
   // Fetch Orders
-  const fetchOrders = async (params?: { status?: string; search?: string; page?: number }) => {
+  const fetchOrders = async (params?: { status?: string; search?: string; page?: number; per_page?: number }) => {
     return await $fetch<any>(`${apiBase}/orders`, {
       headers: getHeaders(),
-      params,
+      params: {
+        per_page: 50,
+        ...params,
+      },
     }).catch((err) => {
       console.error('Failed to fetch orders:', err)
       return { data: [], total: 0 }
@@ -346,12 +414,13 @@ export const useApi = () => {
         headers: getHeaders(),
       })
       if (!res) return null
+      const raw = res?.data ?? res
       // admincyberstore returns `name`/`logo`; storefront components use
       // `store_name`/`store_logo`. Keep both response formats compatible.
       const info = {
-        ...res,
-        store_name: res.store_name ?? res.name,
-        store_logo: res.store_logo ?? res.logo,
+        ...raw,
+        store_name: raw.store_name ?? raw.name ?? 'BSI Cyber Store',
+        store_logo: raw.store_logo ?? raw.logo ?? null,
       }
       cached.value = info
       return info
@@ -413,9 +482,10 @@ export const useApi = () => {
     })
   }
 
-  // Fetch user chats (with Admin CS)
-  const fetchChats = async () => {
-    return await $fetch<{ chats: any[] }>(`${apiBase}/chats`, {
+  // Fetch user chats (with Admin CS / Product)
+  const fetchChats = async (params?: { type?: 'complaint' | 'product' }) => {
+    const query = params?.type ? `?type=${params.type}` : ''
+    return await $fetch<{ chats: any[] }>(`${apiBase}/chats${query}`, {
       headers: getHeaders(),
     }).catch((err) => {
       console.warn('Failed to fetch chats:', err)

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 
-const currentTheme = ref<'light' | 'dark'>('light')
+const currentTheme = ref<'light'>('light')
 const isInitialized = ref(false)
 
 export function useTheme() {
@@ -8,41 +8,38 @@ export function useTheme() {
     if (typeof window === 'undefined' || isInitialized.value) return
     isInitialized.value = true
 
-    const saved = localStorage.getItem('cybershop_theme') as 'light' | 'dark' | null
-    if (saved === 'dark' || saved === 'light') {
-      setTheme(saved)
-    } else {
-      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-      setTheme(prefersDark ? 'dark' : 'light')
+    // Enforce light mode and cleanup any residual dark theme
+    if (typeof document !== 'undefined') {
+      document.documentElement.removeAttribute('data-theme')
+      document.body.removeAttribute('data-theme')
+      document.documentElement.classList.remove('dark')
+      document.body.classList.remove('dark')
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('cybershop_theme')
     }
   }
 
-  const setTheme = (mode: 'light' | 'dark') => {
-    currentTheme.value = mode
+  const setTheme = (_mode?: string) => {
+    currentTheme.value = 'light'
     if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', mode)
-      document.body.setAttribute('data-theme', mode)
-      if (mode === 'dark') {
-        document.documentElement.classList.add('dark')
-        document.body.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-        document.body.classList.remove('dark')
-      }
+      document.documentElement.removeAttribute('data-theme')
+      document.body.removeAttribute('data-theme')
+      document.documentElement.classList.remove('dark')
+      document.body.classList.remove('dark')
     }
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('cybershop_theme', mode)
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('cybershop_theme')
     }
   }
 
   const toggleTheme = () => {
-    const next = currentTheme.value === 'dark' ? 'light' : 'dark'
-    setTheme(next)
+    setTheme('light')
   }
 
   return {
     theme: currentTheme,
-    isDark: computed(() => currentTheme.value === 'dark'),
+    isDark: computed(() => false),
     toggleTheme,
     setTheme,
     initTheme,

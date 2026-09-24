@@ -47,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { computed } from 'vue'
 
 const props = defineProps({

@@ -19,7 +19,8 @@
 
     <!-- Loading State -->
     <div v-if="pending" class="loading-box cyber-card">
-      <CyberLoader text="MEMUAT PENILAIAN PRODUK..." subtext="Mengambil ulasan dan bukti foto pembeli dari server..." size="md" />
+      <CyberLoader text="MEMUAT PENILAIAN PRODUK..." subtext="Mengambil ulasan dan bukti foto pembeli dari server..."
+        size="md" />
     </div>
 
     <!-- Product Not Found -->
@@ -34,12 +35,8 @@
       <!-- Top: Compact Product Summary Card -->
       <div class="product-summary-card cyber-card">
         <div class="summary-left">
-          <img
-            :src="getImageUrl(product.main_photo)"
-            :alt="product.name"
-            class="summary-thumb"
-            @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }"
-          />
+          <img :src="getImageUrl(product.main_photo)" :alt="product.name" class="summary-thumb"
+            @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }" />
           <div class="summary-info">
             <span v-if="product.category" class="summary-category">{{ product.category.name }}</span>
             <h1 class="summary-title">{{ product.name }}</h1>
@@ -54,24 +51,16 @@
 
         <div class="summary-actions">
           <!-- Button Tulis Penilaian & Bukti Foto: Hanya muncul jika user eligible (sudah beli & produk tiba) -->
-          <button
-            v-if="eligibility?.can_review"
-            type="button"
-            class="btn btn-primary btn-write-review animate-pulse-subtle"
-            @click="openReviewModal"
-            title="Kirim ulasan dan foto bukti produk sampai tujuan"
-          >
+          <button v-if="eligibility?.can_review" type="button"
+            class="btn btn-primary btn-write-review animate-pulse-subtle" @click="openReviewModal"
+            title="Kirim ulasan dan foto bukti produk sampai tujuan">
             <Icon name="lucide:message-square-plus" class="w-4 h-4 mr-1.5" />
             <span>Tulis Penilaian & Bukti Foto</span>
           </button>
 
           <!-- Jika Belum Login -->
-          <NuxtLink
-            v-else-if="!authStore.isAuthenticated"
-            :to="`/auth/login?redirect=/products/${productId}/reviews`"
-            class="btn btn-outline-primary btn-login-to-review"
-            title="Masuk ke akun untuk memberikan penilaian"
-          >
+          <NuxtLink v-else-if="!authStore.isAuthenticated" :to="`/auth/login?redirect=/products/${productId}/reviews`"
+            class="btn btn-outline-primary btn-login-to-review" title="Masuk ke akun untuk memberikan penilaian">
             <Icon name="lucide:log-in" class="w-4 h-4 mr-1.5" />
             <span>Masuk untuk Menilai</span>
           </NuxtLink>
@@ -94,7 +83,8 @@
           </div>
 
           <!-- Jika Belum Membeli Produk -->
-          <div v-else-if="eligibility?.reason === 'not_purchased'" class="verified-buyer-pill" title="Hanya pembeli yang telah membeli produk ini yang dapat memberikan penilaian">
+          <div v-else-if="eligibility?.reason === 'not_purchased'" class="verified-buyer-pill"
+            title="Hanya pembeli yang telah membeli produk ini yang dapat memberikan penilaian">
             <Icon name="lucide:shield-check" class="w-4 h-4 text-slate-400 mr-1.5 inline" />
             <span>Khusus Pembeli Terverifikasi</span>
           </div>
@@ -115,12 +105,8 @@
             <span class="score-max">dari 5</span>
           </div>
           <div class="stars-large">
-            <svg
-              v-for="s in 5"
-              :key="s"
-              :class="['star-svg', 'star-large', { active: s <= Math.round(averageRating) }]"
-              viewBox="0 0 24 24"
-            >
+            <svg v-for="s in 5" :key="s" :class="['star-svg', 'star-large', { active: s <= Math.round(averageRating) }]"
+              viewBox="0 0 24 24">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
             </svg>
           </div>
@@ -130,38 +116,24 @@
         <!-- Filter Chips (Shopee Style) -->
         <div class="filter-chips-col">
           <div class="filter-chips-track">
-            <button
-              type="button"
-              :class="['filter-chip', { active: activeFilter === 'all' }]"
-              @click="activeFilter = 'all'"
-            >
+            <button type="button" :class="['filter-chip', { active: activeFilter === 'all' }]"
+              @click="activeFilter = 'all'">
               Semua ({{ allReviews.length }})
             </button>
 
-            <button
-              type="button"
-              :class="['filter-chip', { active: activeFilter === 'with_photo' }]"
-              @click="activeFilter = 'with_photo'"
-            >
+            <button type="button" :class="['filter-chip', { active: activeFilter === 'with_photo' }]"
+              @click="activeFilter = 'with_photo'">
               <Icon name="lucide:camera" class="w-3.5 h-3.5 inline mr-1" />
               Dengan Foto ({{ countWithPhotos }})
             </button>
 
-            <button
-              v-for="star in [5, 4, 3, 2, 1]"
-              :key="star"
-              type="button"
-              :class="['filter-chip', { active: activeFilter === String(star) }]"
-              @click="activeFilter = String(star)"
-            >
-              {{ star }} Bintang ({{ countByStar(star) }})
+            <button v-for="star in (['5', '4', '3', '2', '1'] as const)" :key="star" type="button"
+              :class="['filter-chip', { active: activeFilter === star }]" @click="activeFilter = star">
+              {{ star }} Bintang ({{ countByStar(Number(star)) }})
             </button>
 
-            <button
-              type="button"
-              :class="['filter-chip', { active: activeFilter === 'with_reply' }]"
-              @click="activeFilter = 'with_reply'"
-            >
+            <button type="button" :class="['filter-chip', { active: activeFilter === 'with_reply' }]"
+              @click="activeFilter = 'with_reply'">
               Dengan Balasan Toko ({{ countWithReply }})
             </button>
           </div>
@@ -176,12 +148,8 @@
           <h3>Belum Ada Penilaian untuk Filter Ini</h3>
           <p v-if="activeFilter !== 'all'">Coba pilih filter lain atau lihat semua penilaian.</p>
           <p v-else>Jadilah pembeli pertama yang memberikan ulasan produk ini!</p>
-          <button
-            v-if="activeFilter !== 'all'"
-            type="button"
-            class="btn btn-secondary mt-2"
-            @click="activeFilter = 'all'"
-          >
+          <button v-if="activeFilter !== 'all'" type="button" class="btn btn-secondary mt-2"
+            @click="activeFilter = 'all'">
             Reset Filter
           </button>
         </div>
@@ -197,17 +165,17 @@
               <div class="rev-user-meta">
                 <span class="reviewer-name">{{ getMaskedName(rev.user?.name) }}</span>
                 <div class="rev-stars">
-                  <svg
-                    v-for="s in 5"
-                    :key="s"
-                    :class="['star-svg', 'star-sm', { active: s <= (rev.rating || 5) }]"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                  <svg v-for="s in 5" :key="s" :class="['star-svg', 'star-sm', { active: s <= (rev.rating || 5) }]"
+                    viewBox="0 0 24 24">
+                    <path
+                      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                 </div>
                 <span class="rev-date">
-                  {{ rev.created_at ? new Date(rev.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : 'Baru saja' }}
+                  {{ rev.created_at ? new Date(rev.created_at).toLocaleString('id-ID', {
+                    dateStyle: 'medium', timeStyle:
+                      'short'
+                  }) : 'Baru saja' }}
                 </span>
               </div>
             </div>
@@ -224,20 +192,11 @@
                 <span>Foto Bukti Produk Diterima:</span>
               </div>
               <div class="rev-photos-grid">
-                <button
-                  v-for="(photo, pIdx) in getReviewPhotos(rev)"
-                  :key="pIdx"
-                  type="button"
-                  class="rev-photo-thumb-btn"
-                  @click="openProofLightbox(getReviewPhotos(rev), pIdx)"
-                  title="Klik untuk memperbesar foto bukti penerimaan"
-                >
-                  <img
-                    :src="getImageUrl(photo)"
-                    :alt="`Bukti Produk ${pIdx + 1}`"
-                    class="rev-photo-img"
-                    @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }"
-                  />
+                <button v-for="(photo, pIdx) in getReviewPhotos(rev)" :key="pIdx" type="button"
+                  class="rev-photo-thumb-btn" @click="openProofLightbox(getReviewPhotos(rev), pIdx)"
+                  title="Klik untuk memperbesar foto bukti penerimaan">
+                  <img :src="getImageUrl(photo)" :alt="`Bukti Produk ${pIdx + 1}`" class="rev-photo-img"
+                    @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }" />
                   <div class="photo-zoom-overlay">
                     <Icon name="lucide:zoom-in" class="w-4 h-4 text-white" />
                   </div>
@@ -261,7 +220,7 @@
     <!-- Modal Form: Tulis Penilaian & Unggah Bukti Foto Sampai -->
     <Teleport to="body">
       <Transition name="fade">
-        <div v-if="isReviewModalOpen" class="review-modal-backdrop" @click.self="closeReviewModal">
+        <div v-if="isReviewModalOpen" class="review-modal-backdrop" @click.self="() => closeReviewModal()">
           <div class="review-modal-card">
             <!-- Modal Header -->
             <div class="review-modal-header">
@@ -269,7 +228,7 @@
                 <Icon name="lucide:star" class="w-5 h-5 text-amber-500 fill-amber-500 mr-2" />
                 <h3>Beri Penilaian & Unggah Bukti</h3>
               </div>
-              <button type="button" class="modal-close-btn" @click="closeReviewModal" aria-label="Tutup Modal">
+              <button type="button" class="modal-close-btn" @click="() => closeReviewModal()" aria-label="Tutup Modal">
                 <Icon name="lucide:x" class="w-5 h-5" />
               </button>
             </div>
@@ -289,19 +248,12 @@
               <div class="form-group">
                 <label class="form-label">Kualitas Produk / Kepuasan Anda:</label>
                 <div class="interactive-star-picker">
-                  <button
-                    v-for="star in 5"
-                    :key="star"
-                    type="button"
-                    class="star-picker-btn"
-                    :class="{ active: star <= (hoverRating || formRating) }"
-                    @click="formRating = star"
-                    @mouseenter="hoverRating = star"
-                    @mouseleave="hoverRating = 0"
-                    :title="getStarText(star)"
-                  >
+                  <button v-for="star in 5" :key="star" type="button" class="star-picker-btn"
+                    :class="{ active: star <= (hoverRating || formRating) }" @click="formRating = star"
+                    @mouseenter="hoverRating = star" @mouseleave="hoverRating = 0" :title="getStarText(star)">
                     <svg class="star-svg star-picker" viewBox="0 0 24 24">
-                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                      <path
+                        d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                     </svg>
                   </button>
                   <span class="star-rating-hint">{{ getStarText(hoverRating || formRating) }}</span>
@@ -311,13 +263,8 @@
               <!-- Review Comment Input -->
               <div class="form-group">
                 <label class="form-label">Ulasan Anda:</label>
-                <textarea
-                  v-model="formComment"
-                  rows="4"
-                  maxlength="500"
-                  class="input-cyber form-textarea"
-                  placeholder="Ceritakan pengalaman Anda: kondisi produk saat tiba, kualitas bahan, kecepatan pengiriman, dan pelayanan..."
-                ></textarea>
+                <textarea v-model="formComment" rows="4" maxlength="500" class="input-cyber form-textarea"
+                  placeholder="Ceritakan pengalaman Anda: kondisi produk saat tiba, kualitas bahan, kecepatan pengiriman, dan pelayanan..."></textarea>
                 <div class="textarea-counter">{{ formComment.length }} / 500 karakter</div>
               </div>
 
@@ -325,28 +272,26 @@
               <div class="form-group">
                 <div class="upload-label-row">
                   <label class="form-label">Bukti Foto Produk Sudah Sampai:</label>
-                  <span class="upload-limit-tag">Maks. 5 Foto</span>
+                  <span class="upload-limit-tag">Maks. 3 Foto ({{ selectedPhotos.length }}/3)</span>
                 </div>
                 <p class="upload-helper">
-                  Tambahkan foto fisik produk yang telah sampai di tangan Anda (unboxing, paket, atau detail barang).
+                  Tambahkan foto fisik produk yang telah sampai di tangan Anda (unboxing, paket, atau detail barang). Maksimal 3 foto.
                 </p>
 
                 <!-- Upload Drag/Drop Box -->
-                <div class="upload-dropzone" @click="triggerFileInput">
-                  <input
-                    ref="fileInputRef"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/jpg"
-                    multiple
-                    class="hidden-file-input"
-                    @change="handleFileChange"
-                  />
+                <div class="upload-dropzone" :class="{ 'dropzone-disabled': selectedPhotos.length >= 3 }"
+                  @click="triggerFileInput">
+                  <input ref="fileInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/jpg" multiple
+                    class="hidden-file-input" @change="handleFileChange" :disabled="selectedPhotos.length >= 3" />
                   <div class="dropzone-content">
                     <div class="dropzone-icon">
-                      <Icon name="lucide:image-plus" class="w-6 h-6 text-bsi-blue" />
+                      <Icon :name="selectedPhotos.length >= 3 ? 'lucide:check-circle-2' : 'lucide:image-plus'"
+                        class="w-6 h-6" :class="selectedPhotos.length >= 3 ? 'text-emerald-500' : 'text-bsi-blue'" />
                     </div>
-                    <span class="dropzone-text">Pilih Foto atau Tarik ke Sini</span>
-                    <span class="dropzone-sub">JPG, PNG, atau WebP (Maks. 2MB per foto)</span>
+                    <span class="dropzone-text">
+                      {{ selectedPhotos.length >= 3 ? 'Maksimal 3 Foto Terpenuhi' : 'Pilih Foto atau Tarik ke Sini' }}
+                    </span>
+                    <span class="dropzone-sub">JPG, PNG, atau WebP (Maks. 3 foto, @2MB)</span>
                   </div>
                 </div>
 
@@ -354,12 +299,7 @@
                 <div v-if="selectedPhotos.length > 0" class="preview-photos-grid">
                   <div v-for="(item, idx) in selectedPhotos" :key="idx" class="preview-photo-box">
                     <img :src="item.previewUrl" :alt="`Pratinjau ${idx + 1}`" class="preview-photo-img" />
-                    <button
-                      type="button"
-                      class="remove-photo-btn"
-                      @click="removePhoto(idx)"
-                      title="Hapus foto ini"
-                    >
+                    <button type="button" class="remove-photo-btn" @click="removePhoto(idx)" title="Hapus foto ini">
                       <Icon name="lucide:x" class="w-3.5 h-3.5 text-white" />
                     </button>
                     <span class="photo-size-badge">{{ formatFileSize(item.file.size) }}</span>
@@ -380,7 +320,7 @@
 
               <!-- Modal Footer Actions -->
               <div class="modal-footer-actions">
-                <button type="button" class="btn btn-secondary" @click="closeReviewModal" :disabled="isSubmitting">
+                <button type="button" class="btn btn-secondary" @click="() => closeReviewModal()" :disabled="isSubmitting">
                   Batal
                 </button>
                 <button type="submit" class="btn btn-primary btn-submit-review" :disabled="isSubmitting">
@@ -398,17 +338,13 @@
     <!-- Floating Validation Toast Notification (Sukses / Gagal) -->
     <Teleport to="body">
       <Transition name="toast-pop">
-        <div
-          v-if="reviewToast.show"
-          class="review-toast-notification"
-          :class="`toast-${reviewToast.type}`"
-          role="status"
-          aria-live="polite"
-        >
+        <div v-if="reviewToast.show" class="review-toast-notification" :class="`toast-${reviewToast.type}`"
+          role="status" aria-live="polite">
           <div class="toast-glow-accent"></div>
           <div class="toast-content-wrapper">
             <div class="toast-icon-box">
-              <Icon v-if="reviewToast.type === 'success'" name="lucide:check-circle-2" class="w-5 h-5 text-emerald relative z-1" />
+              <Icon v-if="reviewToast.type === 'success'" name="lucide:check-circle-2"
+                class="w-5 h-5 text-emerald relative z-1" />
               <Icon v-else name="lucide:alert-circle" class="w-5 h-5 text-rose-500 relative z-1" />
             </div>
             <div class="toast-text-group">
@@ -435,11 +371,8 @@
               <Icon name="lucide:x" class="w-5 h-5 text-white" />
             </button>
             <div class="proof-lightbox-image-wrap">
-              <img
-                :src="getImageUrl(activeProofPhotos[activeProofIndex])"
-                alt="Foto Bukti Produk"
-                class="proof-lightbox-img"
-              />
+              <img :src="getImageUrl(activeProofPhotos[activeProofIndex])" alt="Foto Bukti Produk"
+                class="proof-lightbox-img" />
             </div>
             <div v-if="activeProofPhotos.length > 1" class="proof-lightbox-nav">
               <button type="button" class="proof-nav-btn prev" @click="prevProofPhoto">
@@ -460,6 +393,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '~/composables/useApi'
@@ -529,9 +463,12 @@ const product = computed(() => {
 })
 
 const allReviews = computed<any[]>(() => {
-  if (!reviewsData.value) return []
-  if (Array.isArray(reviewsData.value)) return reviewsData.value
-  return reviewsData.value.reviews || []
+  const res = reviewsData.value
+  if (!res) return []
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res.data)) return res.data
+  if (Array.isArray(res.reviews)) return res.reviews
+  return []
 })
 
 // Dynamic calculation of average rating
@@ -669,15 +606,25 @@ const openReviewModal = () => {
   isReviewModalOpen.value = true
 }
 
-const closeReviewModal = () => {
-  if (isSubmitting.value) return
+const closeReviewModal = (force?: boolean | Event) => {
+  const isForced = force === true
+  if (isSubmitting.value && !isForced) return
   // Clean up object URLs
   selectedPhotos.value.forEach(item => URL.revokeObjectURL(item.previewUrl))
   selectedPhotos.value = []
+  formComment.value = ''
+  formRating.value = 5
+  uploadError.value = ''
+  validationError.value = ''
+  submitError.value = ''
   isReviewModalOpen.value = false
 }
 
 const triggerFileInput = () => {
+  if (selectedPhotos.value.length >= 3) {
+    uploadError.value = 'Maksimal 3 foto bukti telah tercapai. Hapus salah satu foto jika ingin mengganti.'
+    return
+  }
   if (fileInputRef.value) {
     fileInputRef.value.click()
   }
@@ -689,10 +636,16 @@ const handleFileChange = (e: Event) => {
   if (!target.files || target.files.length === 0) return
 
   const files = Array.from(target.files)
-  const maxAllowed = 5 - selectedPhotos.value.length
+  const maxAllowed = 3 - selectedPhotos.value.length
+
+  if (maxAllowed <= 0) {
+    uploadError.value = 'Maksimal 3 foto bukti telah tercapai. Hapus salah satu foto jika ingin mengganti.'
+    target.value = ''
+    return
+  }
 
   if (files.length > maxAllowed) {
-    uploadError.value = `Anda hanya dapat menambahkan maksimal 5 foto bukti (tersisa slot ${maxAllowed}).`
+    uploadError.value = `Anda hanya dapat menambahkan maksimal 3 foto bukti (tersisa ${maxAllowed} slot).`
   }
 
   const validFiles = files.slice(0, maxAllowed)
@@ -752,7 +705,7 @@ const handleSubmitReview = async () => {
     formData.append('comment', commentText)
 
     // Append photos
-    if (selectedPhotos.value.length === 1) {
+    if (selectedPhotos.value.length === 1 && selectedPhotos.value[0]) {
       formData.append('photo', selectedPhotos.value[0].file)
     } else if (selectedPhotos.value.length > 1) {
       selectedPhotos.value.forEach((item) => {
@@ -768,12 +721,11 @@ const handleSubmitReview = async () => {
 
     await submitProductReview(productId.value, formData)
 
-    // 1. Langsung tutup modal review (tanpa modal di dalam modal)
-    closeReviewModal()
+    // 1. Langsung tutup modal review (bypass flag isSubmitting dengan force = true)
+    closeReviewModal(true)
 
     // 2. Segarkan data ulasan & eligibility
-    await refreshReviews()
-    await loadEligibility()
+    await Promise.all([refreshReviews(), loadEligibility()])
 
     // 3. Tampilkan toast validasi berhasil
     showToast(
@@ -1617,6 +1569,18 @@ useHead({
   background: #eff6ff;
 }
 
+.upload-dropzone.dropzone-disabled {
+  opacity: 0.7;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+}
+
+.upload-dropzone.dropzone-disabled:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
 .hidden-file-input {
   display: none;
 }
@@ -1745,9 +1709,21 @@ useHead({
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
 }
 
 .review-toast-notification {

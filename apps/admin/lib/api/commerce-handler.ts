@@ -6,6 +6,7 @@ import { hydrateOrder } from "@/lib/api/serializers";
 import { findCityId, shippingCost } from "@/lib/shipping";
 import { asNumber, nowSql, randomString } from "@/lib/utils";
 import type { ApiContext, HandledResult } from "@/lib/api/types";
+import { clearCatalogCache } from "@/lib/cache";
 
 type AnyRow = RowDataPacket & Record<string, unknown>;
 
@@ -36,11 +37,14 @@ async function setting(key: string, fallback: string) {
 
 async function applyPaymentStatus(payment: AnyRow, statusData: { status: string; bank?: string | null; va_number?: string | null; biller_code?: string | null }) {
   const order = await row<AnyRow>("SELECT * FROM orders WHERE id = ?", [payment.order_id]);
-  if (!order) return;
+  if (!order || ["refund_processing", "approved"].includes(String(order.cancel_request_status))) return;
   const updates = [statusData.bank || payment.bank_code, statusData.va_number || payment.virtual_account_number, statusData.biller_code || payment.biller_code];
   if (["settlement", "capture"].includes(statusData.status)) {
     if (payment.status !== "paid") {
       await transaction(async (tx) => {
+        const locked = await tx.row<AnyRow>("SELECT * FROM orders WHERE id = ? FOR UPDATE", [order.id]);
+        if (!locked || ["refund_processing", "approved"].includes(String(locked.cancel_request_status))) return;
+        if (locked.status !== "pending_payment") return;
         await tx.execute("UPDATE payments SET bank_code = ?, virtual_account_number = ?, biller_code = ?, status = 'paid', paid_at = ?, updated_at = ? WHERE id = ?", [...updates, nowSql(), nowSql(), payment.id]);
         await tx.execute("UPDATE orders SET status = 'paid', updated_at = ? WHERE id = ?", [nowSql(), order.id]);
         await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'paid', 'Pembayaran berhasil diverifikasi oleh sistem.', 'Sistem', ?, ?)", [order.id, nowSql(), nowSql()]);
@@ -52,6 +56,9 @@ async function applyPaymentStatus(payment: AnyRow, statusData: { status: string;
     if (order.status !== "cancelled") {
       const expired = statusData.status === "expire";
       await transaction(async (tx) => {
+        const locked = await tx.row<AnyRow>("SELECT * FROM orders WHERE id = ? FOR UPDATE", [order.id]);
+        if (!locked || ["refund_processing", "approved"].includes(String(locked.cancel_request_status))) return;
+        if (locked.status !== "pending_payment") return;
         await tx.execute("UPDATE payments SET bank_code = ?, virtual_account_number = ?, biller_code = ?, status = ?, updated_at = ? WHERE id = ?", [...updates, expired ? "expired" : "failed", nowSql(), payment.id]);
         await tx.execute("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", [nowSql(), order.id]);
         await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'cancelled', ?, 'Sistem', ?, ?)", [order.id, expired ? "Pesanan dibatalkan karena batas waktu pembayaran habis." : "Pembayaran gagal atau dibatalkan.", nowSql(), nowSql()]);
@@ -61,6 +68,7 @@ async function applyPaymentStatus(payment: AnyRow, statusData: { status: string;
           await tx.execute("INSERT INTO stock_movements (product_id, user_id, type, quantity, reference, note, created_at, updated_at) VALUES (?, ?, 'in', ?, ?, ?, ?, ?)", [item.product_id, order.user_id, item.quantity, order.invoice_number, expired ? "Restock: Waktu pembayaran habis" : "Restock: Pembayaran gagal/dibatalkan", nowSql(), nowSql()]);
         }
       });
+      clearCatalogCache();
     }
     return;
   }
@@ -166,17 +174,11 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
     if (expedition.code === "sicepat" && remoteCost) shipping = Math.max(8000, shipping - 2000);
     const serviceFee = 2000;
     const grandTotal = subtotal + shipping + serviceFee;
+    // Urutkan item berdasarkan product_id secara deterministik untuk mencegah deadlock saat row-level locking
+    cartItems.sort((a, b) => Number(a.product_id) - Number(b.product_id));
+
     const invoice = `INV-${nowSql().replace(/[-: ]/g, "").slice(0, 14)}-${randomString(5).toUpperCase()}`;
-    const midtrans = await createSnapTransaction({
-      invoice,
-      amount: grandTotal,
-      customer: { name: String(ctx.user.name), email: String(ctx.user.email), phone: ctx.user.phone ? String(ctx.user.phone) : null },
-      items: [
-        ...cartItems.map((item) => ({ id: String(item.product_id), price: Math.round(asNumber(item.price)), quantity: asNumber(item.quantity), name: String(item.name).slice(0, 50) })),
-        { id: "shipping", price: Math.round(shipping), quantity: 1, name: `Ongkir ${expedition.name}`.slice(0, 50) },
-        { id: "service-fee", price: serviceFee, quantity: 1, name: "Biaya layanan" },
-      ],
-    });
+
     const orderId = await transaction(async (tx) => {
       for (const item of cartItems) {
         const locked = await tx.row<AnyRow>("SELECT stock, is_active, name FROM products WHERE id = ? FOR UPDATE", [item.product_id]);
@@ -196,9 +198,9 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
         await tx.execute("INSERT INTO stock_movements (product_id, user_id, type, quantity, reference, note, created_at, updated_at) VALUES (?, ?, 'out', ?, ?, 'Checkout customer', ?, ?)", [item.product_id, userId, item.quantity, invoice, nowSql(), nowSql()]);
       }
       await tx.execute(
-        `INSERT INTO payments (order_id, bank_code, amount, status, expired_at, external_reference, snap_token, snap_url, created_at, updated_at)
-         VALUES (?, ?, ?, 'waiting_payment', ?, ?, ?, ?, ?, ?)`,
-        [order.insertId, body.bank_code || null, grandTotal, new Date(Date.now() + 86_400_000), midtrans.transaction_id, midtrans.token, midtrans.redirect_url, nowSql(), nowSql()],
+        `INSERT INTO payments (order_id, bank_code, amount, status, expired_at, created_at, updated_at)
+         VALUES (?, ?, ?, 'waiting_payment', ?, ?, ?)`,
+        [order.insertId, body.bank_code || null, grandTotal, new Date(Date.now() + 86_400_000), nowSql(), nowSql()],
       );
       await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'pending_payment', 'Pesanan dibuat dan menunggu pembayaran.', ?, ?, ?)", [order.insertId, address.city, nowSql(), nowSql()]);
       if (dbItemIdsToDelete.length > 0) {
@@ -213,6 +215,40 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
       }
       return order.insertId;
     });
+
+    clearCatalogCache();
+
+    let midtrans: Awaited<ReturnType<typeof createSnapTransaction>>;
+    try {
+      midtrans = await createSnapTransaction({
+        invoice,
+        amount: grandTotal,
+        customer: { name: String(ctx.user.name), email: String(ctx.user.email), phone: ctx.user.phone ? String(ctx.user.phone) : null },
+        items: [
+          ...cartItems.map((item) => ({ id: String(item.product_id), price: Math.round(asNumber(item.price)), quantity: asNumber(item.quantity), name: String(item.name).slice(0, 50) })),
+          { id: "shipping", price: Math.round(shipping), quantity: 1, name: `Ongkir ${expedition.name}`.slice(0, 50) },
+          { id: "service-fee", price: serviceFee, quantity: 1, name: "Biaya Penanganan" },
+        ],
+      });
+      await execute(
+        "UPDATE payments SET snap_token = ?, snap_url = ?, external_reference = ?, updated_at = ? WHERE order_id = ?",
+        [midtrans.token, midtrans.redirect_url, midtrans.transaction_id || null, nowSql(), orderId],
+      );
+    } catch (midtransError) {
+      console.error("[Midtrans Snap Creation Failed]", midtransError);
+      await transaction(async (tx) => {
+        await tx.execute("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", [nowSql(), orderId]);
+        await tx.execute("UPDATE payments SET status = 'failed', updated_at = ? WHERE order_id = ?", [nowSql(), orderId]);
+        await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'cancelled', 'Pembayaran gagal diinisialisasi gateway.', 'Sistem', ?, ?)", [orderId, nowSql(), nowSql()]);
+        for (const item of cartItems) {
+          await tx.execute("UPDATE products SET stock = stock + ?, updated_at = ? WHERE id = ?", [item.quantity, nowSql(), item.product_id]);
+          await tx.execute("INSERT INTO stock_movements (product_id, user_id, type, quantity, reference, note, created_at, updated_at) VALUES (?, ?, 'in', ?, ?, 'Restock: Gagal inisialisasi Midtrans Snap', ?, ?)", [item.product_id, userId, item.quantity, invoice, nowSql(), nowSql()]);
+        }
+      });
+      clearCatalogCache();
+      throw new ApiError(502, "Gagal menghubungkan ke gateway pembayaran. Silakan coba beberapa saat lagi.");
+    }
+
     return {
       status: 201,
       data: {
@@ -269,6 +305,10 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
 
   const simulateMatch = path.match(/^orders\/(\d+)\/simulate-courier-pod$/);
   if (ctx.method === "POST" && simulateMatch) {
+    // ⚠️ Endpoint simulasi — hanya aktif jika ENABLE_SIMULATION=true dan bukan production
+    if (process.env.NODE_ENV === "production" || process.env.ENABLE_SIMULATION !== "true") {
+      throw new ApiError(404, "Endpoint tidak ditemukan.");
+    }
     const order = await ownedOrder(Number(simulateMatch[1]), userId);
     const detail = await hydrateOrder(Number(order.id)) as Record<string, unknown>;
     const address = detail.address as Record<string, unknown>;
@@ -291,31 +331,19 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
 
   const cancelMatch = path.match(/^orders\/(\d+)\/cancel$/);
   if (ctx.method === "POST" && cancelMatch) {
-    const order = await ownedOrder(Number(cancelMatch[1]), userId);
-    const reason = text(body, "reason") || "Tidak ada alasan khusus";
-    if (order.status === "pending_payment") {
-      await transaction(async (tx) => {
-        await tx.execute("UPDATE payments SET status = 'failed', updated_at = ? WHERE order_id = ?", [nowSql(), order.id]);
-        await tx.execute("UPDATE orders SET status = 'cancelled', note = CONCAT_WS(' | ', note, ?), updated_at = ? WHERE id = ?", [`Alasan Batal: ${reason}`, nowSql(), order.id]);
-        await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'cancelled', ?, 'Sistem', ?, ?)", [order.id, `Pesanan dibatalkan oleh pembeli. Alasan: ${reason}`, nowSql(), nowSql()]);
-        const items = await tx.rows<AnyRow>("SELECT product_id, quantity FROM order_items WHERE order_id = ?", [order.id]);
-        for (const item of items) {
-          await tx.execute("UPDATE products SET stock = stock + ?, updated_at = ? WHERE id = ?", [item.quantity, nowSql(), item.product_id]);
-          await tx.execute("INSERT INTO stock_movements (product_id, user_id, type, quantity, reference, note, created_at, updated_at) VALUES (?, ?, 'in', ?, ?, 'Restock: Dibatalkan pelanggan', ?, ?)", [item.product_id, userId, item.quantity, order.invoice_number, nowSql(), nowSql()]);
-        }
-      });
-      return { data: { message: "Pesanan berhasil dibatalkan.", order: await hydrateOrder(Number(order.id)) } };
-    }
-    if (["paid", "packed"].includes(String(order.status))) {
-      assert(order.cancel_request_status !== "pending", "Pengajuan pembatalan sedang diproses oleh Admin.");
-      assert(order.cancel_request_status !== "approved", "Pengajuan pembatalan sudah disetujui.");
-      await transaction(async (tx) => {
-        await tx.execute("UPDATE orders SET cancel_request_status = 'pending', cancel_request_reason = ?, updated_at = ? WHERE id = ?", [reason, nowSql(), order.id]);
-        await tx.execute("INSERT INTO order_trackings (order_id, status, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", [order.id, order.status, `Mengajukan pembatalan pesanan. Alasan: ${reason}`, nowSql(), nowSql()]);
-      });
-      return { data: { message: "Pengajuan pembatalan pesanan berhasil dikirim ke Admin.", order: await hydrateOrder(Number(order.id)) } };
-    }
-    throw new ApiError(422, "Pesanan tidak dapat dibatalkan karena sudah dikirim/selesai.");
+    const id = Number(cancelMatch[1]);
+    const reason = text(body, "reason").trim();
+    assert(reason.length > 0 && reason.length <= 1000, "Alasan pembatalan wajib diisi, maksimal 1000 karakter.");
+    await transaction(async (tx) => {
+      const order = await tx.row<AnyRow>("SELECT * FROM orders WHERE id = ? AND user_id = ? FOR UPDATE", [id, userId]);
+      assert(order, "Pesanan tidak ditemukan.", 404);
+      assert(["pending_payment", "paid"].includes(String(order.status)), "Pesanan sudah diproses dan tidak dapat dibatalkan.");
+      assert(!["pending", "approved", "refund_processing"].includes(String(order.cancel_request_status)), "Pengajuan pembatalan sedang diproses atau sudah disetujui.");
+      assert(Date.now() - new Date(String(order.created_at)).getTime() <= 86400000, "Batas pengajuan pembatalan 24 jam telah berakhir.");
+      await tx.execute("UPDATE orders SET cancel_request_status = 'pending', cancel_request_reason = ?, updated_at = NOW() WHERE id = ?", [reason, id]);
+      await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, ?, ?, 'Pelanggan', NOW(), NOW())", [id, order.status, `Mengajukan pembatalan pesanan. Alasan: ${reason}`]);
+    });
+    return { data: { message: "Pengajuan pembatalan dikirim. Menunggu keputusan admin.", order: await hydrateOrder(id) } };
   }
 
   const paymentMatch = path.match(/^payments\/(\d+)\/check-status$/);

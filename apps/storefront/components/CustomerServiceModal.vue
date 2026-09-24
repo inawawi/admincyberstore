@@ -17,14 +17,14 @@
             <!-- Modal Header -->
             <div class="cs-modal-header">
               <div class="cs-header-left">
-                <div class="cs-header-icon">
-                  <Icon name="lucide:headphones" class="w-5 h-5 text-bsi" />
+                <div class="cs-header-icon cs-header-icon-complaint">
+                  <Icon name="lucide:shield-alert" class="w-5 h-5 text-amber-500" />
                 </div>
                 <div>
-                  <h3 id="cs-modal-title" class="cs-title">Pusat Bantuan & CS</h3>
+                  <h3 id="cs-modal-title" class="cs-title">Pusat Layanan Komplain & CS</h3>
                   <div class="cs-status-indicator">
-                    <span class="cs-pulse-dot"></span>
-                    <span class="cs-status-text">Customer Service Online (08.00 - 21.00 WIB)</span>
+                    <span class="cs-pulse-dot cs-pulse-amber"></span>
+                    <span class="cs-status-text">Layanan Penanganan Komplain & Kendala (08.00 - 21.00 WIB)</span>
                   </div>
                 </div>
               </div>
@@ -47,8 +47,8 @@
                 :class="{ 'is-active': activeTab === 'chat' }"
                 @click="switchTab('chat')"
               >
-                <Icon name="lucide:message-square-text" class="w-4 h-4" />
-                <span>Live Chat CS</span>
+                <Icon name="lucide:message-square-warning" class="w-4 h-4 text-amber-500" />
+                <span>Live Chat Komplain</span>
               </button>
 
               <button
@@ -79,8 +79,8 @@
                 <div class="cs-unauth-icon">
                   <Icon name="lucide:lock" class="w-10 h-10 text-bsi" />
                 </div>
-                <h4>Masuk untuk Memulai Live Chat</h4>
-                <p>Login akun Anda agar percakapan dan keluhan transaksi tersimpan rapi dalam sistem kami.</p>
+                <h4>Masuk untuk Memulai Live Chat Komplain</h4>
+                <p>Login akun Anda agar riwayat komplain dan tindak lanjut kendala transaksi tersimpan secara aman dalam sistem kami.</p>
                 
                 <div class="cs-unauth-actions">
                   <NuxtLink to="/auth/login" class="btn btn-primary" @click="closeCustomerService">
@@ -102,25 +102,25 @@
 
               <!-- If User Authenticated: Active Live Chat Interface -->
               <div v-else class="cs-chat-interface">
-                <!-- Selected Product Attachment Notice (If triggered from product detail) -->
-                <div v-if="selectedProduct" class="cs-attached-product-bar">
-                  <Icon name="lucide:tag" class="w-4 h-4 text-bsi" />
-                  <span class="attached-text">Tanya produk: <strong>{{ selectedProduct.name }}</strong></span>
-                  <button type="button" @click="selectedProduct = null" class="btn-detach">
-                    <Icon name="lucide:x" class="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
                 <!-- Chat Messages Scroll Area -->
                 <div ref="chatScrollRef" class="cs-messages-area">
                   <!-- Welcome greeting bubble from CS system -->
                   <div class="chat-bubble cs-bubble">
                     <div class="bubble-sender">
-                      <Icon name="lucide:bot" class="w-3.5 h-3.5" />
-                      <span>CS Bot & Admin BSI Cyber Store</span>
+                      <Icon name="lucide:shield-alert" class="w-3.5 h-3.5 text-amber-500" />
+                      <span>Admin Layanan Komplain Cyber Store</span>
                     </div>
                     <div class="bubble-body">
-                      Halo <strong>{{ authStore.user?.name || 'Sobat Cyber' }}</strong>! Ada yang bisa kami bantu seputar produk gear teknologi, event MABA, pesanan, atau konfirmasi pembayaran Anda?
+                      Halo <strong>{{ authStore.user?.name || 'Sobat Cyber' }}</strong>! Ini adalah saluran khusus <strong>Live Chat Penanganan Komplain & Pengaduan Kendala</strong>.
+                      <br><br>
+                      Sampaikan keluhan Anda terkait:
+                      <ul class="complaint-topics-list">
+                        <li>• Keterlambatan pengiriman kurir / pesanan belum tiba</li>
+                        <li>• Barang yang diterima rusak, cacat, atau tidak sesuai</li>
+                        <li>• Masalah verifikasi pembayaran otomatis</li>
+                        <li>• Permohonan pengembalian dana (refund) / retur pesanan</li>
+                      </ul>
+                      Tim CS kami akan segera meninjau dan menindaklanjuti pengaduan Anda.
                     </div>
                     <span class="bubble-time">Hari ini</span>
                   </div>
@@ -168,7 +168,7 @@
                   <input
                     v-model="inputMessage"
                     type="text"
-                    placeholder="Tulis pesan pertanyaan ke Admin CS..."
+                    placeholder="Tulis rincian keluhan atau komplain Anda..."
                     class="cs-chat-input"
                     :disabled="isSending"
                   />
@@ -313,10 +313,11 @@ const openFaqIndex = ref<number | null>(0)
 const faqSearchQuery = ref('')
 
 const quickPrompts = [
-  'Apakah stok produk ready?',
-  'Bagaimana cara konfirmasi pembayaran?',
-  'Kapan pesanan saya dikirim?',
-  'Apakah ada garansi resmi?',
+  'Barang yang diterima rusak / cacat',
+  'Pesanan belum sampai melewati estimasi',
+  'Produk tidak sesuai dengan yang dipesan',
+  'Kendala verifikasi status pembayaran',
+  'Ingin mengajukan retur barang / refund',
 ]
 
 // Fetch Help & FAQ data
@@ -351,7 +352,7 @@ watch(prefilledMessage, (val) => {
 
 const whatsappUrl = computed(() => {
   const baseWa = helpData.value?.contacts?.whatsapp?.value || 'https://wa.me/628123456789'
-  const defaultText = 'Halo Customer Service BSI Cyber Store, saya butuh bantuan seputar produk dan transaksi.'
+  const defaultText = 'Halo Customer Service Cyber Store, saya ingin menyampaikan komplain terkait kendala pesanan/layanan.'
   const text = encodeURIComponent(prefilledMessage.value || defaultText)
   return baseWa.includes('?') ? `${baseWa}&text=${text}` : `${baseWa}?text=${text}`
 })
@@ -384,19 +385,25 @@ const toggleFaq = (idx: number) => {
   openFaqIndex.value = openFaqIndex.value === idx ? null : idx
 }
 
-// Load or create chat session
+// Load or create dedicated complaint chat session (without product history)
 const loadOrCreateChat = async () => {
   if (!authStore.isAuthenticated) return
   try {
-    const res = await fetchChats()
+    const res = await fetchChats({ type: 'complaint' })
     const chats = res?.chats || []
 
-    if (chats.length > 0) {
-      activeChatId.value = chats[0].id
-      await loadMessages(chats[0].id)
+    // Cari sesi chat komplain khusus (c.product_id IS NULL)
+    const complaintChat = chats.find((c: any) => !c.product_id && c.status === 'open') || chats.find((c: any) => !c.product_id)
+
+    if (complaintChat) {
+      activeChatId.value = complaintChat.id
+      await loadMessages(complaintChat.id)
+    } else {
+      activeChatId.value = null
+      messages.value = []
     }
   } catch (e) {
-    console.warn('Gagal memuat sesi chat:', e)
+    console.warn('Gagal memuat sesi chat komplain:', e)
   }
 }
 
@@ -408,7 +415,7 @@ const loadMessages = async (chatId: number) => {
       scrollToBottom()
     }
   } catch (e) {
-    console.warn('Gagal memuat pesan:', e)
+    console.warn('Gagal memuat pesan komplain:', e)
   }
 }
 
@@ -449,20 +456,19 @@ const handleSendMessage = async () => {
 
   try {
     if (!activeChatId.value) {
-      // Create new chat
+      // Create new dedicated complaint chat (product_id null)
       const res = await createChat({
-        subject: selectedProduct.value ? `Tanya: ${selectedProduct.value.name}` : 'Bantuan Customer Service',
+        subject: 'Komplain Layanan & Kendala Pesanan',
         message: text,
-        product_id: selectedProduct.value?.id,
       })
       if (res?.chat?.id) {
         activeChatId.value = res.chat.id
       }
     } else {
-      await sendChatMessage(activeChatId.value, text, selectedProduct.value?.id)
+      await sendChatMessage(activeChatId.value, text)
     }
 
-    // Refresh pesan setelah bot merespon
+    // Refresh pesan setelah bot/admin merespon
     setTimeout(async () => {
       if (activeChatId.value) {
         await loadMessages(activeChatId.value)
@@ -470,7 +476,7 @@ const handleSendMessage = async () => {
       isSending.value = false
     }, 1200)
   } catch (e) {
-    console.warn('Gagal mengirim pesan chat:', e)
+    console.warn('Gagal mengirim pesan komplain:', e)
     isSending.value = false
   }
 }
@@ -538,6 +544,11 @@ const handleSendMessage = async () => {
   justify-content: center;
 }
 
+.cs-header-icon.cs-header-icon-complaint {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
 .cs-title {
   font-size: 1.15rem;
   font-weight: 800;
@@ -560,10 +571,26 @@ const handleSendMessage = async () => {
   box-shadow: 0 0 8px #10b981;
 }
 
+.cs-pulse-dot.cs-pulse-amber {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+}
+
 .cs-status-text {
   font-size: 0.75rem;
-  color: #059669;
+  color: #d97706;
   font-weight: 600;
+}
+
+.complaint-topics-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0.25rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: #475569;
 }
 
 .cs-close-btn {

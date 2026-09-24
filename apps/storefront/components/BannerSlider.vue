@@ -1,34 +1,22 @@
 <template>
-  <div
-    class="banner-slider-wrapper"
-    @mouseenter="pauseAutoSlide"
-    @mouseleave="startAutoSlide"
-    @touchstart.passive="onTouchStart"
-    @touchend="onTouchEnd"
-  >
+  <div class="banner-slider-wrapper" @mouseenter="pauseAutoSlide" @mouseleave="startAutoSlide"
+    @touchstart.passive="onTouchStart" @touchend="onTouchEnd">
     <div v-if="slides.length > 0" class="slider-container">
       <!-- Active Slide -->
       <transition name="fade-slide" mode="out-in">
-        <div
-          v-if="currentSlideData"
-          :key="currentSlide"
-          class="slide-item"
-          :style="{
-            backgroundImage: `url(${currentSlideData.image_url})`
-          }"
-        >
+        <div v-if="currentSlideData" :key="currentSlide" class="slide-item" :style="{
+          backgroundImage: `url(${currentSlideData.image_url})`
+        }">
           <!-- Gradient Overlay for Contrast -->
           <div class="slide-overlay"></div>
 
           <!-- Slide Content -->
           <div class="slide-content">
-            <div class="slide-badge">
-              <span><Icon name="lucide:zap" class="w-3.5 h-3.5 inline mr-1" />{{ currentSlideData.badge || 'PROMO RESMI UBSI 2026' }}</span>
-            </div>
+
             <h2 class="slide-title">
               {{ currentSlideData.title }}
             </h2>
-            <p class="slide-desc">
+            <p v-if="currentSlideData.description && currentSlideData.description.trim().toLowerCase() !== currentSlideData.title.trim().toLowerCase()" class="slide-desc">
               {{ currentSlideData.description }}
             </p>
             <div class="slide-actions">
@@ -47,13 +35,8 @@
       <!-- Slider Controls -->
       <div v-if="slides.length > 1" class="slider-controls">
         <div class="slider-dots">
-          <button
-            v-for="(_, index) in slides"
-            :key="index"
-            @click="setSlide(index)"
-            :class="['slider-dot', { active: currentSlide === index }]"
-            :aria-label="`Slide ${index + 1}`"
-          ></button>
+          <button v-for="(_, index) in slides" :key="index" @click="setSlide(index)"
+            :class="['slider-dot', { active: currentSlide === index }]" :aria-label="`Slide ${index + 1}`"></button>
         </div>
 
         <div class="slider-arrows">
@@ -114,7 +97,7 @@ const slides = computed<BannerItem[]>(() => {
     return props.banners.map((b) => ({
       title: b.title || 'CYBER TECH SPECIAL DEAL',
       description: b.description || 'Dapatkan potongan harga spesial dan cashback untuk transaksi minggu ini.',
-      badge: b.badge || 'PROMO TERBATAS',
+      badge: b.badge || '',
       image_url: getImageUrl(b.image || b.photo || b.image_url),
       link: b.link || '/products',
     }))
@@ -370,18 +353,23 @@ onUnmounted(() => {
     height: 400px;
     min-height: 380px;
   }
+
   .slide-item {
     padding: 2rem 2.5rem 3.5rem 2.5rem;
   }
+
   .slide-overlay {
     background: linear-gradient(90deg, rgba(0, 34, 102, 0.96) 0%, rgba(0, 51, 153, 0.85) 60%, rgba(0, 51, 153, 0.35) 100%);
   }
+
   .slide-title {
     font-size: 1.85rem;
   }
+
   .slide-desc {
     font-size: 0.92rem;
   }
+
   .slider-controls {
     left: 2.5rem;
     right: 2.5rem;
@@ -395,6 +383,7 @@ onUnmounted(() => {
     height: auto;
     min-height: 320px;
   }
+
   .slide-item {
     background-size: cover;
     background-position: center center !important;
@@ -406,9 +395,11 @@ onUnmounted(() => {
     align-items: center;
     text-align: center;
   }
+
   .slide-overlay {
     background: linear-gradient(180deg, rgba(0, 26, 77, 0.72) 0%, rgba(0, 34, 102, 0.5) 45%, rgba(0, 34, 102, 0.85) 100%);
   }
+
   .slide-content {
     max-width: 100%;
     display: flex;
@@ -418,16 +409,19 @@ onUnmounted(() => {
     gap: 0.85rem;
     margin: 0 auto;
   }
+
   .slide-badge {
     align-self: center;
     font-size: 0.72rem;
     padding: 3px 10px;
   }
+
   .slide-title {
     font-size: 1.5rem;
     line-height: 1.25;
     text-align: center;
   }
+
   .slide-desc {
     font-size: 0.88rem;
     line-height: 1.5;
@@ -438,19 +432,23 @@ onUnmounted(() => {
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
+
   .slide-actions {
     justify-content: center;
     gap: 0.6rem;
   }
+
   .btn-slider {
     padding: 0.55rem 1rem;
     font-size: 0.82rem;
   }
+
   .slider-controls {
     left: 1.5rem;
     right: 1.5rem;
     bottom: 1rem;
   }
+
   .arrow-btn {
     width: 36px;
     height: 36px;
@@ -462,49 +460,60 @@ onUnmounted(() => {
   .slider-container {
     min-height: 290px;
   }
+
   .slide-item {
     background-size: cover;
     background-position: center center !important;
     background-repeat: no-repeat;
     padding: 1.75rem 1.15rem 3.5rem 1.15rem;
   }
+
   .slide-overlay {
     background: linear-gradient(180deg, rgba(0, 26, 77, 0.75) 0%, rgba(0, 34, 102, 0.52) 45%, rgba(0, 34, 102, 0.85) 100%);
   }
+
   .slide-title {
     font-size: 1.25rem;
     line-height: 1.25;
   }
+
   .slide-desc {
     font-size: 0.82rem;
     line-height: 1.45;
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
+
   .slide-actions {
     gap: 0.5rem;
   }
+
   .btn-slider {
     padding: 0.48rem 0.85rem;
     font-size: 0.78rem;
   }
+
   .slider-controls {
     left: 1.15rem;
     right: 1.15rem;
     bottom: 0.85rem;
   }
+
   .arrow-btn {
     width: 32px;
     height: 32px;
   }
+
   .arrow-btn svg {
     width: 16px;
     height: 16px;
   }
+
   .slider-dot {
     width: 10px;
     height: 3px;
   }
+
   .slider-dot.active {
     width: 22px;
   }
@@ -515,11 +524,13 @@ onUnmounted(() => {
   .slide-title {
     font-size: 1.15rem;
   }
+
   .slide-desc {
     font-size: 0.78rem;
     -webkit-line-clamp: 2;
     line-clamp: 2;
   }
+
   .btn-slider {
     padding: 0.45rem 0.75rem;
     font-size: 0.75rem;

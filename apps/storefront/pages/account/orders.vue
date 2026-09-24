@@ -13,7 +13,7 @@
           <p class="page-subtitle">Pantau status pengiriman paket secara real-time, nomor resi kurir, dan riwayat
             belanja Anda.</p>
         </div>
-        <button type="button" class="btn btn-secondary btn-refresh-orders" @click="refreshOrders"
+        <button type="button" class="btn btn-secondary btn-refresh-orders" @click="refreshOrders()"
           :disabled="isRefreshing">
           <Icon name="lucide:refresh-cw" :class="['w-4 h-4 mr-1 inline-block', { 'animate-spin': isRefreshing }]" />
           <span>{{ isRefreshing ? 'Memuat...' : 'Segarkan Data' }}</span>
@@ -136,6 +136,27 @@
                 <div class="order-item-total font-mono">
                   {{ formatRupiah(item.total || (item.price * item.quantity)) }}
                 </div>
+                <!-- Tombol Nilai / Lihat Penilaian per produk jika sudah tiba / selesai -->
+                <div v-if="isOrderArrivedOrCompleted(order)" class="order-item-action-btns">
+                  <NuxtLink
+                    v-if="!isItemReviewed(item)"
+                    :to="getItemReviewUrl(order, item, true)"
+                    class="btn btn-xs btn-item-review"
+                    title="Beri penilaian untuk produk ini"
+                  >
+                    <Icon name="lucide:star" class="w-3 h-3 mr-1 inline text-amber-500" />
+                    <span>Nilai</span>
+                  </NuxtLink>
+                  <NuxtLink
+                    v-else
+                    :to="getItemReviewUrl(order, item, false)"
+                    class="btn btn-xs btn-item-view"
+                    title="Lihat ulasan dan penilaian produk ini"
+                  >
+                    <Icon name="lucide:check-circle-2" class="w-3 h-3 mr-1 inline text-emerald-500" />
+                    <span>Lihat Penilaian</span>
+                  </NuxtLink>
+                </div>
               </div>
             </div>
           </div>
@@ -176,11 +197,36 @@
             </div>
 
             <div class="order-action-buttons">
-              <!-- Detail / Track Button -->
-              <button type="button" class="btn btn-secondary btn-sm" @click="openTrackingModal(order)">
+              <!-- Detail / Track Button: Disembunyikan (hilang) jika pesanan sudah dinilai oleh user -->
+              <button v-if="!isOrderReviewed(order)" type="button" class="btn btn-secondary btn-sm" @click="openTrackingModal(order)">
                 <Icon name="lucide:map-pin" class="w-4 h-4 mr-1 inline-block text-bsi" />
                 <span>Lacak & Rincian</span>
               </button>
+
+              <!-- Tombol Nilai / Lihat Penilaian: Muncul ketika produk tiba/selesai -->
+              <template v-if="isOrderArrivedOrCompleted(order)">
+                <!-- Belum dinilai: Muncul button Nilai -->
+                <NuxtLink
+                  v-if="!isOrderReviewed(order)"
+                  :to="getOrderReviewUrl(order, true)"
+                  class="btn btn-primary btn-sm btn-order-review-action"
+                  title="Beri penilaian produk"
+                >
+                  <Icon name="lucide:star" class="w-3.5 h-3.5 mr-1 inline-block text-amber-300" />
+                  <span>Nilai</span>
+                </NuxtLink>
+
+                <!-- Sudah dinilai: Berubah menjadi Lihat Penilaian -->
+                <NuxtLink
+                  v-else
+                  :to="getOrderReviewUrl(order, false)"
+                  class="btn btn-secondary btn-sm btn-view-review-action"
+                  title="Lihat ulasan dan penilaian yang telah dibuat"
+                >
+                  <Icon name="lucide:message-square" class="w-3.5 h-3.5 mr-1 inline-block text-bsi" />
+                  <span>Lihat Penilaian</span>
+                </NuxtLink>
+              </template>
 
               <!-- Check Payment Status Button if Waiting Payment -->
               <button v-if="order.status === 'pending_payment'" type="button"
@@ -193,7 +239,7 @@
 
               <!-- Pay with Midtrans Button if Waiting Payment -->
               <button v-if="order.status === 'pending_payment'" type="button"
-                class="btn btn-primary btn-sm btn-pay-action" @click="handlePayWithMidtrans(order)">
+                class="btn btn-primary btn-sm btn-pay-action" :disabled="openingPayment" @click="handlePayWithMidtrans(order)">
                 <Icon name="lucide:lock" class="w-4 h-4 mr-1 inline-block" />
                 <span>Bayar Sekarang</span>
               </button>
@@ -207,6 +253,9 @@
               </button>
 
               <!-- Status Pengajuan Pembatalan (Jika sedang diproses Admin) -->
+              <p v-if="order.cancel_request_status === 'refund_processing'" role="status">Pembatalan sedang dikonfirmasi ke Midtrans. Pengembalian dana mengikuti proses penyedia pembayaran.</p>
+              <p v-if="order.cancel_request_status === 'approved'" role="status">Pembatalan disetujui. Lihat riwayat pesanan untuk proses pengembalian dana ke metode pembayaran asal.</p>
+              <p v-if="order.cancel_request_status === 'rejected'" role="status">Pengajuan pembatalan ditolak admin. Pesanan dilanjutkan.</p>
               <div v-if="order.cancel_request_status === 'pending'" class="cancel-pending-tag">
                 <span class="pulse-amber-dot"></span>
                 <span>Pembatalan Diajukan</span>
@@ -242,6 +291,84 @@
     <!-- Official Order Invoice Printable Modal -->
     <OrderInvoiceModal :is-open="isInvoiceModalOpen" :order="orderForInvoice" @close="isInvoiceModalOpen = false" />
 
+    <!-- Payment Success Modal with Checklist Icon -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="isPaymentSuccessModalOpen && paidSuccessOrder" class="checkout-success-backdrop" @click.self="handlePaymentSuccessOk">
+          <div class="checkout-success-card cyber-card" role="dialog" aria-modal="true">
+            <!-- Animated Checklist Icon Badge -->
+            <div class="success-icon-badge">
+              <Icon name="lucide:check-circle-2" class="w-12 h-12 text-emerald-500 checkmark-pulse-icon" />
+            </div>
+            <h2 class="success-title">Pembayaran Berhasil!</h2>
+            <p class="success-desc">
+              Terima kasih! Pembayaran Anda telah terverifikasi secara resmi. Toko akan segera mengemas dan mengirimkan pesanan Anda.
+            </p>
+
+            <!-- Product Purchased Preview Box -->
+            <div v-if="primaryPurchasedProduct" class="success-product-preview">
+              <span class="preview-tag-label">
+                <Icon name="lucide:package-check" class="w-3.5 h-3.5 inline mr-1 text-emerald-600" />
+                Produk Berhasil Dibayar:
+              </span>
+              <div class="preview-product-card">
+                <img :src="getImageUrl(primaryPurchasedProduct.photo)" :alt="primaryPurchasedProduct.name"
+                  class="preview-product-thumb"
+                  @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }" />
+                <div class="preview-product-info">
+                  <h4 class="preview-product-name">{{ primaryPurchasedProduct.name }}</h4>
+                  <div class="preview-product-meta">
+                    <span v-if="primaryPurchasedProduct.size" class="meta-pill">Ukuran: {{ primaryPurchasedProduct.size }}</span>
+                    <span v-if="primaryPurchasedProduct.color" class="meta-pill">Warna: {{ primaryPurchasedProduct.color }}</span>
+                    <span class="meta-qty">{{ primaryPurchasedProduct.quantity }}x</span>
+                  </div>
+                  <span class="preview-product-price font-mono">{{ formatRupiah(primaryPurchasedProduct.price) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Order Summary Details -->
+            <div class="success-order-box">
+              <div class="success-box-row">
+                <span class="box-label">Nomor Invoice:</span>
+                <strong class="box-val font-mono text-bsi">{{ paidSuccessOrder.invoice_number || `ORD-#${paidSuccessOrder.id}` }}</strong>
+              </div>
+              <div class="success-box-row">
+                <span class="box-label">Total Pembayaran:</span>
+                <strong class="box-val font-mono text-emerald-600 font-bold">{{ formatRupiah(paidSuccessOrder.grand_total || paidSuccessOrder.subtotal) }}</strong>
+              </div>
+              <div class="success-box-row">
+                <span class="box-label">Status:</span>
+                <span class="badge badge-emerald inline-flex items-center gap-1">
+                  <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5 text-white" />
+                  LUNAS (PAID)
+                </span>
+              </div>
+            </div>
+
+            <!-- Modal Action Buttons -->
+            <div class="success-actions">
+              <button type="button" class="btn btn-primary btn-success-ok" @click="handlePaymentSuccessOk">
+                <Icon name="lucide:check" class="w-5 h-5 mr-1" />
+                <span>Oke</span>
+              </button>
+
+              <div class="success-secondary-row">
+                <button type="button" class="btn btn-secondary btn-sm" @click="openInvoiceModal(paidSuccessOrder); isPaymentSuccessModalOpen = false;">
+                  <Icon name="lucide:printer" class="w-4 h-4 mr-1" />
+                  <span>Cetak Invoice</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" @click="isPaymentSuccessModalOpen = false">
+                  <Icon name="lucide:x" class="w-4 h-4 mr-1" />
+                  <span>Tutup</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Floating Toast Notification -->
     <Teleport to="body">
       <Transition name="toast-slide">
@@ -265,11 +392,13 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 definePageMeta({
   middleware: 'auth',
 })
 
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
 import { useFormat } from '~/composables/useFormat'
@@ -279,10 +408,45 @@ import OrderCancelModal from '~/components/OrderCancelModal.vue'
 import OrderCompleteModal from '~/components/OrderCompleteModal.vue'
 import OrderInvoiceModal from '~/components/OrderInvoiceModal.vue'
 
+const router = useRouter()
 const authStore = useAuthStore()
+authStore.initAuth()
+
 const { fetchOrders, fetchOrderDetail, checkPaymentStatus, completeOrder, cancelOrder, getImageUrl } = useApi()
 const { formatRupiah } = useFormat()
 const { pay: payWithMidtrans, loadSnap: loadMidtransScript } = useMidtrans()
+
+// Payment Success Modal State
+const isPaymentSuccessModalOpen = ref(false)
+const paidSuccessOrder = ref<any>(null)
+
+const primaryPurchasedProduct = computed(() => {
+  const orderItems = paidSuccessOrder.value?.items
+  if (Array.isArray(orderItems) && orderItems.length > 0) {
+    const firstItem = orderItems[0]
+    const prod = firstItem.product || firstItem
+    return {
+      id: prod.slug || prod.encrypted_id || prod.id || firstItem.product_id,
+      name: prod.name || firstItem.product_name,
+      photo: prod.main_photo || firstItem.product_photo || firstItem.photo,
+      price: firstItem.price || prod.price,
+      quantity: firstItem.quantity,
+      size: firstItem.size,
+      color: firstItem.color,
+    }
+  }
+  return null
+})
+
+const handlePaymentSuccessOk = () => {
+  isPaymentSuccessModalOpen.value = false
+  const targetId = primaryPurchasedProduct.value?.id
+  if (targetId) {
+    router.push(`/products/${targetId}`)
+  } else {
+    router.push('/products')
+  }
+}
 
 const isRefreshing = ref(false)
 const syncingOrderId = ref<number | string | null>(null)
@@ -348,20 +512,28 @@ const isOrderPaid = (order: any) => {
   return ['paid', 'packed', 'shipped', 'arrived', 'completed'].includes(order.status)
 }
 
-// Fetch orders with useAsyncData
-const { data: ordersResponse, pending, refresh } = await useAsyncData('my-orders-list', () => {
-  if (authStore.isAuthenticated) {
-    return fetchOrders()
+// Fetch orders with useAsyncData and reactive watcher
+const { data: ordersResponse, pending, refresh } = await useAsyncData(
+  'my-orders-list',
+  async () => {
+    if (authStore.isAuthenticated) {
+      return await fetchOrders()
+    }
+    return { data: [] }
+  },
+  {
+    watch: [() => authStore.token],
   }
-  return Promise.resolve({ data: [] })
-})
+)
 
 // Normalize orders array from paginator response
 const orders = computed<any[]>(() => {
   const res = ordersResponse.value
   if (!res) return []
   if (Array.isArray(res)) return res
+  if (Array.isArray(res.data?.data)) return res.data.data
   if (Array.isArray(res.data)) return res.data
+  if (Array.isArray(res.orders?.data)) return res.orders.data
   if (Array.isArray(res.orders)) return res.orders
   return []
 })
@@ -420,9 +592,15 @@ const filteredOrders = computed(() => {
 })
 
 // Refresh order list with automatic payment status sync for pending orders
-const refreshOrders = async () => {
-  isRefreshing.value = true
+const refreshOrders = async (silent: boolean | unknown = false) => {
+  const isSilent = silent === true
+  if (!isSilent) isRefreshing.value = true
   try {
+    const prevStatuses = new Map<any, string>()
+    orders.value.forEach(o => {
+      if (o?.id) prevStatuses.set(o.id, o.status)
+    })
+
     // If there are pending orders, sync their payment status with Midtrans first
     const pendingOrders = orders.value.filter(o => o.status === 'pending_payment')
     if (pendingOrders.length > 0) {
@@ -437,8 +615,28 @@ const refreshOrders = async () => {
       )
     }
     await refresh()
+
+    // Detect if any order was successfully paid during polling
+    for (const o of orders.value) {
+      const oldStatus = prevStatuses.get(o.id)
+      if (oldStatus === 'pending_payment' && o.status === 'paid') {
+        showToast(
+          `Pembayaran pesanan ${o.invoice_number || `ORD-#${o.id}`} berhasil diverifikasi! Pesanan Anda telah lunas.`,
+          'success',
+          'Pembayaran Berhasil'
+        )
+      }
+    }
+
+    // Keep selectedOrder for tracking modal updated if modal is currently open
+    if (isTrackingModalOpen.value && selectedOrder.value?.id) {
+      const freshSelected = orders.value.find(o => o.id === selectedOrder.value.id)
+      if (freshSelected) {
+        selectedOrder.value = { ...freshSelected }
+      }
+    }
   } finally {
-    isRefreshing.value = false
+    if (!isSilent) isRefreshing.value = false
   }
 }
 
@@ -522,7 +720,7 @@ const isOrderCancellable = (order: any): boolean => {
   }
 
   // Jika sudah mengajukan pembatalan dan sedang menunggu persetujuan toko/admin
-  if (order.cancel_request_status === 'pending' || order.cancel_request_status === 'approved') {
+  if (['pending', 'approved', 'refund_processing'].includes(order.cancel_request_status)) {
     return false
   }
 
@@ -571,7 +769,7 @@ const handleConfirmCancel = async ({ orderId, reason }: { orderId: number | stri
       isTrackingModalOpen.value = false
     }
     await refreshOrders()
-    showToast('Pesanan berhasil dibatalkan.', 'success', 'Pembatalan Berhasil')
+    showToast('Pengajuan dikirim. Menunggu keputusan admin.', 'success', 'Pengajuan Pembatalan')
   } catch (err: any) {
     showToast(err.data?.message || err.message || 'Gagal membatalkan pesanan.', 'error', 'Gagal Membatalkan')
   }
@@ -610,41 +808,88 @@ const handleConfirmComplete = async (order: any) => {
   }
 }
 
+// Helper untuk mengecek apakah status pesanan sudah tiba / selesai (layak dinilai)
+const isOrderArrivedOrCompleted = (order: any): boolean => {
+  if (!order || !order.status) return false
+  return ['arrived', 'completed'].includes(order.status)
+}
+
+// Helper untuk mengecek apakah item produk tertentu sudah dinilai oleh user
+const isItemReviewed = (item: any): boolean => {
+  if (!item) return false
+  return Boolean(item.is_reviewed || item.review || item.has_reviewed)
+}
+
+// Helper untuk mengecek apakah pesanan sudah dinilai oleh user (semua item sudah dinilai atau order ditandai telah dinilai)
+const isOrderReviewed = (order: any): boolean => {
+  if (!order) return false
+  if (order.is_reviewed || order.has_reviewed) return true
+  const items = order.items || []
+  if (items.length > 0) {
+    return items.every((it: any) => isItemReviewed(it))
+  }
+  return false
+}
+
+// URL menuju halaman penilaian produk (dengan openModal jika belum dinilai)
+const getItemReviewUrl = (order: any, item: any, openModal = false): string => {
+  const prodKey = item?.product?.slug || item?.product?.encrypted_id || item?.product_id || ''
+  const base = `/products/${prodKey}/reviews?order_id=${order?.id}`
+  return openModal ? `${base}&openModal=true` : base
+}
+
+const getOrderReviewUrl = (order: any, openModal = false): string => {
+  const items = order?.items || []
+  const targetItem = items.find((it: any) => !isItemReviewed(it)) || items[0]
+  if (!targetItem) return '/account/orders'
+  return getItemReviewUrl(order, targetItem, openModal)
+}
+
 // Pay with Midtrans Snap
+const openingPayment = ref(false)
 const handlePayWithMidtrans = async (order: any) => {
   const snapToken = order.payment?.snap_token || order.snap_token
   const snapUrl = order.payment?.snap_url || order.snap_url
 
-  if (snapToken) {
-    await payWithMidtrans(snapToken, {
-      onSuccess: async (result: any) => {
-        console.log('Pembayaran Berhasil:', result)
-        await handleCheckPaymentStatus(order, true)
-        await refreshOrders()
-        if (isTrackingModalOpen.value) {
-          isTrackingModalOpen.value = false
-        }
-        const updated = orders.value.find((o: any) => o.id === order.id) || order
-        openInvoiceModal(updated)
-      },
-      onPending: async (result: any) => {
-        console.log('Pembayaran Pending:', result)
-        await handleCheckPaymentStatus(order, true)
-        await refreshOrders()
-      },
-      onError: (result: any) => {
-        console.error('Pembayaran Error:', result)
-        showToast('Pembayaran gagal atau dibatalkan.', 'error', 'Pembayaran Gagal')
-      },
-      onClose: async () => {
-        await handleCheckPaymentStatus(order, true)
-        await refreshOrders()
-      },
-    })
-  } else if (snapUrl) {
-    window.location.href = snapUrl
-  } else {
-    showToast('Token transaksi tidak ditemukan untuk pesanan ini.', 'error', 'Token Pembayaran')
+  if (openingPayment.value) return
+  openingPayment.value = true
+  try {
+    if (snapToken) {
+      await payWithMidtrans(snapToken, {
+        onSuccess: async (result: any) => {
+          console.log('Pembayaran Berhasil:', result)
+          await handleCheckPaymentStatus(order, true)
+          await refreshOrders()
+          if (isTrackingModalOpen.value) {
+            isTrackingModalOpen.value = false
+          }
+          const updated = orders.value.find((o: any) => o.id === order.id) || order
+          paidSuccessOrder.value = updated
+          isPaymentSuccessModalOpen.value = true
+        },
+        onPending: async (result: any) => {
+          console.log('Pembayaran Pending:', result)
+          await handleCheckPaymentStatus(order, true)
+          await refreshOrders()
+        },
+        onError: (result: any) => {
+          console.error('Pembayaran Error:', result)
+          showToast('Pembayaran gagal atau dibatalkan.', 'error', 'Pembayaran Gagal')
+        },
+        onClose: async () => {
+          await handleCheckPaymentStatus(order, true)
+          await refreshOrders()
+        },
+      })
+    } else if (snapUrl) {
+      window.location.href = snapUrl
+    } else {
+      showToast('Token transaksi tidak ditemukan untuk pesanan ini.', 'error', 'Token Pembayaran')
+    }
+  } catch (err: any) {
+    showToast(err?.message || 'Gagal membuka pembayaran. Silakan coba lagi.', 'error', 'Pembayaran')
+  } finally {
+    openingPayment.value = false
   }
 }
 
@@ -705,38 +950,65 @@ const getStatusBadgeClass = (status: string) => {
   }
 }
 
-// Auto refresh on window focus (e.g. user returns after paying on simulator / other tab)
-const handleWindowFocus = async () => {
-  if (authStore.isAuthenticated && !isRefreshing.value) {
-    const hasPending = orders.value.some(o => o.status === 'pending_payment')
-    if (hasPending) {
-      await refreshOrders()
+// Auto polling timer in background
+let autoPollTimer: any = null
+
+const startOrdersAutoPoll = () => {
+  stopOrdersAutoPoll()
+  autoPollTimer = setInterval(async () => {
+    if (!authStore.isAuthenticated || typeof document === 'undefined') return
+    if (document.hidden) return
+
+    // Auto poll if there are active orders
+    const hasActiveOrders = orders.value.some(o =>
+      ['pending_payment', 'paid', 'packed', 'shipped', 'arrived'].includes(o.status)
+    )
+
+    if (hasActiveOrders) {
+      await refreshOrders(true)
     }
+  }, 5000)
+}
+
+const stopOrdersAutoPoll = () => {
+  if (autoPollTimer) {
+    clearInterval(autoPollTimer)
+    autoPollTimer = null
+  }
+}
+
+// Auto refresh on window focus / tab visibility change (e.g. user returns after paying on simulator / other tab)
+const handleVisibilityOrFocus = async () => {
+  if (authStore.isAuthenticated && typeof document !== 'undefined' && !document.hidden && !isRefreshing.value) {
+    await refreshOrders(true)
   }
 }
 
 onMounted(() => {
-  loadMidtransScript().then(() => {
-    // Midtrans Snap injects invisible overlay elements (iframes/divs) that block
-    // all click interactions on the page. Hide them until payment is actually needed.
-    nextTick(() => {
-      const midtransOverlays = document.querySelectorAll(
-        '[id^="snap-midtrans"], .snap-container, iframe[src*="midtrans"]'
-      )
-      midtransOverlays.forEach((el: Element) => {
-        ; (el as HTMLElement).style.display = 'none'
-          ; (el as HTMLElement).style.pointerEvents = 'none'
-      })
-    })
-  }).catch((err: any) => {
-    console.warn('Midtrans Snap script failed to load:', err)
+  // Snap manages its own overlay visibility when pay() is called.
+  loadMidtransScript().catch(() => {
+    console.warn('Midtrans Snap script failed to load.')
   })
   clockTimer = setInterval(() => {
     currentTime.value = Date.now()
   }, 60000)
+
+  startOrdersAutoPoll()
+
   if (typeof window !== 'undefined') {
-    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('focus', handleVisibilityOrFocus)
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus)
   }
+
+  // Ensure fresh orders are fetched immediately on client mount
+  if (authStore.isAuthenticated) {
+    refreshOrders(true)
+  }
+  watch(() => authStore.isAuthenticated, (isAuth) => {
+    if (isAuth) {
+      refreshOrders(true)
+    }
+  })
 
   // Check if directed with print_invoice or invoice query parameter
   const route = useRoute()
@@ -764,8 +1036,10 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (clockTimer) clearInterval(clockTimer)
+  stopOrdersAutoPoll()
   if (typeof window !== 'undefined') {
-    window.removeEventListener('focus', handleWindowFocus)
+    window.removeEventListener('focus', handleVisibilityOrFocus)
+    document.removeEventListener('visibilitychange', handleVisibilityOrFocus)
   }
 })
 
@@ -1256,6 +1530,24 @@ useHead({
 .btn-order-review-action:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(0, 51, 153, 0.3);
+}
+
+.btn-view-review-action {
+  background: #f8fafc;
+  color: #003399;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-view-review-action:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #002266;
 }
 
 /* Shipping & Tracking Snapshot Bar */
@@ -1764,23 +2056,237 @@ useHead({
 </style>
 
 <style>
-/* Global: Prevent Midtrans Snap overlay from blocking page interaction.
-   The snap.js script injects hidden iframe + overlay elements that sit on top of
-   everything with high z-index, blocking all pointer events even when the popup
-   is not visible. These rules ensure they only appear during active payment. */
-#snap-midtrans,
-.snap-container,
-iframe[src*="midtrans"][style*="z-index"] {
-  pointer-events: none !important;
-  display: none !important;
+/* Payment Success Modal Styles */
+.checkout-success-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
 }
 
-/* When Midtrans Snap is actively shown (body gains specific class or the container
-   is made visible via inline style), re-enable interaction */
-body.snap-active #snap-midtrans,
-#snap-midtrans[style*="display: block"],
-#snap-midtrans[style*="display:block"] {
-  pointer-events: auto !important;
-  display: block !important;
+.checkout-success-card {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  padding: 2.25rem 2rem;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 51, 153, 0.2);
+  border: 1px solid #e2e8f0;
+}
+
+.success-icon-badge {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  border: 3px solid #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
+  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.checkmark-pulse-icon {
+  animation: checkPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes checkPulse {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.7));
+  }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.success-title {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.4rem;
+}
+
+.success-desc {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 1.25rem;
+}
+
+.success-product-preview {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.preview-tag-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #15803d;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.preview-product-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.preview-product-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.preview-product-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-product-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-product-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.meta-pill {
+  font-size: 0.68rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.meta-qty {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.preview-product-price {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #003399;
+}
+
+.success-order-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.85rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.success-box-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.box-label {
+  color: #64748b;
+}
+
+.box-val {
+  color: #0f172a;
+}
+
+.success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.btn-success-ok {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: 12px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.btn-success-ok:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+}
+
+.success-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.success-secondary-row .btn {
+  flex: 1;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.8rem;
+  justify-content: center;
+}
+
+@media (max-width: 480px) {
+  .checkout-success-backdrop {
+    padding: 0.75rem;
+    align-items: flex-end;
+  }
+
+  .checkout-success-card {
+    border-radius: 16px 16px 8px 8px;
+    padding: 1.75rem 1.25rem;
+  }
 }
 </style>

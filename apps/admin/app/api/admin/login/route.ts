@@ -2,12 +2,13 @@ import type { RowDataPacket } from "mysql2";
 import { NextResponse } from "next/server";
 import { ADMIN_COOKIE, createAdminSession, publicUser, verifyPassword } from "@/lib/auth";
 import { row } from "@/lib/db";
-import { handleApiError, ApiError, requestData } from "@/lib/http";
+import { handleApiError, ApiError, requestData, checkRateLimit } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   try {
+    checkRateLimit(request, "admin-login", { max: 5, windowMs: 15 * 60_000 });
     const body = await requestData(request);
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";

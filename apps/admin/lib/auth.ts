@@ -6,7 +6,7 @@ import type { RowDataPacket } from "mysql2";
 import { execute, row } from "@/lib/db";
 import { env } from "@/lib/env";
 import { ApiError } from "@/lib/http";
-import { nowSql, omit, randomString } from "@/lib/utils";
+import { addMinutes, nowSql, omit, randomString } from "@/lib/utils";
 import type { ApiUser } from "@/types";
 
 export const ADMIN_COOKIE = "cyber_admin_session";
@@ -32,11 +32,12 @@ export function publicUser<T extends Record<string, unknown>>(user: T) {
 export async function createApiToken(userId: number, name = "flutter-token") {
   const plain = randomString(40);
   const hash = createHash("sha256").update(plain).digest("hex");
+  const expiresAt = addMinutes(30 * 24 * 60); // 30 hari
   const result = await execute(
     `INSERT INTO personal_access_tokens
-      (tokenable_type, tokenable_id, name, token, abilities, created_at, updated_at)
-     VALUES ('App\\\\Models\\\\User', ?, ?, ?, '["*"]', ?, ?)`,
-    [userId, name, hash, nowSql(), nowSql()],
+      (tokenable_type, tokenable_id, name, token, abilities, expires_at, created_at, updated_at)
+     VALUES ('App\\\\Models\\\\User', ?, ?, ?, '["*"]', ?, ?, ?)`,
+    [userId, name, hash, expiresAt, nowSql(), nowSql()],
   );
   return `${result.insertId}|${plain}`;
 }
@@ -51,10 +52,10 @@ export async function authenticateApi(request: Request) {
   const plain = separator > 0 ? supplied.slice(separator + 1) : supplied;
   const hash = createHash("sha256").update(plain).digest("hex");
 
-  const token = await row<RowDataPacket & { id: number; tokenable_id: number }>(
+  const token = await row<RowDataPacket & { id: number; tokenable_id: number; last_used_at: Date | null }>(
     tokenId
-      ? "SELECT id, tokenable_id FROM personal_access_tokens WHERE id = ? AND token = ? LIMIT 1"
-      : "SELECT id, tokenable_id FROM personal_access_tokens WHERE token = ? LIMIT 1",
+      ? "SELECT id, tokenable_id, last_used_at FROM personal_access_tokens WHERE id = ? AND token = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1"
+      : "SELECT id, tokenable_id, last_used_at FROM personal_access_tokens WHERE token = ? AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1",
     tokenId ? [tokenId, hash] : [hash],
   );
   if (!token) throw new ApiError(401, "Unauthenticated.");
@@ -62,10 +63,13 @@ export async function authenticateApi(request: Request) {
   const user = await row<UserRow>("SELECT * FROM users WHERE id = ? LIMIT 1", [token.tokenable_id]);
   if (!user || !user.is_active) throw new ApiError(401, "Unauthenticated.");
 
-  await execute("UPDATE personal_access_tokens SET last_used_at = ? WHERE id = ?", [
-    nowSql(),
-    token.id,
-  ]);
+  const shouldUpdateLastUsed = !token.last_used_at || (Date.now() - new Date(token.last_used_at).getTime() > 5 * 60_000);
+  if (shouldUpdateLastUsed) {
+    await execute("UPDATE personal_access_tokens SET last_used_at = ? WHERE id = ?", [
+      nowSql(),
+      token.id,
+    ]);
+  }
   return { user, tokenId: token.id };
 }
 

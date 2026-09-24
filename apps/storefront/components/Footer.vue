@@ -11,9 +11,9 @@
             <span class="logo-main"><span class="text-gold">BSI</span> CYBER<span class="text-white">STORE</span></span>
           </div>
           <p class="brand-desc">
-            Platform e-commerce resmi civitas akademika Universitas Bina Sarana Informatika untuk perlengkapan kuliah,
-            gadget
-            teknologi terstandar, dan merchandise kampus original bergaransi resmi.
+            Satu destinasi resmi untuk seluruh kebutuhan mahasiswa Universitas BSI. Dapatkan seragam resmi Ormik &amp;
+            Semot, jaket kebanggaan UBSI, hingga koleksi merchandise hits seperti tumbler, mug, badge, dan aksesori
+            kampus original lainnya.
           </p>
 
           <!-- Store Contact Info from API -->
@@ -35,10 +35,10 @@
           </div>
 
           <div class="security-badges">
-            <div class="badge badge-gold inline-flex items-center gap-1">
+            <!-- <div class="badge badge-gold inline-flex items-center gap-1">
               <Icon name="lucide:lock" class="w-3.5 h-3.5" />
               <span>SSL 256-Bit Terenkripsi</span>
-            </div>
+            </div> -->
             <div class="badge badge-cyan inline-flex items-center gap-1">
               <Icon name="lucide:shield-check" class="w-3.5 h-3.5" />
               <span>100% Produk Resmi</span>
@@ -68,9 +68,9 @@
                 <span>Cyber Picks Rekomendasi</span>
               </NuxtLink>
             </li>
-            <li>
+            <!-- <li>
               <NuxtLink to="/cart">Keranjang Belanja</NuxtLink>
-            </li>
+            </li> -->
             <li>
               <NuxtLink to="/account/orders">Pesanan Saya</NuxtLink>
             </li>
@@ -83,16 +83,16 @@
           <ul class="footer-links">
             <li>
               <button type="button" class="footer-btn-link" @click="openCustomerService({ tab: 'chat' })">
-                <Icon name="lucide:message-square-text" class="w-3.5 h-3.5 text-cyan" />
-                <span>Live Chat Admin CS</span>
+                <Icon name="lucide:message-square-warning" class="w-3.5 h-3.5 text-amber-500" />
+                <span>Live Chat Komplain CS</span>
               </button>
             </li>
-            <li>
+            <!-- <li>
               <button type="button" class="footer-btn-link" @click="openCustomerService({ tab: 'contact' })">
                 <Icon name="lucide:message-circle" class="w-3.5 h-3.5 text-emerald" />
                 <span>Kontak WhatsApp Resmi</span>
               </button>
-            </li>
+            </li> -->
             <li>
               <button type="button" class="footer-btn-link" @click="openCustomerService({ tab: 'faq' })">
                 <Icon name="lucide:help-circle" class="w-3.5 h-3.5 text-gold" />
@@ -108,7 +108,7 @@
             <li>
               <button type="button" class="footer-btn-link" @click="openCustomerService({ tab: 'contact' })">
                 <Icon name="lucide:phone-call" class="w-3.5 h-3.5" />
-                <span>Call Center Kampus</span>
+                <span>Call Center</span>
               </button>
             </li>
           </ul>
@@ -118,17 +118,14 @@
         <div class="footer-col">
           <h4 class="footer-title">Pembayaran & Ekspedisi</h4>
           <p class="text-sub">
-            Pembayaran otomatis terverifikasi via Midtrans Gateway dan didukung oleh ekspedisi kurir terpercaya.
+            Pembayaran untuk saat ini hanya melayani via virtual account bank Mandiri dan didukung oleh ekspedisi kurir
+            terpercaya.
           </p>
 
           <div class="partner-group">
             <span class="partner-subtitle">METODE PEMBAYARAN</span>
             <div class="partner-chips">
-              <span class="partner-chip chip-pay">QRIS (Gopay/Dana/OVO)</span>
               <span class="partner-chip chip-pay">Mandiri VA</span>
-              <span class="partner-chip chip-pay">BCA VA</span>
-              <span class="partner-chip chip-pay">BRI VA</span>
-              <span class="partner-chip chip-pay">BNI VA</span>
             </div>
           </div>
 
@@ -147,10 +144,6 @@
       <!-- Bottom Bar -->
       <div class="footer-bottom">
         <p>© Powered by BTI-BSI 2026.</p>
-        <div class="status-indicator">
-          <span class="status-dot"></span>
-          <span>Sistem E-Commerce Terhubung (Online)</span>
-        </div>
       </div>
     </div>
   </footer>
@@ -406,12 +399,18 @@ onMounted(async () => {
 
 .footer-bottom {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
   padding-top: 2rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.8rem;
   color: #94a3b8;
+  text-align: center;
+}
+
+.footer-bottom p {
+  margin: 0;
+  text-align: center;
 }
 
 .status-indicator {

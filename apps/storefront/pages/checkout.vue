@@ -69,12 +69,27 @@
                     <Icon name="lucide:check" class="w-3 h-3 inline mr-0.5" />
                     Terpilih
                   </span>
+
+                  <!-- Tombol Edit & Hapus Alamat -->
+                  <div class="address-actions-inline" @click.stop>
+                    <button type="button" @click="openEditAddress(addr)" class="btn-addr-action btn-addr-edit"
+                      title="Edit Alamat">
+                      <Icon name="lucide:pencil" class="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
+                    <button type="button" @click="confirmDeleteAddress(addr)" class="btn-addr-action btn-addr-delete"
+                      title="Hapus Alamat">
+                      <Icon name="lucide:trash-2" class="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="receiver-info-row">
                   <strong class="receiver-name">{{ addr.receiver_name || addr.recipient_name }}</strong>
                   <span class="receiver-phone">({{ addr.phone }})</span>
                 </div>
-                <p class="address-text">{{ addr.address }}, {{ addr.city }}, {{ addr.province }} {{ addr.postal_code }}
+                <p class="address-text">{{ addr.address }}, {{ addr.district ? 'Kec. ' + addr.district + ', ' : '' }}{{
+                  addr.city }}, {{ addr.province }} {{ addr.postal_code }}
                 </p>
                 <div v-if="addr.latitude && addr.longitude" class="address-geo-badge">
                   <span class="geo-dot"></span>
@@ -87,14 +102,25 @@
               </div>
             </label>
 
-            <button type="button" @click="showNewAddressForm = true" class="btn btn-secondary btn-sm add-address-btn">
+            <button type="button" @click="openAddNewAddress" class="btn btn-secondary btn-sm add-address-btn">
               <Icon name="lucide:plus" class="w-4 h-4" />
               <span>Tambah Alamat Baru</span>
             </button>
           </div>
 
-          <!-- New Address Form -->
-          <form v-else @submit.prevent="handleSaveNewAddress" class="new-address-form">
+          <!-- Form Tambah / Edit Alamat -->
+          <form v-else @submit.prevent="handleSaveAddress" class="new-address-form">
+            <div class="form-header-bar">
+              <div class="form-header-title">
+                <Icon :name="editingAddressId ? 'lucide:pencil-line' : 'lucide:plus-circle'" class="w-5 h-5 text-bsi" />
+                <h3 class="form-title">{{ editingAddressId ? 'Edit Alamat Pengiriman' : 'Tambah Alamat Baru' }}</h3>
+              </div>
+              <button v-if="addresses.length > 0" type="button" @click="cancelAddressForm" class="btn-close-form"
+                title="Batal">
+                <Icon name="lucide:x" class="w-4 h-4" />
+                <span>Batal</span>
+              </button>
+            </div>
             <div class="form-grid form-grid-2">
               <div class="form-group">
                 <label class="form-label">Nama Penerima <span class="text-danger">*</span></label>
@@ -114,53 +140,151 @@
                 class="input-cyber" />
             </div>
 
+            <!-- Provinsi, Kota/Kabupaten, Kecamatan, dan Kode Pos (Select & Input) -->
+            <div class="form-grid form-grid-4">
+              <div class="form-group">
+                <label class="form-label">Provinsi <span class="text-danger">*</span></label>
+                <div class="select-wrapper">
+                  <select v-model="newAddr.province" required class="input-cyber select-cyber"
+                    @change="handleProvinceChange">
+                    <option value="" disabled>— Pilih Provinsi —</option>
+                    <option v-for="prov in provinceList" :key="prov" :value="prov">
+                      {{ prov }}
+                    </option>
+                  </select>
+                  <Icon name="lucide:chevron-down" class="select-chevron" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Kota / Kabupaten <span class="text-danger">*</span></label>
+                <div class="select-wrapper">
+                  <select v-model="newAddr.city" required :disabled="!newAddr.province" class="input-cyber select-cyber"
+                    @change="handleCityChange">
+                    <option value="" disabled>
+                      {{ newAddr.province ? '— Pilih Kota / Kabupaten —' : '— Pilih Provinsi Dahulu —' }}
+                    </option>
+                    <option v-for="city in availableCities" :key="city" :value="city">
+                      {{ city }}
+                    </option>
+                  </select>
+                  <Icon name="lucide:chevron-down" class="select-chevron" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Kecamatan <span class="text-danger">*</span></label>
+                <div class="select-wrapper">
+                  <select v-model="newAddr.district" required :disabled="!newAddr.city || isLoadingDistricts"
+                    class="input-cyber select-cyber" @change="handleDistrictChange">
+                    <option value="" disabled>
+                      {{
+                        !newAddr.city
+                          ? '— Pilih Kota Dahulu —'
+                          : isLoadingDistricts
+                            ? '— Memuat Kecamatan… —'
+                            : '— Pilih Kecamatan —'
+                      }}
+                    </option>
+                    <option v-for="dist in availableDistricts" :key="dist" :value="dist">
+                      {{ dist }}
+                    </option>
+                  </select>
+                  <Icon :name="isLoadingDistricts ? 'lucide:loader-2' : 'lucide:chevron-down'"
+                    :class="['select-chevron', { 'animate-spin': isLoadingDistricts }]" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Kode Pos <span class="text-danger">*</span></label>
+                <input v-model="newAddr.postal_code" type="text" required placeholder="Contoh: 12345"
+                  class="input-cyber" />
+              </div>
+            </div>
+
+            <!-- Cari Lokasi di Peta (Input Search dengan Autocomplete & Auto-pan Peta) -->
+            <div class="form-group address-autocomplete-group">
+              <div class="form-label-row">
+                <label class="form-label">
+                  <span>Cari Lokasi di Peta</span>
+                </label>
+                <span v-if="isGeocodingAddress" class="geosearch-indicator">
+                  <Icon name="lucide:loader-2" class="w-3.5 h-3.5 animate-spin text-bsi" />
+                  <span>Mencari titik lokasi di peta…</span>
+                </span>
+                <span v-else-if="addressSearchStatus" class="geosearch-indicator text-emerald-600">
+                  <Icon name="lucide:map-pin" class="w-3.5 h-3.5 text-emerald-500" />
+                  <span>{{ addressSearchStatus }}</span>
+                </span>
+              </div>
+              <div class="search-input-wrapper">
+                <Icon name="lucide:search" class="search-input-icon" />
+                <input v-model="mapSearchQuery" type="text"
+                  placeholder="Ketik nama jalan, komplek, gedung, atau patokan untuk menggeser pin peta..."
+                  class="input-cyber input-search-location" @input="onSearchLocationInput"
+                  @focus="onSearchLocationFocus" @blur="onSearchLocationBlur" />
+                <button v-if="mapSearchQuery" type="button" class="search-clear-btn" @click="clearMapSearch"
+                  title="Hapus pencarian">
+                  <Icon name="lucide:x" class="w-4 h-4" />
+                </button>
+              </div>
+
+              <!-- Autocomplete Suggestions List -->
+              <Transition name="fade">
+                <div v-if="addressSuggestions.length > 0 && showSuggestionsDropdown" class="address-suggestions-box">
+                  <div class="suggestions-header">
+                    <Icon name="lucide:search" class="w-3.5 h-3.5" />
+                    <span>Saran Lokasi (Klik untuk otomatis pilih & geser pin):</span>
+                  </div>
+                  <button v-for="(sug, sIdx) in addressSuggestions" :key="sIdx" type="button" class="suggestion-item"
+                    @mousedown.prevent="selectAddressSuggestion(sug)">
+                    <Icon name="lucide:map-pin" class="w-4 h-4 shrink-0 text-bsi" />
+                    <div class="suggestion-text">
+                      <strong class="suggestion-title">{{ sug.name }}</strong>
+                      <span class="suggestion-desc">{{ sug.display_name }}</span>
+                    </div>
+                  </button>
+                </div>
+              </Transition>
+            </div>
+
             <!-- Titik Presisi Google Maps & GPS -->
             <div class="form-group">
               <label class="form-label label-with-hint">
                 <span>Titik Presisi Alamat (Google Maps & GPS)</span>
-                <span class="text-hint">Memudahkan kurir ekspedisi mengantar paket dengan akurat</span>
+                <span class="text-hint">Pin peta otomatis berpindah mengikuti pencarian lokasi di atas, atau klik/geser
+                  manual</span>
               </label>
               <ClientOnly>
-                <LocationPicker :initial-lat="newAddr.latitude" :initial-lng="newAddr.longitude"
-                  @update:location="handleCheckoutLocationPicked" />
+                <LocationPicker :key="editingAddressId || 'new-addr'" :initial-lat="newAddr.latitude"
+                  :initial-lng="newAddr.longitude" @update:location="handleCheckoutLocationPicked" />
               </ClientOnly>
             </div>
 
+            <!-- Alamat Lengkap untuk Kurir (Murni input teks manual, tanpa trigger geocoding/maps) -->
             <div class="form-group">
-              <label class="form-label">Alamat Lengkap <span class="text-danger">*</span></label>
+              <div class="form-label-row">
+                <label class="form-label">Alamat Lengkap <span class="text-danger">*</span></label>
+                <span class="text-hint">Tuliskan detail selengkapnya agar kurir mudah menemukan alamat Anda</span>
+              </div>
               <textarea v-model="newAddr.address" required rows="3"
-                placeholder="Nama jalan, nomor rumah/kos, RT/RW, kelurahan, patokan lokasi"
+                placeholder="Contoh: Jl. Merdeka No. 45 RT 02/RW 03, Kos Melati Kamar 4 (Lantai 2), pagar hitam sebelah warung kelontong"
                 class="input-cyber textarea-address"></textarea>
             </div>
 
-            <div class="form-grid form-grid-3">
-              <div class="form-group">
-                <label class="form-label">Provinsi <span class="text-danger">*</span></label>
-                <input v-model="newAddr.province" type="text" required placeholder="DKI Jakarta" class="input-cyber" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Kota / Kabupaten <span class="text-danger">*</span></label>
-                <input v-model="newAddr.city" type="text" required placeholder="Jakarta Selatan" class="input-cyber" />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Kode Pos <span class="text-danger">*</span></label>
-                <input v-model="newAddr.postal_code" type="text" required placeholder="12345" class="input-cyber" />
-              </div>
-            </div>
-
             <div class="form-actions">
-              <button v-if="addresses.length > 0" type="button" @click="showNewAddressForm = false"
-                :disabled="isSavingAddress" class="btn btn-secondary btn-cancel-address">
+              <button v-if="addresses.length > 0" type="button" @click="cancelAddressForm" :disabled="isSavingAddress"
+                class="btn btn-secondary btn-cancel-address">
                 Batal
               </button>
               <button type="submit" :disabled="isSavingAddress" class="btn btn-primary btn-save-address">
                 <span v-if="isSavingAddress" class="btn-spinner-content">
                   <Icon name="lucide:loader-2" class="w-4 h-4 animate-spin" />
-                  <span>Menyimpan Alamat...</span>
+                  <span>{{ editingAddressId ? 'Menyimpan Perubahan...' : 'Menyimpan Alamat...' }}</span>
                 </span>
                 <span v-else class="btn-save-content">
                   <Icon name="lucide:check" class="w-4 h-4" />
-                  <span>Simpan</span>
+                  <span>{{ editingAddressId ? 'Perbarui Alamat' : 'Simpan Alamat' }}</span>
                 </span>
               </button>
             </div>
@@ -264,6 +388,10 @@
               <span class="calc-label">Ongkos Kirim ({{ selectedExpedition?.name || 'Ekspedisi' }})</span>
               <span class="calc-value font-mono">{{ formatRupiah(shippingCost) }}</span>
             </div>
+            <div class="calc-row">
+              <span class="calc-label">Biaya Penanganan</span>
+              <span class="calc-value font-mono">{{ formatRupiah(handlingFee) }}</span>
+            </div>
             <div class="calc-row grand-total-row">
               <div class="grand-total-info">
                 <strong class="grand-total-label">Total Tagihan</strong>
@@ -318,48 +446,115 @@
       </div>
     </div>
 
+    <!-- Delete Address Confirmation Modal -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="addressToDelete" class="checkout-success-backdrop" @click.self="addressToDelete = null">
+          <div class="checkout-delete-modal cyber-card" role="dialog" aria-modal="true">
+            <div class="delete-icon-circle">
+              <Icon name="lucide:trash-2" class="w-7 h-7 text-rose-600" />
+            </div>
+            <h3 class="delete-modal-title">Hapus Alamat?</h3>
+            <p class="delete-modal-desc">
+              Apakah Anda yakin ingin menghapus alamat <strong>"{{ addressToDelete.label || 'Alamat' }}"</strong> untuk
+              penerima <strong>{{ addressToDelete.receiver_name || addressToDelete.recipient_name }}</strong>? Tindakan
+              ini tidak dapat dibatalkan.
+            </p>
+            <div class="delete-modal-actions">
+              <button type="button" @click="addressToDelete = null" :disabled="isDeletingAddress"
+                class="btn btn-secondary">
+                Batal
+              </button>
+              <button type="button" @click="executeDeleteAddress" :disabled="isDeletingAddress" class="btn btn-danger">
+                <Icon v-if="isDeletingAddress" name="lucide:loader-2" class="w-4 h-4 animate-spin" />
+                <Icon v-else name="lucide:trash-2" class="w-4 h-4" />
+                <span>{{ isDeletingAddress ? 'Menghapus...' : 'Ya, Hapus' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Payment Success Modal -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="isSuccessModalOpen && paidSuccessOrder" class="checkout-success-backdrop" @click.self="goToOrders">
-          <div class="checkout-success-card" role="dialog" aria-modal="true">
+        <div v-if="isSuccessModalOpen && paidSuccessOrder" class="checkout-success-backdrop"
+          @click.self="handleSuccessOk">
+          <div class="checkout-success-card cyber-card" role="dialog" aria-modal="true">
+            <!-- Animated Checklist Icon Badge -->
             <div class="success-icon-badge">
-              <Icon name="lucide:party-popper" class="w-10 h-10 text-amber-500" />
+              <Icon name="lucide:check-circle-2" class="w-12 h-12 text-emerald-500 checkmark-pulse-icon" />
             </div>
-            <h2 class="success-title">Pembayaran Berhasil Diterima!</h2>
+            <h2 class="success-title">Pembayaran Berhasil!</h2>
             <p class="success-desc">
               Terima kasih! Pembayaran Anda telah terverifikasi secara resmi. Toko akan segera mengemas dan mengirimkan
               pesanan Anda.
             </p>
 
+            <!-- Product Purchased Preview Box -->
+            <div v-if="primaryPurchasedProduct" class="success-product-preview">
+              <span class="preview-tag-label">
+                <Icon name="lucide:package-check" class="w-3.5 h-3.5 inline mr-1 text-emerald-600" />
+                Produk Berhasil Dibayar:
+              </span>
+              <div class="preview-product-card">
+                <img :src="getImageUrl(primaryPurchasedProduct.photo)" :alt="primaryPurchasedProduct.name"
+                  class="preview-product-thumb"
+                  @error="(e: any) => { if (e.target) e.target.src = '/placeholder-product.svg' }" />
+                <div class="preview-product-info">
+                  <h4 class="preview-product-name">{{ primaryPurchasedProduct.name }}</h4>
+                  <div class="preview-product-meta">
+                    <span v-if="primaryPurchasedProduct.size" class="meta-pill">Ukuran: {{ primaryPurchasedProduct.size
+                    }}</span>
+                    <span v-if="primaryPurchasedProduct.color" class="meta-pill">Warna: {{ primaryPurchasedProduct.color
+                    }}</span>
+                    <span class="meta-qty">{{ primaryPurchasedProduct.quantity }}x</span>
+                  </div>
+                  <span class="preview-product-price font-mono">{{ formatRupiah(primaryPurchasedProduct.price) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Order Summary Details -->
             <div class="success-order-box">
               <div class="success-box-row">
                 <span class="box-label">Nomor Invoice:</span>
-                <strong class="box-val font-mono text-bsi">{{ paidSuccessOrder.invoice_number || `ORD-#${paidSuccessOrder.id}` }}</strong>
+                <strong class="box-val font-mono text-bsi">{{ paidSuccessOrder.invoice_number ||
+                  `ORD-#${paidSuccessOrder.id}` }}</strong>
               </div>
               <div class="success-box-row">
                 <span class="box-label">Total Pembayaran:</span>
-                <strong class="box-val font-mono">{{ formatRupiah(paidSuccessOrder.grand_total || grandTotal) }}</strong>
+                <strong class="box-val font-mono text-emerald-600 font-bold">{{
+                  formatRupiah(paidSuccessOrder.grand_total || grandTotal) }}</strong>
               </div>
               <div class="success-box-row">
                 <span class="box-label">Status:</span>
                 <span class="badge badge-emerald inline-flex items-center gap-1">
-                  <Icon name="lucide:check" class="w-3.5 h-3.5" />
+                  <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5 text-white" />
                   LUNAS (PAID)
                 </span>
               </div>
             </div>
 
+            <!-- Modal Action Buttons -->
             <div class="success-actions">
-              <button type="button" class="btn btn-primary btn-print-success" @click="openSuccessInvoice">
-                <Icon name="lucide:printer" class="w-4 h-4" />
-                <span>Cetak Invoice Sekarang</span>
+              <!-- Primary OK Button to Redirect Directly to Product -->
+              <button type="button" class="btn btn-primary btn-success-ok" @click="handleSuccessOk">
+                <Icon name="lucide:check" class="w-5 h-5 mr-1" />
+                <span>Oke</span>
               </button>
 
-              <button type="button" class="btn btn-secondary btn-orders-success" @click="goToOrders">
-                <span>Lihat Pesanan Saya</span>
-                <Icon name="lucide:arrow-right" class="w-3.5 h-3.5" />
-              </button>
+              <!-- <div class="success-secondary-row">
+                <button type="button" class="btn btn-secondary btn-sm" @click="openSuccessInvoice">
+                  <Icon name="lucide:printer" class="w-4 h-4 mr-1" />
+                  <span>Cetak Invoice</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" @click="goToOrders">
+                  <Icon name="lucide:receipt" class="w-4 h-4 mr-1" />
+                  <span>Daftar Pesanan</span>
+                </button>
+              </div> -->
             </div>
           </div>
         </div>
@@ -393,6 +588,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, computed, onMounted, watch } from 'vue'
 definePageMeta({
   middleware: 'auth',
@@ -405,11 +601,18 @@ import { useApi } from '~/composables/useApi'
 import { useFormat } from '~/composables/useFormat'
 import { useMidtrans } from '~/composables/useMidtrans'
 import OrderInvoiceModal from '~/components/OrderInvoiceModal.vue'
+import {
+  getProvinceNames,
+  getCitiesForProvince,
+  getProvinceCoordinates,
+  normalizeProvinceName,
+  normalizeCityName,
+} from '~/utils/indonesia-regions'
 
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
-const { fetchExpeditions, fetchAddresses, createAddress, checkoutOrder, checkPaymentStatus, getImageUrl } = useApi()
+const { fetchExpeditions, fetchAddresses, createAddress, updateAddress, deleteAddress, checkoutOrder, checkPaymentStatus, getImageUrl } = useApi()
 const { formatRupiah } = useFormat()
 const { pay: payWithMidtrans, loadSnap: loadMidtransScript } = useMidtrans()
 
@@ -417,6 +620,53 @@ const { pay: payWithMidtrans, loadSnap: loadMidtransScript } = useMidtrans()
 const isSuccessModalOpen = ref(false)
 const isInvoiceModalOpen = ref(false)
 const paidSuccessOrder = ref<any>(null)
+const purchasedItems = ref<any[]>([])
+
+// Primary purchased product for redirection
+const primaryPurchasedProduct = computed(() => {
+  // 1. Cek dari item order yang dikembalikan server
+  const orderItems = paidSuccessOrder.value?.items
+  if (Array.isArray(orderItems) && orderItems.length > 0) {
+    const firstItem = orderItems[0]
+    const prod = firstItem.product || firstItem
+    return {
+      id: prod.slug || prod.encrypted_id || prod.id || firstItem.product_id,
+      name: prod.name || firstItem.product_name,
+      photo: prod.main_photo || firstItem.product_photo || firstItem.photo,
+      price: firstItem.price || prod.price,
+      quantity: firstItem.quantity,
+      size: firstItem.size,
+      color: firstItem.color,
+    }
+  }
+
+  // 2. Fallback dari snapshot cart items sebelum dikosongkan
+  if (purchasedItems.value.length > 0) {
+    const firstCartItem = purchasedItems.value[0]
+    const prod = firstCartItem.product || firstCartItem
+    return {
+      id: prod.slug || prod.encrypted_id || prod.id || firstCartItem.productId,
+      name: firstCartItem.name,
+      photo: firstCartItem.photo,
+      price: firstCartItem.price,
+      quantity: firstCartItem.quantity,
+      size: firstCartItem.selectedSize,
+      color: firstCartItem.selectedColor,
+    }
+  }
+
+  return null
+})
+
+const handleSuccessOk = () => {
+  isSuccessModalOpen.value = false
+  const targetId = primaryPurchasedProduct.value?.id
+  if (targetId) {
+    router.push(`/account/orders`)
+  } else {
+    router.push('/account/orders')
+  }
+}
 
 const openSuccessInvoice = () => {
   isInvoiceModalOpen.value = true
@@ -440,6 +690,103 @@ const isProcessing = ref(false)
 const showNewAddressForm = ref(false)
 const isLoadingExpeditions = ref(false)
 
+// Edit & Delete Address State
+const editingAddressId = ref<number | string | null>(null)
+const addressToDelete = ref<any | null>(null)
+const isDeletingAddress = ref(false)
+
+const openAddNewAddress = () => {
+  editingAddressId.value = null
+  showNewAddressForm.value = true
+  mapSearchQuery.value = ''
+  addressSuggestions.value = []
+  showSuggestionsDropdown.value = false
+  addressSearchStatus.value = ''
+  newAddr.value = {
+    label: 'Rumah',
+    receiver_name: authStore.user?.name || '',
+    phone: authStore.user?.phone || '',
+    address: '',
+    province: '',
+    city: '',
+    district: '',
+    postal_code: '',
+    latitude: null,
+    longitude: null,
+  }
+  availableDistricts.value = []
+}
+
+const openEditAddress = async (addr: any) => {
+  editingAddressId.value = addr.id
+  showNewAddressForm.value = true
+  mapSearchQuery.value = addr.address || ''
+  addressSuggestions.value = []
+  showSuggestionsDropdown.value = false
+  addressSearchStatus.value = ''
+
+  newAddr.value = {
+    label: addr.label || 'Rumah',
+    receiver_name: addr.receiver_name || addr.recipient_name || '',
+    phone: addr.phone || '',
+    address: addr.address || '',
+    province: addr.province || '',
+    city: addr.city || '',
+    district: addr.district || '',
+    postal_code: addr.postal_code || '',
+    latitude: addr.latitude ? Number(addr.latitude) : null,
+    longitude: addr.longitude ? Number(addr.longitude) : null,
+  }
+
+  if (addr.city && addr.province) {
+    await fetchDistrictsForCity(addr.city, addr.province)
+    if (addr.district) {
+      newAddr.value.district = addr.district
+    }
+  }
+}
+
+const cancelAddressForm = () => {
+  showNewAddressForm.value = false
+  editingAddressId.value = null
+  mapSearchQuery.value = ''
+  addressSuggestions.value = []
+  showSuggestionsDropdown.value = false
+  addressSearchStatus.value = ''
+}
+
+const confirmDeleteAddress = (addr: any) => {
+  addressToDelete.value = addr
+}
+
+const executeDeleteAddress = async () => {
+  if (!addressToDelete.value) return
+  const idToDelete = addressToDelete.value.id
+  isDeletingAddress.value = true
+  try {
+    await deleteAddress(idToDelete)
+    addresses.value = addresses.value.filter((a: any) => a.id !== idToDelete)
+
+    // Jika yang dihapus sedang terpilih, alihkan pilihan ke alamat lain
+    if (selectedAddressId.value === idToDelete) {
+      if (addresses.value.length > 0) {
+        selectedAddressId.value = addresses.value[0].id
+      } else {
+        selectedAddressId.value = null
+        showNewAddressForm.value = true
+      }
+    }
+
+    showAddressToast('Alamat berhasil dihapus.', 'success')
+    addressToDelete.value = null
+  } catch (err: any) {
+    console.error('Failed to delete address:', err)
+    showAddressToast(err?.data?.message || err?.message || 'Gagal menghapus alamat.', 'error')
+  } finally {
+    isDeletingAddress.value = false
+  }
+}
+
 const newAddr = ref({
   label: 'Rumah',
   receiver_name: '',
@@ -447,6 +794,7 @@ const newAddr = ref({
   address: '',
   province: '',
   city: '',
+  district: '',
   postal_code: '',
   latitude: null as number | null,
   longitude: null as number | null,
@@ -480,7 +828,232 @@ const toastTitle = computed(() => {
 
 const isSavingAddress = ref(false)
 
-const handleCheckoutLocationPicked = (loc: {
+// Province, City, and District Select State
+const provinceList = computed(() => getProvinceNames())
+const availableCities = computed(() => getCitiesForProvince(newAddr.value.province))
+const availableDistricts = ref<string[]>([])
+const isLoadingDistricts = ref(false)
+
+const fetchDistrictsForCity = async (cityName: string, provinceName: string) => {
+  if (!cityName) {
+    availableDistricts.value = []
+    newAddr.value.district = ''
+    return
+  }
+
+  isLoadingDistricts.value = true
+  try {
+    const res: any = await $fetch('/api/regions/districts', {
+      params: {
+        city: cityName,
+        province: provinceName,
+      },
+    })
+    const list: string[] = res?.districts || []
+    availableDistricts.value = list
+
+    if (newAddr.value.district) {
+      const match = list.find((d) => d.toLowerCase() === newAddr.value.district.toLowerCase())
+      if (match) {
+        newAddr.value.district = match
+      } else if (!list.includes(newAddr.value.district)) {
+        list.unshift(newAddr.value.district)
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load districts:', err)
+    availableDistricts.value = []
+  } finally {
+    isLoadingDistricts.value = false
+  }
+}
+
+const handleProvinceChange = () => {
+  const cities = availableCities.value
+  if (newAddr.value.city && !cities.includes(newAddr.value.city)) {
+    newAddr.value.city = ''
+    newAddr.value.district = ''
+    availableDistricts.value = []
+  }
+
+  const provCoords = getProvinceCoordinates(newAddr.value.province)
+  if (provCoords) {
+    newAddr.value.latitude = provCoords.lat
+    newAddr.value.longitude = provCoords.lng
+  }
+
+  if (mapSearchQuery.value && mapSearchQuery.value.trim().length >= 3) {
+    triggerSearchLocationDebounced()
+  }
+}
+
+const handleCityChange = async () => {
+  newAddr.value.district = ''
+  if (!newAddr.value.city) {
+    availableDistricts.value = []
+    return
+  }
+  const query = [mapSearchQuery.value?.trim(), newAddr.value.city, newAddr.value.province, 'Indonesia'].filter(Boolean).join(', ')
+  geocodeAddress(query, !mapSearchQuery.value)
+  await fetchDistrictsForCity(newAddr.value.city, newAddr.value.province)
+}
+
+const handleDistrictChange = () => {
+  if (!newAddr.value.district) return
+  const query = [newAddr.value.district, newAddr.value.city, newAddr.value.province, 'Indonesia'].filter(Boolean).join(', ')
+  geocodeAddress(query, true)
+}
+
+watch(
+  () => [newAddr.value.city, newAddr.value.province],
+  ([c, p]) => {
+    if (c && p && availableDistricts.value.length === 0 && !isLoadingDistricts.value) {
+      fetchDistrictsForCity(c, p)
+    }
+  }
+)
+
+// Suggestions & Live Map Search State
+const mapSearchQuery = ref('')
+const isGeocodingAddress = ref(false)
+const addressSearchStatus = ref('')
+const addressSuggestions = ref<any[]>([])
+const showSuggestionsDropdown = ref(false)
+let geocodeDebounceTimer: any = null
+
+const onSearchLocationInput = () => {
+  triggerSearchLocationDebounced()
+}
+
+const onSearchLocationFocus = () => {
+  if (addressSuggestions.value.length > 0) {
+    showSuggestionsDropdown.value = true
+  }
+}
+
+const onSearchLocationBlur = () => {
+  setTimeout(() => {
+    showSuggestionsDropdown.value = false
+  }, 250)
+}
+
+const clearMapSearch = () => {
+  mapSearchQuery.value = ''
+  addressSuggestions.value = []
+  showSuggestionsDropdown.value = false
+  addressSearchStatus.value = ''
+}
+
+const triggerSearchLocationDebounced = () => {
+  if (geocodeDebounceTimer) clearTimeout(geocodeDebounceTimer)
+  geocodeDebounceTimer = setTimeout(() => {
+    const rawQuery = mapSearchQuery.value?.trim()
+    if (!rawQuery || rawQuery.length < 3) {
+      addressSuggestions.value = []
+      showSuggestionsDropdown.value = false
+      return
+    }
+
+    const queryParts = [rawQuery, newAddr.value.city, newAddr.value.province, 'Indonesia'].filter(Boolean)
+    geocodeAddress(queryParts.join(', '), false)
+  }, 500)
+}
+
+const geocodeAddress = async (queryText: string, isCityOnly: boolean = false) => {
+  if (!queryText || queryText.length < 3) return
+
+  isGeocodingAddress.value = true
+  addressSearchStatus.value = 'Mencari titik lokasi di peta…'
+
+  try {
+    const res: any = await $fetch('/api/geocode/search', {
+      params: { q: queryText },
+      timeout: 7000,
+    })
+
+    const results = res?.results || []
+    if (results.length > 0) {
+      const top = results[0]
+      newAddr.value.latitude = Number(top.lat)
+      newAddr.value.longitude = Number(top.lon)
+
+      if (!isCityOnly) {
+        addressSuggestions.value = results.slice(0, 5)
+        showSuggestionsDropdown.value = true
+      }
+
+      if (!newAddr.value.postal_code && top.postal_code) {
+        newAddr.value.postal_code = top.postal_code
+      }
+
+      addressSearchStatus.value = `📍 Titik peta disesuaikan: ${top.name || top.city || ''}`
+      setTimeout(() => { addressSearchStatus.value = '' }, 3500)
+    } else {
+      addressSuggestions.value = []
+      showSuggestionsDropdown.value = false
+      addressSearchStatus.value = ''
+    }
+  } catch (err) {
+    console.warn('Geocoding search failed:', err)
+    addressSearchStatus.value = ''
+  } finally {
+    isGeocodingAddress.value = false
+  }
+}
+
+const selectAddressSuggestion = async (sug: any) => {
+  if (!sug) return
+  const placeName = sug.name || sug.street || sug.display_name || ''
+  mapSearchQuery.value = placeName
+
+  // Jika alamat pengiriman kurir masih kosong, jadikan nama tempat/jalan sebagai acuan awal
+  if (!newAddr.value.address) {
+    newAddr.value.address = sug.street || sug.name || sug.display_name || ''
+  }
+
+  if (!newAddr.value.province && sug.province) {
+    const matchedProv = normalizeProvinceName(sug.province)
+    if (matchedProv) newAddr.value.province = matchedProv
+  }
+  if (!newAddr.value.city && sug.city) {
+    if (newAddr.value.province) {
+      const matchedCity = normalizeCityName(newAddr.value.province, sug.city)
+      newAddr.value.city = matchedCity || sug.city
+    } else {
+      newAddr.value.city = sug.city
+    }
+    if (newAddr.value.city) {
+      await fetchDistrictsForCity(newAddr.value.city, newAddr.value.province)
+    }
+  }
+  if (!newAddr.value.district && sug.district) {
+    const match = availableDistricts.value.find(
+      (d) => d.toLowerCase() === sug.district.toLowerCase() || sug.district.toLowerCase().includes(d.toLowerCase())
+    )
+    if (match) {
+      newAddr.value.district = match
+    } else {
+      if (!availableDistricts.value.includes(sug.district)) {
+        availableDistricts.value.unshift(sug.district)
+      }
+      newAddr.value.district = sug.district
+    }
+  }
+  if (sug.postal_code && !newAddr.value.postal_code) {
+    newAddr.value.postal_code = sug.postal_code
+  }
+  if (sug.lat && sug.lon) {
+    newAddr.value.latitude = Number(sug.lat)
+    newAddr.value.longitude = Number(sug.lon)
+  }
+
+  showSuggestionsDropdown.value = false
+  addressSuggestions.value = []
+  addressSearchStatus.value = `📍 Lokasi dipilih: ${sug.name || sug.city || placeName}`
+  setTimeout(() => { addressSearchStatus.value = '' }, 3500)
+}
+
+const handleCheckoutLocationPicked = async (loc: {
   latitude: number
   longitude: number
   address?: string
@@ -489,15 +1062,61 @@ const handleCheckoutLocationPicked = (loc: {
   postal_code?: string
   district?: string
 }) => {
+  // 1. Selalu perbarui koordinat presisi pin peta
   newAddr.value.latitude = loc.latitude
   newAddr.value.longitude = loc.longitude
 
-  if (loc.address) newAddr.value.address = loc.address
-  if (loc.city) newAddr.value.city = loc.city
-  if (loc.province) newAddr.value.province = loc.province
-  if (loc.postal_code) newAddr.value.postal_code = loc.postal_code
+  // 2. Acuan pencarian/patokan hanya jika belum diisi
+  if (loc.address && !mapSearchQuery.value) {
+    mapSearchQuery.value = loc.address
+  }
+  if (loc.address && !newAddr.value.address) {
+    newAddr.value.address = loc.address
+  }
 
-  showAddressToast('Titik peta & detail alamat berhasil diterapkan ke formulir!', 'info')
+  // 3. JANGAN timpa Provinsi jika user sudah memilih secara manual
+  if (!newAddr.value.province && loc.province) {
+    const matchedProv = normalizeProvinceName(loc.province)
+    if (matchedProv) {
+      newAddr.value.province = matchedProv
+    }
+  }
+
+  // 4. JANGAN timpa Kota / Kabupaten jika user sudah memilih secara manual
+  if (!newAddr.value.city && loc.city) {
+    if (newAddr.value.province) {
+      const matchedCity = normalizeCityName(newAddr.value.province, loc.city)
+      newAddr.value.city = matchedCity || loc.city
+    } else {
+      newAddr.value.city = loc.city
+    }
+    if (newAddr.value.city) {
+      await fetchDistrictsForCity(newAddr.value.city, newAddr.value.province)
+    }
+  }
+
+  // 5. JANGAN timpa Kecamatan jika user sudah memilih secara manual
+  if (!newAddr.value.district && loc.district) {
+    const targetDistrict = loc.district
+    const match = availableDistricts.value.find(
+      (d) => d.toLowerCase() === targetDistrict.toLowerCase() || targetDistrict.toLowerCase().includes(d.toLowerCase())
+    )
+    if (match) {
+      newAddr.value.district = match
+    } else {
+      if (!availableDistricts.value.includes(targetDistrict)) {
+        availableDistricts.value.unshift(targetDistrict)
+      }
+      newAddr.value.district = targetDistrict
+    }
+  }
+
+  // 6. Kode pos jika belum terisi
+  if (loc.postal_code && !newAddr.value.postal_code) {
+    newAddr.value.postal_code = loc.postal_code
+  }
+
+  showAddressToast('Titik koordinat peta berhasil disesuaikan!', 'info')
 }
 
 const loadCheckoutData = async () => {
@@ -562,11 +1181,14 @@ const shippingCost = computed(() => {
   return selectedExpedition.value?.base_cost || 14000
 })
 
+// Biaya tetap per pesanan, sesuai perhitungan checkout di backend.
+const handlingFee = 2000
+
 const grandTotal = computed(() => {
-  return cartStore.subtotal + shippingCost.value
+  return cartStore.subtotal + shippingCost.value + handlingFee
 })
 
-const handleSaveNewAddress = async () => {
+const handleSaveAddress = async () => {
   // Client-side Validasi
   const receiverName = newAddr.value.receiver_name?.trim()
   const phone = newAddr.value.phone?.trim()
@@ -595,6 +1217,10 @@ const handleSaveNewAddress = async () => {
     showAddressToast('Provinsi tujuan pengiriman wajib diisi.', 'error')
     return
   }
+  if (availableDistricts.value.length > 0 && !newAddr.value.district?.trim()) {
+    showAddressToast('Kecamatan tujuan pengiriman wajib dipilih.', 'error')
+    return
+  }
   if (!postalCode) {
     showAddressToast('Kode pos tujuan pengiriman wajib diisi.', 'error')
     return
@@ -610,51 +1236,74 @@ const handleSaveNewAddress = async () => {
       address,
       province,
       city,
+      district: newAddr.value.district?.trim() || null,
       postal_code: postalCode,
       latitude: newAddr.value.latitude || null,
       longitude: newAddr.value.longitude || null,
     }
 
-    const res = await createAddress(payload)
-    const savedAddress = res?.address || res?.data || res
+    if (editingAddressId.value) {
+      // MODE UPDATE ALAMAT
+      const res = await updateAddress(editingAddressId.value, payload)
+      const updated = res?.address || res?.data || res
 
-    if (savedAddress && savedAddress.id) {
-      addresses.value.push(savedAddress)
-      selectedAddressId.value = savedAddress.id
-      showNewAddressForm.value = false
-
-      // Reset form ke data default user
-      newAddr.value = {
-        label: 'Rumah',
-        receiver_name: authStore.user?.name || '',
-        phone: authStore.user?.phone || '',
-        address: '',
-        province: '',
-        city: '',
-        postal_code: '',
-        latitude: null,
-        longitude: null,
+      const idx = addresses.value.findIndex((a: any) => a.id === editingAddressId.value)
+      if (idx !== -1) {
+        addresses.value[idx] = { ...addresses.value[idx], ...payload, ...(updated || {}) }
+      } else {
+        const addrRes = await fetchAddresses()
+        addresses.value = addrRes?.addresses || (Array.isArray(addrRes) ? addrRes : [])
       }
 
-      showAddressToast('Alamat baru berhasil disimpan dan dipilih untuk checkout!', 'success')
+      selectedAddressId.value = editingAddressId.value
+      showNewAddressForm.value = false
+      editingAddressId.value = null
+      showAddressToast('Alamat berhasil diperbarui!', 'success')
     } else {
-      // Fallback reload list alamat
-      const addrRes = await fetchAddresses()
-      addresses.value = addrRes?.addresses || (Array.isArray(addrRes) ? addrRes : [])
-      if (addresses.value.length > 0) {
-        selectedAddressId.value = addresses.value[addresses.value.length - 1].id
+      // MODE TAMBAH ALAMAT BARU
+      const res = await createAddress(payload)
+      const savedAddress = res?.address || res?.data || res
+
+      if (savedAddress && savedAddress.id) {
+        addresses.value.push(savedAddress)
+        selectedAddressId.value = savedAddress.id
+        showNewAddressForm.value = false
+        showAddressToast('Alamat baru berhasil disimpan dan dipilih untuk checkout!', 'success')
+      } else {
+        const addrRes = await fetchAddresses()
+        addresses.value = addrRes?.addresses || (Array.isArray(addrRes) ? addrRes : [])
+        if (addresses.value.length > 0) {
+          selectedAddressId.value = addresses.value[addresses.value.length - 1].id
+        }
+        showNewAddressForm.value = false
+        showAddressToast('Alamat baru berhasil disimpan!', 'success')
       }
-      showNewAddressForm.value = false
-      showAddressToast('Alamat baru berhasil disimpan!', 'success')
     }
+
+    // Reset form ke data default user
+    mapSearchQuery.value = ''
+    newAddr.value = {
+      label: 'Rumah',
+      receiver_name: authStore.user?.name || '',
+      phone: authStore.user?.phone || '',
+      address: '',
+      province: '',
+      city: '',
+      district: '',
+      postal_code: '',
+      latitude: null,
+      longitude: null,
+    }
+    availableDistricts.value = []
   } catch (err: any) {
-    console.error('Failed to save new address:', err)
-    const errorMsg = err.data?.message || err.message || 'Gagal menyimpan alamat baru. Silakan periksa kembali data Anda.'
+    console.error('Failed to save address:', err)
+    const errorMsg = err.data?.message || err.message || 'Gagal menyimpan alamat. Silakan periksa kembali data Anda.'
     showAddressToast(errorMsg, 'error')
   } finally {
     isSavingAddress.value = false
   }
 }
+const handleSaveNewAddress = handleSaveAddress
 
 const handlePayWithMidtrans = async () => {
   if (!selectedAddressId.value) {
@@ -669,6 +1318,18 @@ const handlePayWithMidtrans = async () => {
   isProcessing.value = true
 
   try {
+    // Simpan snapshot cart items sebelum dikosongkan untuk preview & redirect
+    purchasedItems.value = cartStore.items.map((item: any) => ({
+      productId: item.productId,
+      product: item.product,
+      quantity: item.quantity,
+      selectedSize: item.selectedSize,
+      selectedColor: item.selectedColor,
+      name: item.product?.name || item.name,
+      photo: item.product?.main_photo || item.photo,
+      price: item.product?.price || item.price,
+    }))
+
     const itemsPayload = cartStore.items.map(item => ({
       product_id: item.productId,
       quantity: item.quantity,
@@ -1098,6 +1759,10 @@ useHead({
 
 .form-grid-3 {
   grid-template-columns: repeat(3, 1fr);
+}
+
+.form-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .form-group {
@@ -1625,6 +2290,10 @@ useHead({
   .form-grid-3 {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  .form-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* 3. Mobile Landscape & Tablets Portrait (max-width: 768px) */
@@ -1671,7 +2340,8 @@ useHead({
 @media (max-width: 640px) {
 
   .form-grid-2,
-  .form-grid-3 {
+  .form-grid-3,
+  .form-grid-4 {
     grid-template-columns: 1fr;
   }
 
@@ -1841,17 +2511,35 @@ useHead({
 }
 
 .success-icon-badge {
-  width: 64px;
-  height: 64px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   background: #ecfdf5;
-  border: 2px solid #a7f3d0;
+  border: 3px solid #10b981;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2rem;
   margin: 0 auto 1.25rem;
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
   animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.checkmark-pulse-icon {
+  animation: checkPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes checkPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
+  }
+
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.7));
+  }
 }
 
 @keyframes bounceIn {
@@ -1870,25 +2558,106 @@ useHead({
   font-size: 1.35rem;
   font-weight: 800;
   color: #0f172a;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .success-desc {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   color: #64748b;
   line-height: 1.5;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+/* Purchased Product Preview Card */
+.success-product-preview {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.preview-tag-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #15803d;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.preview-product-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.preview-product-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.preview-product-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-product-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-product-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.meta-pill {
+  font-size: 0.68rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.meta-qty {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.preview-product-price {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #003399;
 }
 
 .success-order-box {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 1rem 1.25rem;
+  padding: 0.85rem 1.15rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1.75rem;
+  gap: 0.45rem;
+  margin-bottom: 1.5rem;
   text-align: left;
 }
 
@@ -1913,45 +2682,41 @@ useHead({
   gap: 0.75rem;
 }
 
-.btn-print-success {
-  background: #004aad;
+.btn-success-ok {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #ffffff;
   font-weight: 700;
+  font-size: 0.95rem;
   padding: 0.85rem 1.5rem;
-  border-radius: 10px;
+  border-radius: 12px;
   border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  box-shadow: 0 4px 14px rgba(0, 74, 173, 0.25);
-  transition: all 0.2s ease;
-}
-
-.btn-print-success:hover {
-  background: #003399;
-  transform: translateY(-1px);
-}
-
-.btn-orders-success {
-  background: #f1f5f9;
-  color: #334155;
-  font-weight: 600;
-  padding: 0.75rem 1.5rem;
-  border-radius: 10px;
-  border: 1px solid #cbd5e1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
   cursor: pointer;
-  transition: all 0.15s ease;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+  transition: all 0.2s ease;
+  width: 100%;
 }
 
-.btn-orders-success:hover {
-  background: #e2e8f0;
-  color: #0f172a;
+.btn-success-ok:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+}
+
+.success-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.success-secondary-row .btn {
+  flex: 1;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.8rem;
+  justify-content: center;
 }
 
 /* Checkout Success Modal Responsive */
@@ -1979,6 +2744,165 @@ useHead({
     padding: 0.75rem 1rem;
     font-size: 0.875rem;
   }
+}
+
+/* Inline Address Actions (Edit & Hapus) */
+.address-actions-inline {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-addr-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.btn-addr-action:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-addr-edit:hover {
+  border-color: #003399;
+  color: #003399;
+  background: #eff6ff;
+}
+
+.btn-addr-delete:hover {
+  border-color: #fca5a5;
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+/* Form Header Bar */
+.form-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.25rem;
+}
+
+.form-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.btn-close-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-close-form:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+/* Delete Address Confirmation Modal */
+.checkout-delete-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 440px;
+  width: 100%;
+  padding: 2rem 1.75rem;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  border: 1px solid #e2e8f0;
+}
+
+.delete-icon-circle {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #fef2f2;
+  border: 2px solid #fecaca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem;
+}
+
+.delete-modal-title {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.5rem;
+}
+
+.delete-modal-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+
+.delete-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.delete-modal-actions .btn {
+  flex: 1;
+  padding: 0.7rem 1.25rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  justify-content: center;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ==========================================================================
@@ -2088,5 +3012,195 @@ useHead({
     width: auto;
     max-width: none;
   }
+}
+
+/* Custom Select Dropdowns */
+.select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.select-cyber {
+  width: 100%;
+  padding: 0.65rem 2.2rem 0.65rem 0.9rem;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  transition: all 0.2s ease;
+}
+
+.select-cyber:focus {
+  background: #ffffff;
+  border-color: #004aad;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.15);
+}
+
+.select-cyber:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: #64748b;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.select-cyber:focus+.select-chevron {
+  color: #004aad;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* Search Location Input */
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.search-input-icon {
+  position: absolute;
+  left: 0.85rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.input-search-location {
+  padding-left: 2.5rem !important;
+  padding-right: 2.5rem !important;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.search-clear-btn:hover {
+  color: #0f172a;
+}
+
+/* Autocomplete Suggestions Box */
+.address-autocomplete-group {
+  position: relative;
+}
+
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.geosearch-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #004aad;
+}
+
+.address-suggestions-box {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 25px -5px rgba(0, 51, 153, 0.15);
+  z-index: 50;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  background: #eff6ff;
+  border-bottom: 1px solid #dbeafe;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #003399;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.suggestion-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: #f0fdf4;
+}
+
+.suggestion-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.suggestion-title {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.suggestion-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

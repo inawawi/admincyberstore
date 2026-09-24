@@ -13,10 +13,16 @@
       <span class="notif-btn-label">Notifikasi</span>
     </button>
 
+    <!-- Mobile Backdrop Overlay -->
+    <Transition name="fade">
+      <div v-if="isOpen && isMobile" class="notif-mobile-backdrop" @click="closeDropdown" aria-hidden="true"></div>
+    </Transition>
+
     <!-- Unified Dropdown Panel (Desktop & Mobile) -->
     <Transition name="notif-slide">
-      <div v-if="isOpen" class="notif-panel cyber-card" role="dialog"
-        aria-modal="true" aria-label="Daftar Notifikasi">
+      <div v-if="isOpen" ref="panelRef" class="notif-panel cyber-card"
+        :style="isMobile ? { top: notifPanelTop } : undefined"
+        role="dialog" aria-modal="true" aria-label="Daftar Notifikasi">
         <!-- Panel Header -->
         <div class="notif-header">
           <div class="notif-title-row">
@@ -132,15 +138,42 @@ const filterTabs = [
   { id: 'announcement' as const, label: 'Pengumuman', icon: 'lucide:megaphone' },
 ]
 
+const panelRef = ref<HTMLElement | null>(null)
+const notifPanelTop = ref('68px')
+
+const updatePanelPosition = () => {
+  if (import.meta.client && dropdownRef.value) {
+    const navbar = dropdownRef.value.closest('.navbar-wrapper')
+    if (navbar) {
+      const rect = navbar.getBoundingClientRect()
+      notifPanelTop.value = `${Math.round(rect.bottom + 8)}px`
+    }
+  }
+}
+
 const checkMobile = () => {
   if (import.meta.client) {
     isMobile.value = window.innerWidth <= 768
   }
 }
 
+const handleResize = () => {
+  checkMobile()
+  if (isOpen.value && isMobile.value) {
+    updatePanelPosition()
+  }
+}
+
+const handleScroll = () => {
+  if (isOpen.value && isMobile.value) {
+    updatePanelPosition()
+  }
+}
+
 onMounted(() => {
   checkMobile()
-  window.addEventListener('resize', checkMobile)
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('click', handleClickOutside)
   // Muat notifikasi saat komponen pertama kali dimuat
   loadNotifications()
@@ -148,14 +181,20 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (import.meta.client) {
-    window.removeEventListener('resize', checkMobile)
+    window.removeEventListener('resize', handleResize)
+    window.removeEventListener('scroll', handleScroll)
     document.removeEventListener('click', handleClickOutside)
     document.body.style.overflow = ''
   }
 })
 
 const handleClickOutside = (e: MouseEvent) => {
-  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
+  const target = e.target as Node
+  if (
+    dropdownRef.value &&
+    !dropdownRef.value.contains(target) &&
+    (!panelRef.value || !panelRef.value.contains(target))
+  ) {
     closeDropdown()
   }
 }
@@ -163,6 +202,7 @@ const handleClickOutside = (e: MouseEvent) => {
 const toggleDropdown = () => {
   isOpen.value = !isOpen.value
   if (isOpen.value) {
+    updatePanelPosition()
     loadNotifications(true)
   }
 }
@@ -866,29 +906,40 @@ const openCSChat = () => {
   transform: translateY(-8px) scale(0.98);
 }
 
-/* Mobile — panel mengikuti lebar layar, dipusatkan secara horizontal */
+/* Mobile Backdrop */
+.notif-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  z-index: 999;
+}
+
+/* Mobile — panel centered on viewport horizontally */
 @media (max-width: 768px) {
-  /* Buat wrapper jadi referensi posisi yang lebih lebar */
   .notification-wrapper {
-    position: static;
+    position: relative;
   }
 
   .notif-panel {
-    /* Posisi fixed-like tapi tanpa fixed (hindari stacking context navbar) */
-    position: absolute;
-    top: calc(100% + 8px);
-    /* Geser panel ke kiri agar muncul di tengah layar */
-    right: auto;
-    left: 50%;
-    transform: translateX(-50%);
-    width: calc(100vw - 24px);
-    max-width: 400px;
-    /* Pastikan tidak overflow kiri */
-    margin-left: 0;
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: 440px;
+    margin: 0 auto;
+    z-index: 1000;
+    max-height: calc(100vh - 84px);
+    box-shadow:
+      0 16px 48px rgba(15, 23, 42, 0.28),
+      0 4px 16px rgba(0, 74, 173, 0.12),
+      0 0 0 1px rgba(0, 74, 173, 0.15);
   }
 
   .notif-body {
-    max-height: 50vh;
+    max-height: calc(100vh - 240px);
   }
 }
 </style>

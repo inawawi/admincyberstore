@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { ResourceClient } from "@/components/resource-client";
 import { getChatDetail, getOrderDetail, getReviewDetail, getResourceMeta, listResource, resourceOrder } from "@/lib/admin-resources";
+import { currentAdmin, publicUser } from "@/lib/auth";
+import { encryptOrderId, decryptOrderId } from "@/lib/id-cipher";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,7 @@ export default async function ResourcePage({ params, searchParams }: {
   const { resource } = await params;
   if (!resourceOrder.includes(resource)) notFound();
   const query = await searchParams;
-  const [meta, result, initialOrderDetail, initialChatDetail, initialReviewDetail] = await Promise.all([
+  const [meta, result, initialOrderDetail, initialChatDetail, initialReviewDetail, currentUser] = await Promise.all([
     getResourceMeta(resource),
     listResource(resource, {
       search: query.search,
@@ -33,7 +35,7 @@ export default async function ResourcePage({ params, searchParams }: {
       perPage: 15,
     }),
     resource === "orders" && query.order_id
-      ? getOrderDetail(Number(query.order_id))
+      ? getOrderDetail(query.order_id)
       : Promise.resolve(null),
     resource === "chats" && query.chat_id
       ? getChatDetail(Number(query.chat_id))
@@ -41,7 +43,15 @@ export default async function ResourcePage({ params, searchParams }: {
     resource === "reviews" && query.review_id
       ? getReviewDetail(Number(query.review_id))
       : Promise.resolve(null),
+    currentAdmin(),
   ]);
+
+  const canonicalOrderId = initialOrderDetail?.order?.encrypted_id
+    ? String(initialOrderDetail.order.encrypted_id)
+    : query.order_id
+      ? (decryptOrderId(query.order_id) ? encryptOrderId(decryptOrderId(query.order_id)!) : query.order_id)
+      : "";
+
   return (
     <ResourceClient
       meta={meta}
@@ -51,12 +61,13 @@ export default async function ResourcePage({ params, searchParams }: {
       productId={query.product_id || ""}
       typeFilter={query.type || ""}
       cancelStatus={query.cancel_status || ""}
-      orderId={query.order_id || ""}
+      orderId={canonicalOrderId}
       initialOrderDetail={initialOrderDetail}
       chatId={query.chat_id || ""}
       initialChatDetail={initialChatDetail}
       reviewId={query.review_id || ""}
       initialReviewDetail={initialReviewDetail}
+      currentUser={currentUser ? (publicUser(currentUser) as any) : null}
     />
   );
 }

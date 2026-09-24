@@ -269,14 +269,32 @@
           </button>
         </div>
 
-        <!-- Skeletons Loading -->
-        <div v-if="pending" class="grid-products">
-          <div v-for="i in 8" :key="i" class="cyber-card skeleton-card">
-            <div class="skeleton-img skeleton"></div>
-            <div class="skeleton-body">
-              <div class="skeleton-text-sm skeleton"></div>
-              <div class="skeleton-text-lg skeleton"></div>
-              <div class="skeleton-text-md skeleton"></div>
+        <!-- Loading State for Products & Images -->
+        <div v-if="pending" class="catalog-loading-wrap">
+          <!-- Cyber Quick Loader Status Bar -->
+          <div class="catalog-quick-loader cyber-card">
+            <div class="quick-loader-inner">
+              <span class="quick-loader-spinner"></span>
+              <div class="quick-loader-text">
+                <span class="loader-heading">MEMUAT PRODUK & GAMBAR...</span>
+                <span class="loader-sub">Mengambil katalog resmi dan data spesifikasi terbaru</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Skeletons Loading Grid -->
+          <div class="grid-products">
+            <div v-for="i in 8" :key="i" class="cyber-card skeleton-card">
+              <div class="skeleton-img skeleton">
+                <div class="skeleton-img-icon">
+                  <Icon name="lucide:image" class="w-8 h-8 text-slate-300" />
+                </div>
+              </div>
+              <div class="skeleton-body">
+                <div class="skeleton-text-sm skeleton"></div>
+                <div class="skeleton-text-lg skeleton"></div>
+                <div class="skeleton-text-md skeleton"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -343,6 +361,7 @@
 </template>
 
 <script setup lang="ts">
+import { useHead } from '#imports'
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useApi } from '~/composables/useApi'
@@ -970,6 +989,64 @@ useHead({
   text-decoration: underline;
 }
 
+/* Catalog Loading Wrap & Quick Loader Bar */
+.catalog-loading-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.catalog-quick-loader {
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+  border: 1.5px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  box-shadow: 0 4px 14px rgba(0, 51, 153, 0.05);
+  animation: pulseQuick 1.6s ease-in-out infinite;
+}
+
+@keyframes pulseQuick {
+  0%, 100% { opacity: 0.96; }
+  50% { opacity: 0.72; }
+}
+
+.quick-loader-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.quick-loader-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid rgba(0, 51, 153, 0.15);
+  border-top-color: #003399;
+  border-radius: 50%;
+  animation: spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+.quick-loader-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.loader-heading {
+  font-size: 0.825rem;
+  font-weight: 800;
+  color: #003399;
+  letter-spacing: 0.03em;
+}
+
+.loader-sub {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
 /* Skeletons */
 .skeleton-card {
   height: 320px;
@@ -982,6 +1059,17 @@ useHead({
 .skeleton-img {
   height: 170px;
   width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.skeleton-img-icon {
+  opacity: 0.35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .skeleton-body {

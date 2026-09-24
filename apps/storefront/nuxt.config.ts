@@ -16,34 +16,77 @@ export default defineNuxtConfig({
       ),
     },
   },
-
   modules: ["@pinia/nuxt", "@nuxt/icon"],
 
   css: ["~/assets/css/main.css", "leaflet/dist/leaflet.css"],
 
-  // ─── Security Headers ──────────────────────────────────────────────────────
+  vite: {
+    server: {
+      allowedHosts: true,
+    },
+  },
+
+  icon: {
+    serverBundle: {
+      collections: ["lucide"],
+    },
+    clientBundle: {
+      scan: true,
+    },
+    localApiEndpoint: "/_nuxt_icon",
+  },
+
+  // ─── Security Headers & Backend Proxies ────────────────────────────────────
   routeRules: {
+    "/api/_nuxt_icon/**": { headers: { "cache-control": "max-age=604800" } },
+    "/api/**": { proxy: "http://127.0.0.1:3000/api/**" },
+    "/storage/**": { proxy: "http://127.0.0.1:3000/storage/**" },
     "/**": {
       headers: {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "SAMEORIGIN",
         "Referrer-Policy": "strict-origin-when-cross-origin",
+        // HSTS: paksa HTTPS di production (browser akan otomatis redirect ke HTTPS)
+        ...(process.env.NODE_ENV === "production" && {
+          "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        }),
+        // Content Security Policy — pertahanan utama terhadap XSS
+        "Content-Security-Policy": [
+          "default-src 'self'",
+          // Script: izinkan Google Sign-In, Midtrans Snap, dan inline script Nuxt
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://app.sandbox.midtrans.com https://app.midtrans.com",
+          // Style: izinkan Google Fonts dan inline style
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+          // Font: izinkan Google Fonts
+          "font-src 'self' https://fonts.gstatic.com",
+          // Gambar: izinkan semua HTTPS + data URI untuk preview + HTTP lokal
+          "img-src 'self' data: https: http: blob:",
+          // Koneksi: izinkan API backend, Google OAuth, ngrok (dev), localhost dev ports, dan OSM/Photon Geocoder
+          "connect-src 'self' https://cyberstore.kandangdev.com https://*.kandangdev.com http://localhost:* http://127.0.0.1:* https://localhost:* https://127.0.0.1:* https://accounts.google.com https://api.rajaongkir.com https://photon.komoot.io https://nominatim.openstreetmap.org https://*.tile.openstreetmap.org",
+          // Frame: izinkan Midtrans payment popup
+          "frame-src 'self' https://app.sandbox.midtrans.com https://app.midtrans.com https://accounts.google.com",
+          // Object: blokir plugin berbahaya seperti Flash
+          "object-src 'none'",
+          // Base URI: hanya dari origin yang sama
+          "base-uri 'self'",
+        ].join("; "),
       },
     },
   },
+
 
   // ─── Runtime Config ────────────────────────────────────────────────────────
   // Nilai publik yang aman diakses oleh frontend (client-side)
   runtimeConfig: {
     public: {
-      // Base URL API backend
+      // Base URL API backend (default proxy ke /api/v1)
       apiBase:
-        process.env.NUXT_PUBLIC_API_BASE ||
-        "http://localhost:3100/api/v1",
-      // Base URL storage/media
+        (process.env.NUXT_PUBLIC_API_BASE ||
+          "/api/v1").trim(),
+      // Base URL storage/media (default proxy ke /storage)
       storageBase:
-        process.env.NUXT_PUBLIC_STORAGE_BASE ||
-        "http://localhost:3100/storage",
+        (process.env.NUXT_PUBLIC_STORAGE_BASE ||
+          "/storage").trim(),
       // Google OAuth Client ID (Public identifier)
       googleClientId: process.env.NUXT_PUBLIC_GOOGLE_CLIENT_ID ?? "",
       googleRedirectUri: process.env.NUXT_PUBLIC_GOOGLE_REDIRECT_URI ?? "",
@@ -52,8 +95,7 @@ export default defineNuxtConfig({
         process.env.NUXT_PUBLIC_MIDTRANS_SNAP_URL ||
         "https://app.sandbox.midtrans.com/snap/snap.js",
       midtransClientKey:
-        process.env.NUXT_PUBLIC_MIDTRANS_CLIENT_KEY ||
-        "Mid-client-twV4rNnPglIA4-2a",
+        process.env.NUXT_PUBLIC_MIDTRANS_CLIENT_KEY || "",
     },
   },
 

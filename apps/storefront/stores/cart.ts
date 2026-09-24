@@ -13,6 +13,7 @@ export interface CartItem {
     slug?: string
     stock: number
     weight?: number
+    is_event_maba?: boolean
   }
   selectedSize?: string | null
   selectedColor?: string | null
@@ -49,7 +50,12 @@ export const useCartStore = defineStore('cart', {
                 item.quantity > 0 &&
                 item.product &&
                 typeof item.product.price === 'number'
-              )
+              ).map(item => {
+                if (item.product?.is_event_maba && item.quantity > 1) {
+                  return { ...item, quantity: 1 }
+                }
+                return item
+              })
             }
           } catch (e) {
             console.error('Failed to parse saved cart:', e)
@@ -75,12 +81,18 @@ export const useCartStore = defineStore('cart', {
     ) {
       if (!product || !product.id) return
 
-      const safeQuantity = Math.max(1, Math.min(Math.floor(Number(quantity) || 1), product.stock || 999))
+      const isEventMaba = Boolean(product.is_event_maba)
+      const maxAllowed = isEventMaba ? 1 : (product.stock || 999)
+      const safeQuantity = isEventMaba ? 1 : Math.max(1, Math.min(Math.floor(Number(quantity) || 1), maxAllowed))
       const cartItemId = `${product.id}_${size || 'none'}_${color || 'none'}_${nim || 'none'}`
       const existing = this.items.find(item => item.id === cartItemId)
 
       if (existing) {
-        existing.quantity = Math.min(existing.quantity + safeQuantity, product.stock || 999)
+        if (isEventMaba) {
+          existing.quantity = 1
+        } else {
+          existing.quantity = Math.min(existing.quantity + safeQuantity, product.stock || 999)
+        }
       } else {
         this.items.push({
           id: cartItemId,
@@ -95,6 +107,7 @@ export const useCartStore = defineStore('cart', {
             slug: product.slug || '',
             stock: Number(product.stock) || 0,
             weight: Number(product.weight) || 500,
+            is_event_maba: isEventMaba,
           },
           selectedSize: size ? String(size).slice(0, 50) : null,
           selectedColor: color ? String(color).slice(0, 50) : null,
@@ -124,7 +137,8 @@ export const useCartStore = defineStore('cart', {
         if (numQty <= 0) {
           this.removeFromCart(itemId)
         } else {
-          item.quantity = Math.min(numQty, item.product.stock || 999)
+          const maxAllowed = item.product.is_event_maba ? 1 : (item.product.stock || 999)
+          item.quantity = Math.min(numQty, maxAllowed)
           this.saveCart()
         }
       }

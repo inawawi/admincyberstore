@@ -218,7 +218,7 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
     assert(orderId > 0 && rating >= 1 && rating <= 5, "Pesanan dan rating 1-5 wajib diisi.");
     const order = await row<AnyRow>("SELECT * FROM orders WHERE id = ? AND user_id = ?", [orderId, userId]);
     if (!order) throw new ApiError(404, "Pesanan tidak ditemukan.");
-    assert(order.status === "completed", "Pesanan belum diselesaikan.");
+    assert(order.status === "completed" || order.status === "arrived", "Pesanan belum diselesaikan.");
     const ordered = await row<AnyRow>("SELECT id FROM order_items WHERE order_id = ? AND product_id = ?", [orderId, product.id]);
     if (!ordered) throw new ApiError(404, "Produk tidak ditemukan dalam pesanan ini.");
     const files = Object.values(body).flatMap((value) => Array.isArray(value) ? value : [value]).filter((value): value is File => value instanceof File && value.size > 0);
@@ -262,22 +262,30 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
   }
 
   if (ctx.method === "GET" && path === "chats") {
+    const type = ctx.url.searchParams.get("type");
+    let typeClause = "";
+    if (type === "complaint" || type === "cs") {
+      typeClause = " AND c.product_id IS NULL";
+    } else if (type === "product") {
+      typeClause = " AND c.product_id IS NOT NULL";
+    }
     const chats = await rows<AnyRow>(
       `SELECT c.*, p.main_photo, p.slug,
         (SELECT message FROM chat_messages WHERE chat_id = c.id ORDER BY created_at DESC, id DESC LIMIT 1) AS last_message,
         (SELECT COUNT(*) FROM chat_messages WHERE chat_id = c.id AND sender_type = 'admin' AND is_read = 0) AS unread_count
        FROM chats c LEFT JOIN products p ON p.id = c.product_id
-       WHERE c.customer_id = ? ORDER BY c.last_message_at DESC, c.id DESC`,
+       WHERE c.customer_id = ?${typeClause} ORDER BY c.last_message_at DESC, c.id DESC`,
       [userId],
     );
     return { data: { chats: chats.map((chat) => ({ ...chat, product_photo_url: publicUrl(chat.main_photo) })) } };
   }
 
   if (ctx.method === "POST" && path === "chats") {
-    const subject = text(body, "subject") || "Pertanyaan Produk";
+    const productId = asNumber(body.product_id) || null;
+    const defaultSubject = productId ? "Pertanyaan Produk" : "Komplain Layanan & Kendala Pesanan";
+    const subject = text(body, "subject") || defaultSubject;
     const message = text(body, "message");
     assert(message, "Pesan wajib diisi.");
-    const productId = asNumber(body.product_id) || null;
     let productName = text(body, "product_name") || null;
     if (productId) {
       const product = await row<AnyRow>("SELECT name FROM products WHERE id = ?", [productId]);
@@ -310,7 +318,7 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
     if (ctx.method === "POST") {
       assert(chat.status === "open", "Chat sudah ditutup.");
       const message = text(body, "message");
-      assert(message && message.length <= 10_000_000, "Pesan wajib diisi.");
+      assert(message && message.length <= 5_000, "Pesan wajib diisi (maksimal 5000 karakter).");
       const result = await transaction(async (tx) => {
         const created = await tx.execute("INSERT INTO chat_messages (chat_id, sender_type, sender_id, message, is_read, created_at, updated_at) VALUES (?, 'customer', ?, ?, 0, ?, ?)", [chatId, userId, message, nowSql(), nowSql()]);
         await tx.execute("UPDATE chats SET last_message_at = ?, updated_at = ? WHERE id = ?", [nowSql(), nowSql(), chatId]);

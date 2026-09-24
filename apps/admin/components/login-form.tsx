@@ -4,7 +4,7 @@ import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
 
-export function LoginForm() {
+export function LoginForm({ storeName }: { storeName: string }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -32,16 +32,16 @@ export function LoginForm() {
   }
 
   return (
-    <form className="login-form" onSubmit={submit}>
+    <form className="login-form" onSubmit={submit} method="post">
       <div>
         <span className="eyebrow">WELCOME BACK</span>
         <h1>Masuk ke panel admin</h1>
-        <p>Gunakan akun admin yang sudah tersimpan di database Laravel.</p>
+        <p>Gunakan akun admin {storeName} yang sudah terdaftar.</p>
       </div>
       {error && <div className="inline-alert error"><Icon name="AlertTriangle" size={18} /><span>{error}</span></div>}
       <label className="field-label">
         <span>Email admin</span>
-        <div className="input-with-icon"><Icon name="UserRound" size={17} /><input name="email" type="email" autoComplete="email" placeholder="superadmin@bsi.ac.id" required autoFocus /></div>
+        <div className="input-with-icon"><Icon name="UserRound" size={17} /><input name="email" type="email" autoComplete="email" placeholder="Masukkan email admin" required autoFocus /></div>
       </label>
       <label className="field-label">
         <span>Password</span>

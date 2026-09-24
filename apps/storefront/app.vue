@@ -7,6 +7,7 @@
     </main>
     <CartDrawer />
     <CustomerServiceModal />
+    <ToastContainer />
     <Footer />
   </div>
 </template>
@@ -30,9 +31,14 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  max-width: 100%;
 }
 
 .main-content {
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 </style>

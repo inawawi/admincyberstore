@@ -20,7 +20,7 @@ export const useCustomerService = () => {
       activeTab.value = 'chat'
     }
 
-    if (options?.productId && options?.productName) {
+    if (options?.tab !== 'chat' && options?.productId && options?.productName) {
       selectedProduct.value = {
         id: options.productId,
         name: options.productName,
