@@ -50,19 +50,55 @@ export async function hydrateProducts<T extends RowDataPacket>(products: T[]) {
   if (!products.length) return [];
   const ids = products.map((product) => Number(product.id));
   const placeholders = ids.map(() => "?").join(",");
-  const images = await rows<RowDataPacket & Record<string, unknown>>(
-    `SELECT * FROM product_images WHERE product_id IN (${placeholders}) ORDER BY sort_order, id`,
-    ids,
-  );
-  const categories = await rows<RowDataPacket & Record<string, unknown>>(
-    `SELECT c.* FROM categories c WHERE c.id IN (${placeholders})`,
-    products.map((product) => Number(product.category_id)),
-  );
-  return products.map((product) => serializeProduct({
-    ...product,
-    category: categories.find((category) => Number(category.id) === Number(product.category_id)) || null,
-    images: images.filter((image) => Number(image.product_id) === Number(product.id)),
-  }));
+  const categoryIds = Array.from(new Set(products.map((p) => Number(p.category_id)).filter(Boolean)));
+  const categoryPlaceholders = categoryIds.length ? categoryIds.map(() => "?").join(",") : "0";
+
+  const [images, categories, salesRows, reviewRows] = await Promise.all([
+    rows<RowDataPacket & Record<string, unknown>>(
+      `SELECT * FROM product_images WHERE product_id IN (${placeholders}) ORDER BY sort_order, id`,
+      ids,
+    ),
+    categoryIds.length ? rows<RowDataPacket & Record<string, unknown>>(
+      `SELECT c.* FROM categories c WHERE c.id IN (${categoryPlaceholders})`,
+      categoryIds,
+    ) : Promise.resolve([]),
+    rows<RowDataPacket & { product_id: number; total_sold: number }>(
+      `SELECT oi.product_id, COALESCE(SUM(oi.quantity), 0) AS total_sold
+         FROM order_items oi
+         JOIN orders o ON o.id = oi.order_id
+        WHERE o.status NOT IN ('cancelled') AND oi.product_id IN (${placeholders})
+        GROUP BY oi.product_id`,
+      ids,
+    ),
+    rows<RowDataPacket & { product_id: number; count: number; avg_rating: number }>(
+      `SELECT pr.product_id, COUNT(*) AS count, AVG(pr.rating) AS avg_rating
+         FROM product_reviews pr
+        WHERE pr.product_id IN (${placeholders})
+        GROUP BY pr.product_id`,
+      ids,
+    ),
+  ]);
+
+  return products.map((product) => {
+    const sales = salesRows.find((s) => Number(s.product_id) === Number(product.id));
+    const reviewsStat = reviewRows.find((r) => Number(r.product_id) === Number(product.id));
+
+    const realSold = Number(sales?.total_sold || 0);
+    const realReviewsCount = reviewsStat ? Number(reviewsStat.count) : Number(product.reviews_count || 0);
+    const realRating = reviewsStat && Number(reviewsStat.count) > 0
+      ? Number(reviewsStat.avg_rating || 0)
+      : (product.rating !== null && product.rating !== undefined ? Number(product.rating) : 0);
+
+    return serializeProduct({
+      ...product,
+      sold_count: realSold,
+      sales_count: realSold,
+      reviews_count: realReviewsCount,
+      rating: Number(realRating.toFixed(1)),
+      category: categories.find((category) => Number(category.id) === Number(product.category_id)) || null,
+      images: images.filter((image) => Number(image.product_id) === Number(product.id)),
+    });
+  });
 }
 
 export async function hydrateCart(userId: number) {
@@ -190,6 +226,13 @@ export async function hydrateOrder(orderId: number) {
     status: order.status,
     cancel_request_status: order.cancel_request_status,
     cancel_request_reason: order.cancel_request_reason,
+    refund_bank_name: order.refund_bank_name,
+    refund_account_number: order.refund_account_number,
+    refund_account_name: order.refund_account_name,
+    refund_amount: order.refund_amount,
+    refund_notes: order.refund_notes,
+    refund_proof_photo: order.refund_proof_photo,
+    refund_at: order.refund_at,
     resi_number: order.resi_number,
     note: order.note,
     created_at: order.created_at,

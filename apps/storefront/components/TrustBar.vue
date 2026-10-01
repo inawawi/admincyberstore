@@ -8,7 +8,7 @@
           </div>
           <div class="trust-info">
             <h4>100% Produk Original</h4>
-            <p>Jaminan barang asli dengan garansi resmi distributor.</p>
+            <p>Jaminan barang asli produk resmi.</p>
           </div>
         </div>
 

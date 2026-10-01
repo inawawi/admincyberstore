@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { useCookie, useRequestURL } from '#imports'
 import { sessionCookieOptions, isCurrentSessionUnauthorized } from '~/utils/auth-session'
 import { useApi } from '~/composables/useApi'
+import { useCartStore } from '~/stores/cart'
 
 export interface UserProfile {
   id: number | string
@@ -65,6 +66,14 @@ export const useAuthStore = defineStore('auth', {
       if (user) {
         userCookie.value = user
       }
+
+      if (import.meta.client) {
+        try {
+          useCartStore().initCart()
+        } catch (e) {
+          // ignore
+        }
+      }
     },
 
     clearSession() {
@@ -74,6 +83,15 @@ export const useAuthStore = defineStore('auth', {
       const userCookie = useCookie<UserProfile | null>('cyber_store_user')
       tokenCookie.value = null
       userCookie.value = null
+
+      if (import.meta.client) {
+        localStorage.removeItem('cyber_store_cart')
+        try {
+          useCartStore().clearCart()
+        } catch (e) {
+          // ignore
+        }
+      }
     },
 
     async login(email: string, password: string): Promise<{ success: boolean; message?: string; requireOtp?: boolean }> {
@@ -399,6 +417,41 @@ export const useAuthStore = defineStore('auth', {
         return { success: true, message: res.message || 'Instruksi reset password telah dikirim ke email Anda.' }
       } catch (err: any) {
         const msg = err.data?.message || err.data?.errors?.email?.[0] || err.message || 'Gagal memproses permintaan reset password.'
+        this.authError = msg
+        return { success: false, message: msg }
+      } finally {
+        this.isLoading = false
+      }
+    },
+
+    async verifyResetOtp(email: string, otp: string): Promise<{ success: boolean; message?: string; reset_token?: string }> {
+      this.isLoading = true
+      this.authError = ''
+      const { apiBase } = useApi()
+
+      try {
+        const cleanEmail = String(email || '').trim()
+        const cleanOtp = String(otp || '').trim()
+
+        const res = await $fetch<any>(`${apiBase}/verify-reset-otp`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+          body: {
+            email: cleanEmail,
+            otp: cleanOtp,
+          },
+        })
+
+        return {
+          success: true,
+          message: res.message || 'Kode OTP valid. Silakan masukkan password baru.',
+          reset_token: res.reset_token,
+        }
+      } catch (err: any) {
+        const msg = err.data?.message || err.data?.errors?.otp?.[0] || err.message || 'Kode OTP tidak valid atau sudah kedaluwarsa.'
         this.authError = msg
         return { success: false, message: msg }
       } finally {

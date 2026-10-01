@@ -53,85 +53,149 @@
               </div>
             </div>
 
-            <!-- 2. Courier & Resi Card -->
+            <!-- 2. Courier / Method & Destination Cards -->
             <div class="tracking-info-grid">
               <!-- Courier & Waybill Box -->
               <div class="courier-card">
-                <div class="courier-card-header">
-                  <div class="courier-icon-box">
-                    <Icon name="lucide:truck" class="w-6 h-6 text-bsi" />
+                <!-- Mode Event MABA: Pengambilan Mandiri di Kampus UBSI -->
+                <template v-if="isMabaOrder">
+                  <div class="courier-card-header">
+                    <div class="courier-icon-box" style="background: rgba(0, 74, 173, 0.08); color: #004aad;">
+                      <Icon name="lucide:graduation-cap" class="w-6 h-6 text-bsi" />
+                    </div>
+                    <div class="courier-info">
+                      <h3 class="courier-name">Pengambilan di Kampus UBSI</h3>
+                      <span class="courier-service badge badge-blue">Event MABA • Bebas Ongkir</span>
+                    </div>
                   </div>
-                  <div class="courier-info">
-                    <h3 class="courier-name">{{ order.expedition?.name || 'Kurir Ekspedisi' }}</h3>
-                    <span class="courier-service badge badge-cyan">Layanan {{ order.expedition?.service || 'REG'
-                    }}</span>
-                  </div>
-                </div>
 
-                <div class="resi-section" v-if="order.resi_number">
-                  <span class="resi-label">Nomor Resi / Waybill:</span>
-                  <div class="resi-copy-box">
-                    <span class="resi-code font-mono">{{ order.resi_number }}</span>
-                    <button type="button" class="btn-copy-resi" @click="copyResi(order.resi_number)"
-                      :title="copied ? 'Tersalin!' : 'Salin Nomor Resi'">
-                      <Icon v-if="!copied" name="lucide:copy" class="w-3.5 h-3.5" />
-                      <span v-else class="text-emerald text-xs font-bold inline-flex items-center gap-1">
-                        <Icon name="lucide:check" class="w-3 h-3" /> Tersalin
-                      </span>
+                  <div class="resi-section" v-if="order.resi_number">
+                    <span class="resi-label">Kode Pengambilan / Referensi:</span>
+                    <div class="resi-copy-box">
+                      <span class="resi-code font-mono">{{ order.resi_number }}</span>
+                      <button type="button" class="btn-copy-resi" @click="copyResi(order.resi_number)"
+                        :title="copied ? 'Tersalin!' : 'Salin Kode'">
+                        <Icon v-if="!copied" name="lucide:copy" class="w-3.5 h-3.5" />
+                        <span v-else class="text-emerald text-xs font-bold inline-flex items-center gap-1">
+                          <Icon name="lucide:check" class="w-3 h-3" /> Tersalin
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="resi-section empty-resi">
+                    <span class="text-muted text-sm">Tunjukkan bukti invoice atau nomor pesanan ini kepada admin kampus saat
+                      pengambilan di kampus.</span>
+                  </div>
+                </template>
+
+                <!-- Mode Reguler: Kurir Ekspedisi -->
+                <template v-else>
+                  <div class="courier-card-header">
+                    <div class="courier-icon-box">
+                      <Icon name="lucide:truck" class="w-6 h-6 text-bsi" />
+                    </div>
+                    <div class="courier-info">
+                      <h3 class="courier-name">{{ order.expedition?.name || 'Kurir Ekspedisi' }}</h3>
+                      <span class="courier-service badge badge-cyan">Layanan {{ order.expedition?.service || 'REG'
+                        }}</span>
+                    </div>
+                  </div>
+
+                  <div class="resi-section" v-if="order.resi_number">
+                    <span class="resi-label">Nomor Resi / Waybill:</span>
+                    <div class="resi-copy-box">
+                      <span class="resi-code font-mono">{{ order.resi_number }}</span>
+                      <button type="button" class="btn-copy-resi" @click="copyResi(order.resi_number)"
+                        :title="copied ? 'Tersalin!' : 'Salin Nomor Resi'">
+                        <Icon v-if="!copied" name="lucide:copy" class="w-3.5 h-3.5" />
+                        <span v-else class="text-emerald text-xs font-bold inline-flex items-center gap-1">
+                          <Icon name="lucide:check" class="w-3 h-3" /> Tersalin
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="resi-section empty-resi">
+                    <span class="text-muted text-sm">Nomor resi akan muncul setelah paket diserahkan ke kurir.</span>
+                  </div>
+
+                  <!-- Sync & Test Courier Actions -->
+                  <div class="courier-action-btns">
+                    <button v-if="order.resi_number" type="button" class="btn btn-secondary btn-sm"
+                      :disabled="isSyncing" @click="handleSyncTracking">
+                      <Icon name="lucide:refresh-cw" class="w-3.5 h-3.5 mr-1" :class="{ 'animate-spin': isSyncing }" />
+                      <span v-if="isSyncing">Memperbarui...</span>
+                      <span v-else>Perbarui dari Ekspedisi</span>
+                    </button>
+
+                    <!-- Simulation button for demonstration & review -->
+                    <button v-if="order.status === 'shipped' || order.status === 'packed'" type="button"
+                      class="btn btn-emerald btn-sm" :disabled="isSimulating" @click="handleSimulatePod"
+                      title="Simulasi kurir mengantar paket sampai ke alamat tujuan">
+                      <Icon name="lucide:zap" class="w-3.5 h-3.5 mr-1" />
+                      <span v-if="isSimulating">Memproses...</span>
+                      <span v-else>Simulasi Paket Tiba (Auto-POD)</span>
                     </button>
                   </div>
-                </div>
-                <div v-else class="resi-section empty-resi">
-                  <span class="text-muted text-sm">Nomor resi akan muncul setelah paket diserahkan ke kurir.</span>
-                </div>
-
-                <!-- Sync & Test Courier Actions -->
-                <div class="courier-action-btns">
-                  <button v-if="order.resi_number" type="button" class="btn btn-secondary btn-sm" :disabled="isSyncing"
-                    @click="handleSyncTracking">
-                    <Icon name="lucide:refresh-cw" class="w-3.5 h-3.5 mr-1" :class="{ 'animate-spin': isSyncing }" />
-                    <span v-if="isSyncing">Memperbarui...</span>
-                    <span v-else>Perbarui dari Ekspedisi</span>
-                  </button>
-
-                  <!-- Simulation button for demonstration & review -->
-                  <button v-if="order.status === 'shipped' || order.status === 'packed'" type="button"
-                    class="btn btn-emerald btn-sm" :disabled="isSimulating" @click="handleSimulatePod"
-                    title="Simulasi kurir mengantar paket sampai ke alamat tujuan">
-                    <Icon name="lucide:zap" class="w-3.5 h-3.5 mr-1" />
-                    <span v-if="isSimulating">Memproses...</span>
-                    <span v-else>Simulasi Paket Tiba (Auto-POD)</span>
-                  </button>
-                </div>
+                </template>
               </div>
 
-              <!-- Shipping Address Box -->
+              <!-- Destination Card -->
               <div class="destination-card">
-                <div class="destination-header">
-                  <span class="dest-icon">
-                    <Icon name="lucide:map-pin" class="w-4 h-4 text-bsi" />
-                  </span>
-                  <h4 class="dest-title">Alamat Tujuan Pengiriman</h4>
-                </div>
-                <div class="dest-content" v-if="order.address">
-                  <div class="dest-receiver">
-                    <strong>{{ order.address.receiver_name || order.address.recipient_name }}</strong>
-                    <span class="dest-phone">({{ order.address.phone }})</span>
+                <!-- Mode Event MABA: Lokasi Kampus Pengambilan UBSI -->
+                <template v-if="isMabaOrder && mabaCampusInfo">
+                  <div class="destination-header">
+                    <span class="dest-icon" style="background: rgba(0, 74, 173, 0.1); color: #004aad;">
+                      <Icon name="lucide:map-pin" class="w-4 h-4 text-bsi" />
+                    </span>
+                    <h4 class="dest-title">Lokasi Kampus Pengambilan</h4>
                   </div>
-                  <p class="dest-text">{{ order.address.address }}</p>
-                  <p class="dest-city">
-                    {{ order.address.city }}, {{ order.address.province }} {{ order.address.postal_code }}
-                  </p>
-                </div>
+                  <div class="dest-content">
+                    <div class="dest-receiver">
+                      <strong>{{ mabaCampusInfo.receiver_name }}</strong>
+                      <span class="dest-phone">({{ mabaCampusInfo.phone }})</span>
+                    </div>
+                    <div v-if="mabaCampusInfo.nim" style="margin-top: 0.25rem; margin-bottom: 0.35rem;">
+                      <span class="badge badge-sm badge-blue" style="font-weight: 700;">NIM: {{ mabaCampusInfo.nim
+                        }}</span>
+                    </div>
+                    <p class="dest-text" style="font-weight: 700; color: #004aad; margin-top: 0.25rem;">{{
+                      mabaCampusInfo.name }}</p>
+                    <p class="dest-text">{{ mabaCampusInfo.address }}</p>
+                    <p class="dest-city">
+                      {{ mabaCampusInfo.city }}, {{ mabaCampusInfo.province }} {{ mabaCampusInfo.postal_code }}
+                    </p>
+                  </div>
+                </template>
+
+                <!-- Mode Reguler: Alamat Tujuan Pengiriman -->
+                <template v-else>
+                  <div class="destination-header">
+                    <span class="dest-icon">
+                      <Icon name="lucide:map-pin" class="w-4 h-4 text-bsi" />
+                    </span>
+                    <h4 class="dest-title">Alamat Tujuan Pengiriman</h4>
+                  </div>
+                  <div class="dest-content" v-if="order.address">
+                    <div class="dest-receiver">
+                      <strong>{{ order.address.receiver_name || order.address.recipient_name }}</strong>
+                      <span class="dest-phone">({{ order.address.phone }})</span>
+                    </div>
+                    <p class="dest-text">{{ order.address.address }}</p>
+                    <p class="dest-city">
+                      {{ order.address.city }}, {{ order.address.province }} {{ order.address.postal_code }}
+                    </p>
+                  </div>
+                </template>
               </div>
             </div>
 
             <!-- 3. Real-time Tracking Timeline History -->
             <div class="timeline-section">
-              <h3 class="timeline-title">Riwayat Perjalanan Paket</h3>
+              <h3 class="timeline-title">{{ timelineTitle }}</h3>
 
               <div v-if="trackingList.length === 0" class="empty-timeline">
-                <p>Belum ada rekaman riwayat pelacakan untuk pesanan ini.</p>
+                <p v-if="isMabaOrder">Belum ada pembaruan status logistik dari admin kampus UBSI.</p>
+                <p v-else>Belum ada rekaman riwayat pelacakan untuk pesanan ini.</p>
               </div>
 
               <div v-else class="tracking-timeline">
@@ -193,17 +257,16 @@
                     </div>
                     <!-- Action Buttons: Tulis Penilaian & Lihat Produk (jika status arrived / completed) -->
                     <div v-if="order.status === 'arrived' || order.status === 'completed'" class="modal-item-actions">
-                      <NuxtLink
-                        v-if="!item.is_reviewed"
+                      <NuxtLink v-if="!item.is_reviewed"
                         :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}/reviews?order_id=${order.id}&openModal=true`"
                         class="btn-modal-review" title="Tulis penilaian dan unggah foto bukti" @click="$emit('close')">
                         <Icon name="lucide:star" class="w-3 h-3 mr-1 inline text-amber-500" />
                         <span>Nilai</span>
                       </NuxtLink>
-                      <NuxtLink
-                        v-else
+                      <NuxtLink v-else
                         :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}/reviews?order_id=${order.id}`"
-                        class="btn-modal-review btn-modal-reviewed" title="Lihat ulasan dan penilaian produk" @click="$emit('close')">
+                        class="btn-modal-review btn-modal-reviewed" title="Lihat ulasan dan penilaian produk"
+                        @click="$emit('close')">
                         <Icon name="lucide:check-circle-2" class="w-3 h-3 mr-1 inline text-emerald-500" />
                         <span>Lihat Penilaian</span>
                       </NuxtLink>
@@ -225,8 +288,10 @@
                 <span class="font-mono">{{ formatRupiah(order.subtotal) }}</span>
               </div>
               <div class="calc-row">
-                <span>Ongkos Kirim ({{ order.expedition?.name || 'Kurir' }})</span>
-                <span class="font-mono">{{ formatRupiah(order.shipping_cost) }}</span>
+                <span v-if="isMabaOrder">Pengiriman Kampus UBSI</span>
+                <span v-else>Ongkos Kirim ({{ order.expedition?.name || 'Kurir' }})</span>
+                <span v-if="isMabaOrder" class="text-emerald font-semibold">GRATIS (Ditanggung Kampus)</span>
+                <span v-else class="font-mono">{{ formatRupiah(order.shipping_cost) }}</span>
               </div>
               <div class="calc-row"
                 v-if="Number(order.grand_total) - Number(order.subtotal) - Number(order.shipping_cost) > 0">
@@ -259,17 +324,17 @@
             <!-- Check Payment Status button if waiting payment -->
             <button v-if="order.status === 'pending_payment'" type="button"
               class="btn btn-secondary btn-check-status-modal" :disabled="isCheckingPayment"
-              @click="handleCheckPaymentStatus()" title="Cek langsung status pembayaran dari Midtrans">
+              @click="handleCheckPaymentStatus()" title="Cek langsung status pembayaran">
               <Icon name="lucide:refresh-cw" class="w-3.5 h-3.5 mr-1 inline"
                 :class="{ 'animate-spin': isCheckingPayment }" />
               <span>{{ isCheckingPayment ? 'Mengecek...' : 'Cek Status Bayar' }}</span>
             </button>
 
-            <!-- Pay Now with Midtrans button if waiting payment -->
+            <!-- Pay Now button if waiting payment -->
             <button v-if="order.status === 'pending_payment'" type="button" class="btn btn-primary btn-pay-now"
               @click="$emit('pay', order)">
               <Icon name="lucide:credit-card" class="w-3.5 h-3.5 mr-1 inline" />
-              <span>Bayar Sekarang (Midtrans)</span>
+              <span>Bayar Sekarang</span>
             </button>
 
             <!-- Confirm Order Arrival button if arrived -->
@@ -291,21 +356,39 @@
             </NuxtLink> -->
 
             <!-- Status Pengajuan Pembatalan (Jika sedang diproses Admin) -->
-            <p v-if="order.cancel_request_status === 'refund_processing'" role="status">Pembatalan sedang dikonfirmasi ke Midtrans. Pengembalian dana mengikuti proses penyedia pembayaran.</p>
-              <p v-if="order.cancel_request_status === 'approved'" role="status">Pembatalan disetujui. Lihat riwayat pesanan untuk proses pengembalian dana ke metode pembayaran asal.</p>
-              <p v-if="order.cancel_request_status === 'rejected'" role="status">Pengajuan pembatalan ditolak admin. Pesanan dilanjutkan.</p>
-              <div v-if="order.cancel_request_status === 'pending'" class="cancel-pending-pill">
+            <p v-if="order.cancel_request_status === 'refund_processing'" role="status">Pembatalan sedang dikonfirmasi.
+              Pengembalian dana mengikuti proses penyedia pembayaran.</p>
+            <p v-if="order.cancel_request_status === 'approved'" role="status">Pembatalan disetujui. Lihat riwayat
+              pesanan untuk
+              proses pengembalian dana ke metode pembayaran asal.</p>
+            <p v-if="order.cancel_request_status === 'rejected'" role="status">Pengajuan pembatalan ditolak admin.
+              Pesanan
+              dilanjutkan.</p>
+            <div v-if="order.cancel_request_status === 'pending'" class="cancel-pending-pill">
               <span class="pulse-amber-dot"></span>
               <span>Pengajuan Pembatalan Sedang Diproses</span>
             </div>
 
-            <!-- Cancel order button (Berlaku hanya 1 hari & sebelum toko memperbarui status menjadi diproses) -->
-            <button v-else-if="isOrderCancellable(order)" type="button" class="btn btn-danger-outline"
-              @click="$emit('cancel', order)"
-              :title="`Dapat dibatalkan dalam 1 hari sejak pemesanan (Sisa waktu: ${getCancelTimeRemaining(order.created_at)})`">
-              <Icon name="lucide:x-circle" class="w-3.5 h-3.5 mr-1 inline" />
-              <span>Batalkan Pesanan</span>
-            </button>
+            <!-- Cancel order button (Belum Bayar: Langsung Batalkan | Sudah Bayar: Ajukan Pembatalan max 1 hari kerja) -->
+            <template v-if="isOrderCancellable(order)">
+              <!-- Belum Bayar -> Langsung Batalkan Seketika -->
+              <button v-if="order.status === 'pending_payment'" type="button" class="btn btn-danger-outline"
+                @click="$emit('cancel', order)" title="Batalkan pesanan ini langsung seketika (belum dibayar)">
+                <Icon name="lucide:x-circle" class="w-3.5 h-3.5 mr-1 inline" />
+                <span>Batalkan Pesanan</span>
+              </button>
+
+              <!-- Sudah Bayar -> Ajukan Pembatalan (Batas 1 Hari Kerja) -->
+              <button v-if="order.status === 'paid' && !isMabaOrder" type="button" class="btn btn-amber-outline"
+                @click="$emit('cancel', order)"
+                :title="`Ajukan pembatalan pesanan (Batas 1 hari kerja${getCancelTimeRemaining(order) ? ', sisa waktu: ' + getCancelTimeRemaining(order) : ''})`">
+                <Icon name="lucide:alert-triangle" class="w-3.5 h-3.5 mr-1 inline" />
+                <span>Ajukan Pembatalan</span>
+                <span v-if="getCancelTimeRemaining(order)" class="cancel-badge-remaining">
+                  {{ getCancelTimeRemaining(order) }}
+                </span>
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -317,6 +400,8 @@
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useApi } from '~/composables/useApi'
 import { useFormat } from '~/composables/useFormat'
+import { isWithinBusinessDay, getBusinessTimeRemaining } from '~/utils/business-day'
+import { UBSI_CAMPUSES } from '~/utils/ubsi-campuses'
 
 const props = defineProps<{
   isOpen: boolean
@@ -337,8 +422,24 @@ const isPaid = (status?: string) => {
   return ['paid', 'packed', 'shipped', 'arrived', 'completed'].includes(status)
 }
 
-const { trackOrderWaybill, simulateCourierPod, checkPaymentStatus, fetchOrderDetail, getImageUrl } = useApi()
+const { trackOrderWaybill, simulateCourierPod, checkPaymentStatus, fetchOrderDetail, getImageUrl, fetchStoreInfo } = useApi()
 const { formatRupiah } = useFormat()
+
+const storeInfo = ref<any>(null)
+const loadStoreData = async () => {
+  try {
+    const data = await fetchStoreInfo()
+    if (data) {
+      storeInfo.value = data
+    }
+  } catch {
+    // fallback
+  }
+}
+
+const storeName = computed(() => {
+  return storeInfo.value?.store_name || storeInfo.value?.name || 'BSI Cyber Store'
+})
 
 const copied = ref(false)
 const isSyncing = ref(false)
@@ -376,7 +477,7 @@ const handleCheckPaymentStatus = async (silent: boolean | unknown = false) => {
     }
   } catch (err: any) {
     if (!isSilent) {
-      alert(err.data?.message || err.message || 'Gagal mengecek status pembayaran ke Midtrans.')
+      alert(err.data?.message || err.message || 'Gagal mengecek status pembayaran.')
     }
   } finally {
     if (!isSilent) isCheckingPayment.value = false
@@ -429,6 +530,7 @@ watch(
   () => [props.isOpen, props.order?.id],
   ([isOpen, orderId]) => {
     if (isOpen && orderId) {
+      loadStoreData()
       pollOrderDetail()
       startAutoSync()
     } else {
@@ -443,8 +545,8 @@ onUnmounted(() => {
 })
 
 // Validasi apakah pesanan dapat dibatalkan:
-// 1. Toko BELUM memperbarui status menjadi diproses (packed, shipped, arrived, completed, cancelled)
-// 2. Berlaku hanya 1 hari (24 jam) sejak pesanan dibuat
+// 1. KASUS BELUM BAYAR (pending_payment): Langsung batalkan seketika tanpa perlu pengajuan admin
+// 2. KASUS SUDAH BAYAR (paid): Pengajuan pembatalan dengan batas maksimal 1 hari kerja (24 jam kerja)
 const isOrderCancellable = (order: any): boolean => {
   if (!order) return false
 
@@ -457,46 +559,122 @@ const isOrderCancellable = (order: any): boolean => {
     return false
   }
 
-  if (!order.created_at) return false
-  const orderTime = new Date(order.created_at).getTime()
-  if (isNaN(orderTime)) return false
-
-  const oneDayInMs = 24 * 60 * 60 * 1000
-  const elapsed = Date.now() - orderTime
-
-  if (elapsed > oneDayInMs || elapsed < 0) {
-    return false
+  // KASUS 1: BELUM MEMBAYAR (pending_payment)
+  // Langsung dapat dibatalkan kapan saja sebelum kedaluwarsa
+  if (order.status === 'pending_payment') {
+    return true
   }
 
-  return true
-}
-
-const getCancelTimeRemaining = (createdAt: string): string => {
-  if (!createdAt) return ''
-  const orderTime = new Date(createdAt).getTime()
-  if (isNaN(orderTime)) return ''
-
-  const oneDayInMs = 24 * 60 * 60 * 1000
-  const remaining = (orderTime + oneDayInMs) - Date.now()
-
-  if (remaining <= 0) return ''
-
-  const hours = Math.floor(remaining / (1000 * 60 * 60))
-  const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
-
-  if (hours > 0) {
-    return `${hours}j ${minutes}m`
+  // KASUS 2: SUDAH MEMBAYAR (paid)
+  // Aturan Khusus Event MABA: Tidak bisa dibatalkan jika mahasiswa sudah berhasil membayar
+  if (order.status === 'paid') {
+    if (isMabaOrder.value) {
+      return false
+    }
+    const paidAt = order.payment?.paid_at || order.updated_at || order.created_at
+    return isWithinBusinessDay(paidAt)
   }
-  return `${minutes}m`
+
+  return false
 }
 
-const steps = [
+// Menghitung sisa batas waktu pengajuan pembatalan (1 hari kerja untuk pesanan yang sudah dibayar)
+const getCancelTimeRemaining = (order: any): string => {
+  if (!order || order.status !== 'paid') return ''
+  const paidAt = order.payment?.paid_at || order.updated_at || order.created_at
+  return getBusinessTimeRemaining(paidAt)
+}
+
+const isMabaOrder = computed(() => {
+  if (!props.order) return false
+  return Boolean(
+    props.order.is_event_maba ||
+    props.order.campus_location ||
+    (props.order.items || []).some((item: any) =>
+      Boolean(
+        item.is_event_maba ||
+        item.product?.is_event_maba ||
+        item.nim ||
+        item.campus_location ||
+        (item.product_name && /ormik|semot|maba/i.test(item.product_name)) ||
+        (item.product?.name && /ormik|semot|maba/i.test(item.product.name))
+      )
+    ) ||
+    (props.order.note && /pengambilan kampus ubsi|event maba|ormik|semot/i.test(String(props.order.note))) ||
+    (props.order.expedition?.name && /maba|kampus/i.test(String(props.order.expedition.name))) ||
+    (props.order.trackings && props.order.trackings.some((t: any) => /event maba|admin kampus|panitia|kampus ubsi/i.test(String(t.description || ''))))
+  )
+})
+
+const timelineTitle = computed(() => {
+  return isMabaOrder.value ? 'Status & Riwayat Distribusi Kampus' : 'Riwayat Perjalanan Paket'
+})
+
+const mabaCampusInfo = computed(() => {
+  if (!props.order) return null
+
+  // 1. Cari dari campus_location langsung di item atau order
+  const explicitCampusName =
+    props.order.campus_location ||
+    (props.order.items || []).find((i: any) => i.campus_location)?.campus_location
+
+  // 2. Cari dari note string: [Pengambilan Kampus UBSI: <nama_kampus>]
+  const noteMatch = props.order.note?.match(/\[Pengambilan Kampus UBSI:\s*([^\]]+)\]/i)?.[1]?.trim()
+
+  const targetCampusName = explicitCampusName || noteMatch || props.order.address?.city || ''
+
+  // 3. Cocokkan dengan database UBSI_CAMPUSES
+  const matched = UBSI_CAMPUSES.find(c =>
+    targetCampusName && (
+      c.name.toLowerCase().includes(targetCampusName.toLowerCase()) ||
+      targetCampusName.toLowerCase().includes(c.name.toLowerCase()) ||
+      c.city.toLowerCase().includes(targetCampusName.toLowerCase())
+    )
+  )
+
+  const defaultCampus = UBSI_CAMPUSES[0] || {
+    name: 'UBSI Kampus Kramat 98 (Pusat)',
+    address: 'Jl. Kramat Raya No. 98, Senen',
+    city: 'Jakarta Pusat',
+    province: 'DKI Jakarta',
+    postal_code: '10420',
+  }
+  const resolved = matched || defaultCampus
+
+  // Ambil NIM jika ada di item
+  const nim = (props.order.items || []).find((i: any) => i.nim)?.nim || null
+
+  return {
+    name: matched?.name || targetCampusName || defaultCampus.name,
+    address: resolved.address,
+    city: resolved.city,
+    province: resolved.province,
+    postal_code: resolved.postal_code || '10420',
+    receiver_name: props.order.address?.receiver_name || props.order.address?.recipient_name || props.order.user?.name || 'Mahasiswa Baru UBSI',
+    phone: props.order.address?.phone || props.order.user?.phone || '-',
+    nim,
+  }
+})
+
+const regularSteps = [
   { key: 'pending_payment', label: 'Menunggu Bayar', desc: 'Transaksi dibuat' },
   { key: 'paid', label: 'Dibayar', desc: 'Dana diverifikasi' },
   { key: 'packed', label: 'Dikemas', desc: 'Disiapkan toko' },
   { key: 'shipped', label: 'Dikirim', desc: 'Dalam kurir' },
   { key: 'completed', label: 'Selesai', desc: 'Paket diterima' },
 ]
+
+const mabaSteps = [
+  { key: 'pending_payment', label: 'Menunggu Bayar', desc: 'Tagihan dibuat' },
+  { key: 'paid', label: 'Sudah Bayar', desc: 'Pesanan dibuat' },
+  { key: 'packed', label: 'Pesanan disiapkan', desc: 'Pengemasan atribut' },
+  { key: 'shipped', label: 'Distribusi Kampus', desc: 'Menuju kampus tujuan' },
+  { key: 'completed', label: 'Siap Diambil / Selesai', desc: 'Titik temu kampus' },
+]
+
+const steps = computed(() => {
+  return isMabaOrder.value ? mabaSteps : regularSteps
+})
 
 const statusOrder = ['pending_payment', 'paid', 'packed', 'shipped', 'arrived', 'completed']
 
@@ -515,11 +693,67 @@ const isStepActive = (stepKey: string) => {
 }
 
 const trackingList = computed(() => {
-  if (!props.order?.trackings) return []
-  // Sort descending by created_at or id
-  return [...props.order.trackings].sort((a, b) => {
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  if (Array.isArray(props.order?.trackings) && props.order.trackings.length > 0) {
+    return [...props.order.trackings].sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }
+
+  // Fallback riwayat pelacakan dinamis jika database belum memiliki baris order_trackings kustom
+  if (!props.order) return []
+
+  const createdTime = props.order.created_at || new Date().toISOString()
+  const updatedTime = props.order.updated_at || createdTime
+  const items: any[] = []
+
+  if (props.order.status === 'completed') {
+    items.push({
+      status: 'completed',
+      description: isMabaOrder.value
+        ? 'Perlengkapan Event MABA telah resmi diserahkan dan diterima oleh Mahasiswa Baru.'
+        : 'Pesanan telah selesai dan diterima (POD).',
+      location: isMabaOrder.value ? (mabaCampusInfo.value?.name || 'Kampus UBSI') : (props.order.address?.city || 'Tujuan'),
+      created_at: updatedTime,
+    })
+  }
+  if (['shipped', 'arrived', 'completed'].includes(props.order.status)) {
+    items.push({
+      status: 'shipped',
+      description: isMabaOrder.value
+        ? `Perlengkapan Event MABA dalam proses distribusi menuju ${mabaCampusInfo.value?.name || 'Kampus UBSI tujuan'}.${props.order.resi_number ? ` (Ref: ${props.order.resi_number})` : ''}`
+        : `Pesanan sedang dalam proses pengiriman via ${props.order.expedition?.name || 'kurir'}.`,
+      location: isMabaOrder.value ? 'Distribusi Logistik Kampus' : 'Transit Hub',
+      created_at: updatedTime,
+    })
+  }
+  if (['packed', 'shipped', 'arrived', 'completed'].includes(props.order.status)) {
+    items.push({
+      status: 'packed',
+      description: isMabaOrder.value
+        ? 'Perlengkapan Event MABA sedang disiapkan dan dikemas.'
+        : 'Pesanan sedang diproses dan dikemas.',
+      location: isMabaOrder.value ? storeName.value : `Gudang ${storeName.value}`,
+      created_at: updatedTime,
+    })
+  }
+  if (['paid', 'packed', 'shipped', 'arrived', 'completed'].includes(props.order.status)) {
+    items.push({
+      status: 'paid',
+      description: 'Pembayaran berhasil diverifikasi secara resmi oleh sistem.',
+      location: 'Sistem',
+      created_at: props.order.payment?.paid_at || createdTime,
+    })
+  }
+  items.push({
+    status: 'pending_payment',
+    description: isMabaOrder.value
+      ? 'Pesanan atribut Event MABA dibuat dan menunggu pembayaran.'
+      : 'Pesanan dibuat dan menunggu pembayaran.',
+    location: 'Sistem',
+    created_at: createdTime,
   })
+
+  return items
 })
 
 const copyResi = (code: string) => {
@@ -1373,6 +1607,31 @@ const openLightbox = (url: string) => {
   background: #fef2f2;
 }
 
+.btn-amber-outline {
+  background: transparent;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-amber-outline:hover {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.cancel-badge-remaining {
+  font-size: 0.7rem;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 0.35rem;
+  font-weight: 800;
+}
+
 .cancel-timer-badge-modal {
   font-size: 0.725rem;
   background: rgba(239, 68, 68, 0.15);
@@ -1539,5 +1798,19 @@ const openLightbox = (url: string) => {
     font-size: 0.75rem;
     padding: 0.4rem 0.65rem;
   }
+}
+
+.maba-paid-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #004aad;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 74, 173, 0.06);
 }
 </style>

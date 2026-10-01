@@ -120,8 +120,33 @@ body { line-height: 1.5; }
 .tailadmin-table tbody tr:hover, .data-table tbody tr:hover { background: var(--surface-hover); }
 .tailadmin-table-card .table-header a, .customer-cell-name a, .order-id-link { color: var(--accent); }
 .status-pill, .tailadmin-status-pill { border-radius: 7px; font-size: 11px; font-weight: 600; }
-.admin-layout :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select, textarea) { border-color: var(--control-border); border-radius: 10px; background-color: var(--control); color: var(--text); }
-.admin-layout :is(button, a, input, textarea, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.admin-layout :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]):not(.orders-search-input):not(.stock-search-input):not(.dock-search-input), select, textarea):not(.search-box input) { border-color: var(--control-border); border-radius: 10px; background-color: var(--control); color: var(--text); }
+.admin-layout :is(button, a, input:not(.search-box input):not(.orders-search-input):not(.stock-search-input):not(.dock-search-input), textarea, select):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.admin-layout .search-box input,
+.admin-layout .orders-search-wrapper input {
+  border: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+.admin-layout .search-box input:focus,
+.admin-layout .search-box input:focus-visible,
+.admin-layout .orders-search-wrapper input:focus,
+.admin-layout .orders-search-wrapper input:focus-visible {
+  outline: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.admin-layout .search-box:focus-within,
+.admin-layout .orders-search-wrapper:focus-within {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15), 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+.admin-layout .search-box:focus-within svg,
+.admin-layout .orders-search-wrapper:focus-within svg {
+  color: #3b82f6 !important;
+}
 .sidebar :is(button, a):focus-visible { outline-color: var(--champagne); }
 .tailadmin-dropdown-menu { border-color: var(--border); border-radius: 16px; box-shadow: var(--shadow-window); }
 .orders-card-heading, :root[data-theme="dark"] .orders-card-heading { color: var(--text); letter-spacing: -.02em; }
@@ -129,8 +154,8 @@ body { line-height: 1.5; }
 :root .admin-layout .orders-table th { background: var(--surface-solid); color: var(--text-secondary); border-color: var(--border); font-size: 10px; letter-spacing: .065em; padding-block: 15px; }
 :root .admin-layout .orders-table td { border-color: var(--border); padding-block: 17px; font-variant-numeric: tabular-nums; }
 :root .admin-layout .orders-table tbody tr:hover { background: var(--surface-hover); }
-:root .admin-layout .orders-red-filter-btn, :root .admin-layout .order-btn-save-status { background: #17695f; color: #fff; border-radius: 10px; box-shadow: 0 3px 6px #15473818; }
-:root .admin-layout .orders-red-filter-btn:hover, :root .admin-layout .order-btn-save-status:hover:not(:disabled) { background: #105449; }
+:root .admin-layout .orders-red-filter-btn, :root .admin-layout .order-btn-save-status { background: #2563eb; color: #fff; border-radius: 10px; box-shadow: 0 3px 6px rgba(37, 99, 235, 0.18); }
+:root .admin-layout .orders-red-filter-btn:hover, :root .admin-layout .order-btn-save-status:hover:not(:disabled) { background: #1d4ed8; }
 :root .admin-layout .orders-inv-link-btn, :root .admin-layout .orders-grand-total-text { color: var(--accent); }
 :root .admin-layout .orders-count-tag { background: var(--accent-soft); color: var(--accent); border-color: var(--border); }
 :root .admin-layout .orders-search-dot { background: var(--accent); box-shadow: none; }

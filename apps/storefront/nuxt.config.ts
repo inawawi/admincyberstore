@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   compatibilityDate: "2025-07-15",
-  devtools: { enabled: true },
+  // Devtools hanya aktif di development — tidak boleh diekspos di production
+  devtools: { enabled: process.env.NODE_ENV !== "production" },
 
   srcDir: ".",
 
@@ -22,7 +23,8 @@ export default defineNuxtConfig({
 
   vite: {
     server: {
-      allowedHosts: true,
+      // allowedHosts: true hanya untuk dev — di production dibatasi ke domain spesifik
+      allowedHosts: process.env.NODE_ENV === "production" ? ["cyberstore.kandangdev.com"] : true,
     },
   },
 
@@ -101,10 +103,16 @@ export default defineNuxtConfig({
 
   app: {
     head: {
+      htmlAttrs: {
+        lang: "id",
+        translate: "no",
+        class: "notranslate",
+      },
       title: "Cyber Store | Futuristic Tech & Lifestyle Gear",
       meta: [
         { charset: "utf-8" },
         { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { name: "google", content: "notranslate" },
         {
           name: "description",
           content:

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { decryptPayload, encryptPayload } from "@/lib/crypto";
 import { safeJson } from "@/lib/utils";
+import { logger } from "@/lib/logger";
 
 const MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 
@@ -107,6 +108,7 @@ export function checkRateLimit(
   current.count += 1;
   if (current.count > rule.max) {
     const retry = Math.max(1, Math.ceil((current.resetsAt - now) / 1000));
+    logger.warn("Rate limit exceeded", { ip, actionKey, count: current.count, limit: rule.max, retryAfterSec: retry });
     throw new ApiError(429, `Terlalu banyak percobaan. Silakan tunggu ${retry} detik.`, {
       retry_after: [String(retry)],
     });
@@ -187,12 +189,20 @@ export function apiResponse(
   request: Request,
   data: unknown,
   status = 200,
+  extraHeaders?: Record<string, string>,
 ) {
   const safe = safeJson(data);
   const shouldEncrypt =
     request.headers.get("x-encrypted") === "true" &&
     !new URL(request.url).pathname.endsWith("/payments/midtrans-callback");
   const headers = getCorsHeaders(request);
+  const reqId = request.headers.get("x-request-id");
+  if (reqId) {
+    headers["X-Request-Id"] = reqId;
+  }
+  if (extraHeaders) {
+    Object.assign(headers, extraHeaders);
+  }
   if (shouldEncrypt && process.env.API_ENCRYPTION_KEY) {
     return NextResponse.json(
       { payload: encryptPayload(safe) },
@@ -205,8 +215,17 @@ export function apiResponse(
   });
 }
 
-export function handleApiError(request: Request, error: unknown) {
+export function handleApiError(request: Request, error: unknown, reqId?: string) {
+  const correlationId = reqId || request.headers.get("x-request-id") || undefined;
+  const url = request.url;
+  const method = request.method;
+
   if (error instanceof ApiError) {
+    if (error.status >= 500) {
+      logger.error(`API Server Error ${error.status}: ${error.message}`, { reqId: correlationId, url, method, error });
+    } else {
+      logger.warn(`API Client Error ${error.status}: ${error.message}`, { reqId: correlationId, url, method, status: error.status, errors: error.errors });
+    }
     return apiResponse(
       request,
       { message: error.message, ...(error.errors ? { errors: error.errors } : {}) },
@@ -215,12 +234,14 @@ export function handleApiError(request: Request, error: unknown) {
   }
   const candidate = error as { code?: string; message?: string };
   if (candidate?.code === "ER_DUP_ENTRY") {
+    logger.warn("Database duplicate entry", { reqId: correlationId, url, method, message: candidate.message });
     return apiResponse(request, { message: "Data tersebut sudah digunakan." }, 422);
   }
   if (candidate?.code === "ER_ROW_IS_REFERENCED_2") {
+    logger.warn("Database foreign key constraint violation", { reqId: correlationId, url, method, message: candidate.message });
     return apiResponse(request, { message: "Data masih digunakan dan tidak dapat dihapus." }, 409);
   }
-  console.error("Unhandled API error", error);
+  logger.error("Unhandled API error", { reqId: correlationId, url, method, error });
   return apiResponse(request, { message: "Terjadi kesalahan internal pada server." }, 500);
 }
 

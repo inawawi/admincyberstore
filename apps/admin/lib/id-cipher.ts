@@ -1,7 +1,19 @@
 // apps/admin/lib/id-cipher.ts
 // Secure URL-safe ID encryption/obfuscation for Admin resources (Orders, etc.)
 
-const SECRET_SALT = "bsi-cyberstore-secure-id-salt-v1";
+/**
+ * ID_CIPHER_SALT harus diisi di environment variable production.
+ * Fallback hanya untuk development lokal.
+ */
+const SECRET_SALT =
+  process.env.ID_CIPHER_SALT || "bsi-cyberstore-secure-id-salt-v1-local-only";
+
+if (process.env.NODE_ENV === "production" && !process.env.ID_CIPHER_SALT) {
+  // Warn tanpa crash — ID masih bisa di-obfuscate, tapi kurang aman
+  process.stderr.write(
+    '[SECURITY] ID_CIPHER_SALT tidak diset di production! Set env var ini dengan nilai random yang kuat.\n',
+  );
+}
 
 // 32-bit integer permutation using a 4-round Feistel network with fixed round keys
 const ROUND_KEYS = [0x9e3779b9, 0x85ebca6b, 0xc2b2ae35, 0x27d4eb2f];

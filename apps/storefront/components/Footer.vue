@@ -6,9 +6,9 @@
         <div class="footer-col brand-col">
           <div class="footer-logo">
             <div class="logo-icon-box">
-              <img src="/logo-cyberstore.jpg" alt="BSI Cyber Store" class="logo-img" />
+              <img :src="storeLogo" :alt="storeName" class="logo-img" @error="handleLogoError" />
             </div>
-            <span class="logo-main"><span class="text-gold">BSI</span> CYBER<span class="text-white">STORE</span></span>
+            <span class="logo-main">{{ storeName }}</span>
           </div>
           <p class="brand-desc">
             Satu destinasi resmi untuk seluruh kebutuhan mahasiswa Universitas BSI. Dapatkan seragam resmi Ormik &amp;
@@ -150,27 +150,61 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useCustomerService } from '~/composables/useCustomerService'
 import { useApi } from '~/composables/useApi'
 
 const { openCustomerService } = useCustomerService()
-const { fetchStoreInfo } = useApi()
+const { fetchStoreInfo, getImageUrl } = useApi()
 
+// Dynamic Store Info with SSR support
+const { data: storeInfoData } = await useAsyncData('footer_store_info', () => fetchStoreInfo())
+
+const storeName = ref('BSI Cyber Store')
+const storeLogo = ref('/logo-cyberstore.jpg')
 const storeAddress = ref('Jl. Dewi Sartika No.77, Cawang, Jakarta Timur')
 const storePhone = ref('(021) 7867868')
 const storeEmail = ref('support@bsi.ac.id')
 
+const applyStoreInfo = (info: any) => {
+  if (!info) return
+  const name = info.store_name || info.name
+  if (name) storeName.value = name
+
+  const logoUrl = info.store_logo || info.logo
+  if (logoUrl) storeLogo.value = getImageUrl(logoUrl)
+
+  if (info.store_address) storeAddress.value = info.store_address
+  if (info.store_phone) storePhone.value = info.store_phone
+  if (info.store_email) storeEmail.value = info.store_email
+}
+
+if (storeInfoData.value) {
+  applyStoreInfo(storeInfoData.value)
+}
+
+watch(
+  storeInfoData,
+  (newData) => {
+    if (newData) applyStoreInfo(newData)
+  },
+  { deep: true }
+)
+
+const handleLogoError = () => {
+  if (storeLogo.value !== '/logo-cyberstore.jpg') {
+    storeLogo.value = '/logo-cyberstore.jpg'
+  }
+}
+
 onMounted(async () => {
-  try {
-    const info = await fetchStoreInfo()
-    if (info) {
-      if (info.store_address) storeAddress.value = info.store_address
-      if (info.store_phone) storePhone.value = info.store_phone
-      if (info.store_email) storeEmail.value = info.store_email
+  if (!storeInfoData.value) {
+    try {
+      const info = await fetchStoreInfo()
+      if (info) applyStoreInfo(info)
+    } catch (e) {
+      // Ignore error
     }
-  } catch (e) {
-    // Ignore error
   }
 })
 </script>

@@ -16,3 +16,8 @@ services:
       - "3000:3000"
     volumes:
       - ${LARAVEL_STORAGE_PATH:-../cyber_store_api/public/storage}:/app/laravel-storage
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"

@@ -181,27 +181,30 @@ onUnmounted(() => {
 
 .slider-container {
   position: relative;
-  min-height: 440px;
-  height: 460px;
+  width: 100%;
+  height: 440px;
   background: #002266;
   overflow: hidden;
 }
 
 .slide-item {
-  position: relative;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   background-size: cover;
-  background-position: center;
+  background-position: center center;
+  background-repeat: no-repeat;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 2.5rem 4rem 4.5rem 4rem;
 }
 
 .slide-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(0, 34, 102, 0.95) 0%, rgba(0, 51, 153, 0.78) 52%, rgba(0, 51, 153, 0.2) 100%);
+  background: linear-gradient(90deg, rgba(0, 34, 102, 0.94) 0%, rgba(0, 51, 153, 0.72) 48%, rgba(0, 51, 153, 0.15) 100%);
   z-index: 1;
   pointer-events: none;
 }
@@ -330,17 +333,17 @@ onUnmounted(() => {
 /* Fade Slide Transitions */
 .fade-slide-enter-active,
 .fade-slide-leave-active {
-  transition: opacity 0.4s ease, transform 0.4s ease;
+  transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
 .fade-slide-enter-from {
   opacity: 0;
-  transform: translateX(25px);
+  transform: translateX(18px);
 }
 
 .fade-slide-leave-to {
   opacity: 0;
-  transform: translateX(-25px);
+  transform: translateX(-18px);
 }
 
 /* ==========================================================================
@@ -350,8 +353,7 @@ onUnmounted(() => {
 /* 1. Medium Laptops & Tablets Landscape (max-width: 1024px) */
 @media (max-width: 1024px) {
   .slider-container {
-    height: 400px;
-    min-height: 380px;
+    height: 360px;
   }
 
   .slide-item {
@@ -380,133 +382,71 @@ onUnmounted(() => {
 /* 2. Tablets Portrait & Mobile Landscape (max-width: 768px) */
 @media (max-width: 768px) {
   .slider-container {
-    height: auto;
-    min-height: 320px;
+    height: 240px;
   }
 
   .slide-item {
-    background-size: cover;
-    background-position: center center !important;
-    background-repeat: no-repeat;
-    padding: 2.25rem 1.5rem 3.75rem 1.5rem;
-    display: flex;
-    flex-direction: column;
+    align-items: flex-end;
     justify-content: center;
-    align-items: center;
-    text-align: center;
+    padding: 1.25rem 1.5rem 2.85rem 1.5rem;
   }
 
   .slide-overlay {
-    background: linear-gradient(180deg, rgba(0, 26, 77, 0.72) 0%, rgba(0, 34, 102, 0.5) 45%, rgba(0, 34, 102, 0.85) 100%);
+    background: linear-gradient(180deg, rgba(0, 20, 60, 0.08) 0%, rgba(0, 34, 102, 0.35) 35%, rgba(0, 26, 77, 0.9) 100%);
   }
 
   .slide-content {
     max-width: 100%;
-    display: flex;
-    flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 0.85rem;
+    gap: 0.45rem;
     margin: 0 auto;
   }
 
   .slide-badge {
     align-self: center;
-    font-size: 0.72rem;
-    padding: 3px 10px;
+    font-size: 0.7rem;
+    padding: 2px 8px;
   }
 
   .slide-title {
-    font-size: 1.5rem;
-    line-height: 1.25;
+    font-size: 1.35rem;
+    line-height: 1.2;
     text-align: center;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
   }
 
   .slide-desc {
-    font-size: 0.88rem;
-    line-height: 1.5;
-    text-align: center;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    display: none;
   }
 
   .slide-actions {
     justify-content: center;
-    gap: 0.6rem;
-  }
-
-  .btn-slider {
-    padding: 0.55rem 1rem;
-    font-size: 0.82rem;
-  }
-
-  .slider-controls {
-    left: 1.5rem;
-    right: 1.5rem;
-    bottom: 1rem;
-  }
-
-  .arrow-btn {
-    width: 36px;
-    height: 36px;
-  }
-}
-
-/* 3. Mobile Phones (max-width: 480px) */
-@media (max-width: 480px) {
-  .slider-container {
-    min-height: 290px;
-  }
-
-  .slide-item {
-    background-size: cover;
-    background-position: center center !important;
-    background-repeat: no-repeat;
-    padding: 1.75rem 1.15rem 3.5rem 1.15rem;
-  }
-
-  .slide-overlay {
-    background: linear-gradient(180deg, rgba(0, 26, 77, 0.75) 0%, rgba(0, 34, 102, 0.52) 45%, rgba(0, 34, 102, 0.85) 100%);
-  }
-
-  .slide-title {
-    font-size: 1.25rem;
-    line-height: 1.25;
-  }
-
-  .slide-desc {
-    font-size: 0.82rem;
-    line-height: 1.45;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-  }
-
-  .slide-actions {
     gap: 0.5rem;
+    margin-top: 0.15rem;
   }
 
   .btn-slider {
-    padding: 0.48rem 0.85rem;
+    padding: 0.4rem 0.9rem;
     font-size: 0.78rem;
   }
 
   .slider-controls {
-    left: 1.15rem;
-    right: 1.15rem;
-    bottom: 0.85rem;
+    left: 0;
+    right: 0;
+    bottom: 0.75rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
   }
 
-  .arrow-btn {
-    width: 32px;
-    height: 32px;
+  .slider-dots {
+    pointer-events: auto;
   }
 
-  .arrow-btn svg {
-    width: 16px;
-    height: 16px;
+  .slider-arrows {
+    display: none !important;
   }
 
   .slider-dot {
@@ -515,25 +455,107 @@ onUnmounted(() => {
   }
 
   .slider-dot.active {
-    width: 22px;
+    width: 24px;
+  }
+}
+
+/* 3. Mobile Phones (max-width: 480px) */
+@media (max-width: 480px) {
+  .slider-container {
+    height: 215px;
+  }
+
+  .slide-item {
+    align-items: flex-end;
+    justify-content: center;
+    padding: 1rem 1.15rem 2.65rem 1.15rem;
+  }
+
+  .slide-overlay {
+    background: linear-gradient(180deg, rgba(0, 20, 60, 0.05) 0%, rgba(0, 34, 102, 0.3) 30%, rgba(0, 26, 77, 0.92) 100%);
+  }
+
+  .slide-content {
+    align-items: center;
+    text-align: center;
+    gap: 0.35rem;
+    margin: 0 auto;
+  }
+
+  .slide-title {
+    font-size: 1.15rem;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .slide-actions {
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .btn-slider {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.725rem;
+    gap: 0.35rem;
+  }
+
+  .slider-controls {
+    left: 0;
+    right: 0;
+    bottom: 0.65rem;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+  }
+
+  .slider-dots {
+    pointer-events: auto;
+  }
+
+  .slider-arrows {
+    display: none !important;
+  }
+
+  .slider-dot {
+    width: 8px;
+    height: 3px;
+  }
+
+  .slider-dot.active {
+    width: 20px;
   }
 }
 
 /* 4. Extra Small Phones (max-width: 360px) */
 @media (max-width: 360px) {
-  .slide-title {
-    font-size: 1.15rem;
+  .slider-container {
+    height: 195px;
   }
 
-  .slide-desc {
-    font-size: 0.78rem;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+  .slide-item {
+    padding: 0.85rem 1rem 2.45rem 1rem;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .slide-content {
+    align-items: center;
+    text-align: center;
+  }
+
+  .slide-title {
+    font-size: 1.05rem;
+    text-align: center;
+  }
+
+  .slide-actions {
+    justify-content: center;
   }
 
   .btn-slider {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.75rem;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.7rem;
   }
 }
 </style>

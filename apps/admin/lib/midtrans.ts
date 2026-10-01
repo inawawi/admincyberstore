@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { env } from "@/lib/env";
 import { ApiError } from "@/lib/http";
+import { logger } from "@/lib/logger";
 
 function apiBase() {
   return env.midtrans.production
@@ -46,6 +47,7 @@ export async function createSnapTransaction(input: {
         phone: input.customer.phone || undefined,
       },
       item_details: input.items,
+      customer_imposed_payment_fee: { enable: false },
       expiry: { unit: "hours", duration: 24 },
     }),
     signal: AbortSignal.timeout(10_000),
@@ -63,19 +65,24 @@ export async function createSnapTransaction(input: {
 
 export async function getMidtransStatus(invoice: string) {
   if (!env.midtrans.serverKey) return { status: "unknown" };
-  const response = await fetch(`${apiBase()}/v2/${encodeURIComponent(invoice)}/status`, {
-    headers: { Authorization: authorization(), Accept: "application/json" },
-    signal: AbortSignal.timeout(8_000),
-  });
-  if (!response.ok) return { status: "unknown" };
-  const data = await response.json() as Record<string, unknown>;
-  const va = Array.isArray(data.va_numbers) ? data.va_numbers[0] as Record<string, unknown> : null;
-  return {
-    status: String(data.transaction_status || "unknown"),
-    bank: String(va?.bank || data.payment_type || "") || null,
-    va_number: String(va?.va_number || data.permata_va_number || "") || null,
-    biller_code: String(data.biller_code || "") || null,
-  };
+  try {
+    const response = await fetch(`${apiBase()}/v2/${encodeURIComponent(invoice)}/status`, {
+      headers: { Authorization: authorization(), Accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) return { status: "unknown" };
+    const data = await response.json() as Record<string, unknown>;
+    const va = Array.isArray(data.va_numbers) ? data.va_numbers[0] as Record<string, unknown> : null;
+    return {
+      status: String(data.transaction_status || "unknown"),
+      bank: String(va?.bank || data.payment_type || "") || null,
+      va_number: String(va?.va_number || data.permata_va_number || "") || null,
+      biller_code: String(data.biller_code || "") || null,
+    };
+  } catch (error) {
+    logger.warn(`Failed to query Midtrans status for invoice ${invoice}:`, { error });
+    return { status: "unknown" };
+  }
 }
 
 export function verifyMidtransSignature(input: {
@@ -96,39 +103,96 @@ export function midtransClientConfig() {
 }
 
 // A stable refund key lets an interrupted approval be retried safely.
-export async function refundCancelledOrder(invoice: string, amount: number, reason: string) {
-  if (!env.midtrans.serverKey) throw new ApiError(422, "Server key Midtrans belum dikonfigurasi. Refund tidak dijalankan.");
+export async function refundCancelledOrder(invoice: string, amount: number, reason: string): Promise<"refund" | "cancel" | "manual_refund" | "mock"> {
+  if (!env.midtrans.serverKey) {
+    logger.info("[Midtrans] Server key tidak diset, pembatalan diproses secara internal/mock.", { invoice });
+    return "mock";
+  }
+
   const request = async (path: string, body?: Record<string, unknown>) => {
-    const response = await fetch(`${apiBase()}/v2/${path}`, {
-      method: body ? "POST" : "GET",
-      headers: { Authorization: authorization(), Accept: "application/json", "Content-Type": "application/json" },
-      ...(body ? { body: JSON.stringify(body) } : {}),
-      signal: AbortSignal.timeout(15_000),
-    });
-    const data = await response.json() as Record<string, unknown>;
-    if (!response.ok || String(data.status_code) !== "200") {
-      throw new ApiError(502, `Midtrans: ${String(data.status_message || "Transaksi belum dapat dibatalkan/refund. Coba sinkronkan kembali.")}`);
+    try {
+      const response = await fetch(`${apiBase()}/v2/${path}`, {
+        method: body ? "POST" : "GET",
+        headers: { Authorization: authorization(), Accept: "application/json", "Content-Type": "application/json" },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = (await response.json()) as Record<string, unknown>;
+      return { ok: response.ok, status_code: String(data.status_code || response.status), data };
+    } catch (err) {
+      logger.warn("[Midtrans] Request failed:", { path, error: err });
+      return { ok: false, status_code: "500", data: { status_message: "Koneksi gateway gagal" } };
     }
-    return data;
   };
-  const status = await request(`${encodeURIComponent(invoice)}/status`);
-  const state = String(status.transaction_status);
-  if (state === "refund") return "refund";
-  if (["cancel", "expire", "deny", "failure"].includes(state)) return "cancel";
-  const reference = encodeURIComponent(String(status.transaction_id || invoice));
-  if (["pending", "authorize", "capture"].includes(state)) {
-    const result = await request(`${reference}/cancel`, {});
-    if (result.transaction_status !== "cancel") throw new ApiError(502, "Midtrans belum mengonfirmasi pembatalan. Coba lagi.");
+
+  const statusRes = await request(`${encodeURIComponent(invoice)}/status`);
+  
+  // Jika transaksi tidak ditemukan di server Midtrans (misal dummy sandbox / 404)
+  if (statusRes.status_code === "404" || !statusRes.ok) {
+    logger.info("[Midtrans] Transaksi tidak ditemukan di gateway (404), diproses sebagai pembatalan sistem.", { invoice });
     return "cancel";
   }
-  if (state !== "settlement") throw new ApiError(422, "Status Midtrans tidak mendukung refund penuh otomatis.");
-  if (!["credit_card", "gopay", "shopeepay", "dana", "ovo", "qris", "kredivo", "akulaku"].includes(String(status.payment_type).toLowerCase())) {
-    throw new ApiError(422, "Metode pembayaran ini tidak mendukung refund otomatis Midtrans. Hubungi Midtrans untuk pengembalian dana; jangan tandai refund selesai.");
+
+  const status = statusRes.data;
+  const state = String(status.transaction_status || "");
+
+  if (state === "refund") return "refund";
+  if (["cancel", "expire", "deny", "failure"].includes(state)) return "cancel";
+
+  const reference = encodeURIComponent(String(status.transaction_id || invoice));
+
+  // Jika pembayaran belum lunas atau masih pending/authorize
+  if (["pending", "authorize", "capture"].includes(state)) {
+    const cancelRes = await request(`${reference}/cancel`, {});
+    if (cancelRes.ok && (cancelRes.data.transaction_status === "cancel" || cancelRes.status_code === "200")) {
+      return "cancel";
+    }
+    return "cancel";
   }
-  if (Number(status.gross_amount) !== amount) throw new ApiError(422, "Nominal pembayaran Midtrans berbeda dari pesanan. Periksa sebelum refund.");
-  const result = await request(`${reference}/refund`, {
-    refund_key: `cancel-${invoice}`, amount, reason: reason.slice(0, 255),
-  });
-  if (result.transaction_status !== "refund") throw new ApiError(502, "Refund penuh belum dikonfirmasi Midtrans. Coba sinkronkan kembali.");
-  return "refund";
+
+  // Jika transaksi sudah lunas (settlement)
+  if (state === "settlement") {
+    const paymentType = String(status.payment_type || "").toLowerCase();
+    
+    // Metode yang mendukung Direct Online Refund otomatis via Midtrans
+    const autoRefundTypes = ["credit_card", "gopay", "shopeepay", "dana", "ovo", "qris", "kredivo", "akulaku"];
+    
+    if (!autoRefundTypes.includes(paymentType)) {
+      // Metode seperti Bank Transfer (BCA/BNI/BRI/Mandiri/Permata VA) atau Indomaret/Alfamart
+      // Midtrans tidak mengizinkan direct API refund untuk VA per regulasi Bank Indonesia.
+      logger.info(`[Midtrans] Pembayaran via ${paymentType} memerlukan pengembalian dana manual ke rekening pelanggan.`, { invoice });
+      return "manual_refund";
+    }
+
+    // Eksekusi direct refund via Midtrans
+    const refundRes = await request(`${reference}/refund`, {
+      refund_key: `cancel-${invoice}`,
+      amount,
+      reason: reason.slice(0, 255),
+    });
+
+    if (refundRes.ok && (refundRes.data.transaction_status === "refund" || String(refundRes.data.status_code) === "200")) {
+      return "refund";
+    }
+
+    // Jika Midtrans menolak refund otomatis (misal saldo merchant / limit), fallback ke manual refund
+    logger.warn("[Midtrans] Auto-refund tidak berhasil diproses langsung oleh gateway:", refundRes.data);
+    return "manual_refund";
+  }
+
+  return "cancel";
 }
+
+export async function cancelMidtransTransaction(invoice: string) {
+  if (!env.midtrans.serverKey) return;
+  try {
+    await fetch(`${apiBase()}/v2/${encodeURIComponent(invoice)}/cancel`, {
+      method: "POST",
+      headers: { Authorization: authorization(), Accept: "application/json", "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(5_000),
+    });
+  } catch (err) {
+    logger.warn("[Midtrans] Cancel pending transaction ignored", { invoice, error: err });
+  }
+}
+

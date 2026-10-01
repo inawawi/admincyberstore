@@ -21,8 +21,8 @@
     <!-- Unified Dropdown Panel (Desktop & Mobile) -->
     <Transition name="notif-slide">
       <div v-if="isOpen" ref="panelRef" class="notif-panel cyber-card"
-        :style="isMobile ? { top: notifPanelTop } : undefined"
-        role="dialog" aria-modal="true" aria-label="Daftar Notifikasi">
+        :style="isMobile ? { top: notifPanelTop } : undefined" role="dialog" aria-modal="true"
+        aria-label="Daftar Notifikasi">
         <!-- Panel Header -->
         <div class="notif-header">
           <div class="notif-title-row">
@@ -103,7 +103,17 @@
             <NuxtLink to="/auth/login" class="btn-guest-login" @click="closeDropdown">Masuk</NuxtLink>
           </div>
           <div v-else class="notif-auth-footer">
-            <NuxtLink to="/account/orders" class="footer-link-action" @click="closeDropdown">
+            <NuxtLink v-if="activeFilter === 'announcement'" to="/announcements" class="footer-link-action"
+              @click="closeDropdown">
+              <Icon name="lucide:megaphone" class="w-3.5 h-3.5" />
+              <span>Lihat Semua Pengumuman Kampus</span>
+            </NuxtLink>
+            <button v-else-if="activeFilter === 'chat'" type="button" class="footer-link-action btn-footer-plain"
+              @click="openCSChat">
+              <Icon name="lucide:message-square" class="w-3.5 h-3.5" />
+              <span>Buka Layanan Chat Admin</span>
+            </button>
+            <NuxtLink v-else to="/account/orders" class="footer-link-action" @click="handleOpenOrders">
               <Icon name="lucide:receipt" class="w-3.5 h-3.5" />
               <span>Semua Riwayat Transaksi</span>
             </NuxtLink>
@@ -123,7 +133,7 @@ import { useCustomerService } from '~/composables/useCustomerService'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const { notifications, unreadCount, isLoading, loadNotifications, markRead, markAllRead } = useNotifications()
+const { notifications, unreadCount, isLoading, loadNotifications, markRead, markAllRead, startPolling, stopPolling } = useNotifications()
 const { openCustomerService } = useCustomerService()
 
 const isOpen = ref(false)
@@ -175,8 +185,9 @@ onMounted(() => {
   window.addEventListener('resize', handleResize)
   window.addEventListener('scroll', handleScroll, { passive: true })
   document.addEventListener('click', handleClickOutside)
-  // Muat notifikasi saat komponen pertama kali dimuat
+  // Muat notifikasi saat komponen pertama kali dimuat & mulai auto polling
   loadNotifications()
+  startPolling(8000)
 })
 
 onUnmounted(() => {
@@ -185,6 +196,7 @@ onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll)
     document.removeEventListener('click', handleClickOutside)
     document.body.style.overflow = ''
+    stopPolling()
   }
 })
 
@@ -218,7 +230,7 @@ const filteredNotifications = computed(() => {
   return notifications.value.filter((n) => {
     if (activeFilter.value === 'transaction') return n.type === 'transaction'
     if (activeFilter.value === 'chat') return n.type === 'chat'
-    if (activeFilter.value === 'announcement') return n.type === 'announcement' || n.type === 'promo' || n.type === 'info'
+    if (activeFilter.value === 'announcement') return n.type === 'announcement' || n.type === 'info'
     return true
   })
 })
@@ -229,7 +241,7 @@ const getTabCount = (tabId: string): number => {
     if (n.is_read) return false
     if (tabId === 'transaction') return n.type === 'transaction'
     if (tabId === 'chat') return n.type === 'chat'
-    if (tabId === 'announcement') return n.type === 'announcement' || n.type === 'promo' || n.type === 'info'
+    if (tabId === 'announcement') return n.type === 'announcement' || n.type === 'info'
     return false
   }).length
 }
@@ -237,11 +249,9 @@ const getTabCount = (tabId: string): number => {
 const getTypeIcon = (type: string): string => {
   switch (type) {
     case 'transaction':
-      return 'lucide:credit-card'
+      return 'lucide:receipt'
     case 'chat':
       return 'lucide:message-circle'
-    case 'promo':
-      return 'lucide:tag'
     case 'announcement':
     default:
       return 'lucide:megaphone'
@@ -254,8 +264,6 @@ const getTypeLabel = (type: string): string => {
       return 'Transaksi'
     case 'chat':
       return 'Chat Admin'
-    case 'promo':
-      return 'Promo'
     case 'announcement':
     default:
       return 'Pengumuman'
@@ -271,8 +279,8 @@ const getActionLabel = (item: AppNotification): string => {
 const getEmptyStateMessage = (): string => {
   if (activeFilter.value === 'transaction') return 'Belum ada riwayat transaksi atau status pembayaran terbaru.'
   if (activeFilter.value === 'chat') return 'Belum ada pesan baru dari Customer Service atau Admin.'
-  if (activeFilter.value === 'announcement') return 'Tidak ada pengumuman promo atau informasi kampus saat ini.'
-  return 'Semua pemberitahuan dan informasi penting akan muncul di sini.'
+  if (activeFilter.value === 'announcement') return 'Tidak ada pengumuman atau informasi kampus saat ini.'
+  return 'Belum ada notifikasi baru saat ini.'
 }
 
 const formatTimestamp = (dateStr?: string | null): string => {
@@ -304,15 +312,82 @@ const handleMarkAllRead = async () => {
 
 const handleItemClick = async (item: AppNotification) => {
   await markRead(item.id)
+  closeDropdown()
 
-  if (item.action_url) {
-    closeDropdown()
-    if (item.action_url === 'cs:chat' || item.type === 'chat') {
-      openCustomerService({ tab: 'chat' })
-    } else {
-      router.push(item.action_url)
+  // 1. Notifikasi Transaksi / Pesanan
+  if (item.type === 'transaction') {
+    const isCancelled = item.metadata?.status === 'cancelled' || item.title.includes('Dibatalkan') || item.content.includes('dibatalkan') || item.title.includes('Pembatalan') || item.content.includes('pembatalan')
+    const invMatch = (item.title || '').match(/#?(INV-[\w-]+)/i) || (item.content || '').match(/#?(INV-[\w-]+)/i)
+    const invoice = item.metadata?.invoice || (invMatch ? invMatch[1] : '')
+    const orderId = item.metadata?.order_id
+
+    // Jika notifikasi pembatalan dan ada order_id, arahkan langsung ke halaman rincian pembatalan
+    if (isCancelled && orderId) {
+      router.push(`/account/cancellation/${orderId}`)
+      return
     }
+
+    // Jika pesanan dibatalkan, arahkan langsung ke riwayat transaksi tab "Dibatalkan" & invoice terkait
+    if (isCancelled) {
+      router.push({
+        path: '/account/orders',
+        query: {
+          status: 'cancelled',
+          ...(invoice ? { search: invoice } : {}),
+        },
+      })
+      return
+    }
+
+    if (item.action_url) {
+      if (item.action_url.startsWith('/')) {
+        router.push(item.action_url)
+      } else {
+        router.push(`/${item.action_url}`)
+      }
+    } else if (invoice) {
+      router.push({ path: '/account/orders', query: { search: invoice } })
+    } else {
+      router.push('/account/orders')
+    }
+    return
   }
+
+  // 2. Notifikasi Chat Admin / Customer Service
+  if (item.type === 'chat') {
+    if (item.metadata?.product_id) {
+      router.push(`/chat/${item.metadata.product_id}`)
+    } else if (item.action_url && item.action_url !== 'cs:chat') {
+      router.push(item.action_url)
+    } else {
+      openCustomerService({ tab: 'chat' })
+    }
+    return
+  }
+
+  // 3. Notifikasi Pengumuman / Info / Promo
+  if (item.action_url) {
+    if (item.action_url === 'cs:chat') {
+      openCustomerService({ tab: 'chat' })
+    } else if (item.action_url.startsWith('http://') || item.action_url.startsWith('https://')) {
+      if (import.meta.client) window.open(item.action_url, '_blank')
+    } else if (item.action_url.startsWith('/')) {
+      router.push(item.action_url)
+    } else {
+      router.push(`/${item.action_url}`)
+    }
+  } else {
+    const targetId = item.announcement_id || item.id
+    router.push({ path: '/announcements', query: { id: String(targetId) } })
+  }
+}
+
+const handleOpenOrders = () => {
+  // Tandai notifikasi transaksi sebagai sudah dibaca saat membuka riwayat
+  notifications.value
+    .filter((n) => n.type === 'transaction' && !n.is_read)
+    .forEach((n) => markRead(n.id))
+  closeDropdown()
 }
 
 const openCSChat = () => {
@@ -543,7 +618,9 @@ const openCSChat = () => {
   padding-bottom: 2px;
 }
 
-.notif-tabs-bar::-webkit-scrollbar { display: none; }
+.notif-tabs-bar::-webkit-scrollbar {
+  display: none;
+}
 
 .notif-tab-btn {
   display: inline-flex;
@@ -603,8 +680,14 @@ const openCSChat = () => {
   scrollbar-color: rgba(0, 74, 173, 0.2) transparent;
 }
 
-.notif-body::-webkit-scrollbar { width: 4px; }
-.notif-body::-webkit-scrollbar-track { background: transparent; }
+.notif-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.notif-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .notif-body::-webkit-scrollbar-thumb {
   background: rgba(0, 74, 173, 0.2);
   border-radius: 2px;
@@ -721,12 +804,6 @@ const openCSChat = () => {
   border: 1px solid rgba(124, 58, 237, 0.2);
 }
 
-.icon-promo {
-  background: #fff1f2;
-  color: #e11d48;
-  border: 1px solid rgba(225, 29, 72, 0.2);
-}
-
 .icon-announcement,
 .icon-info {
   background: #eff6ff;
@@ -759,10 +836,21 @@ const openCSChat = () => {
   border-radius: 4px;
 }
 
-.badge-transaction { background: #d1fae5; color: #065f46; }
-.badge-chat { background: #ede9fe; color: #5b21b6; }
-.badge-promo { background: #ffe4e6; color: #9f1239; }
-.badge-announcement, .badge-info { background: #dbeafe; color: #1e40af; }
+.badge-transaction {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-chat {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.badge-announcement,
+.badge-info {
+  background: #dbeafe;
+  color: #1e40af;
+}
 
 .notif-item-time {
   font-size: 0.68rem;
@@ -791,6 +879,7 @@ const openCSChat = () => {
   line-height: 1.45;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -827,8 +916,15 @@ const openCSChat = () => {
 }
 
 @keyframes dotPulse {
-  0%, 100% { box-shadow: 0 0 4px rgba(0, 74, 173, 0.6); }
-  50% { box-shadow: 0 0 10px rgba(0, 74, 173, 0.9), 0 0 18px rgba(0, 74, 173, 0.3); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 4px rgba(0, 74, 173, 0.6);
+  }
+
+  50% {
+    box-shadow: 0 0 10px rgba(0, 74, 173, 0.9), 0 0 18px rgba(0, 74, 173, 0.3);
+  }
 }
 
 /* ═══════════════════════════════════════

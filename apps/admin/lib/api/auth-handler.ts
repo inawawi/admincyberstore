@@ -12,6 +12,7 @@ import { serializeUser } from "@/lib/api/serializers";
 import { addMinutes, nowSql, randomString } from "@/lib/utils";
 import type { ApiContext, HandledResult } from "@/lib/api/types";
 import { env } from "@/lib/env";
+import { logger, maskEmail } from "@/lib/logger";
 
 type UserRow = RowDataPacket & Record<string, unknown> & {
   id: number;
@@ -49,7 +50,7 @@ async function newOtp(user: UserRow, purpose: "verify" | "reset") {
     await hashPassword(otp), addMinutes(10), nowSql(), user.id,
   ]);
   await sendOtpEmail(user.email, user.name, otp, purpose).catch((error) => {
-    console.error("Gagal mengirim OTP", error);
+    logger.error("Gagal mengirim OTP", { userId: user.id, error });
   });
 }
 
@@ -97,6 +98,10 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
     });
     const user = await row<UserRow>("SELECT * FROM users WHERE id = ?", [userId]);
     if (user) await newOtp(user, "verify");
+    logger.audit("CUSTOMER_REGISTER", {
+      actor: { id: userId, email: maskEmail(email) },
+      status: "success",
+    });
     return {
       status: 201,
       data: { message: "Registrasi berhasil. Silakan cek email Anda untuk kode OTP verifikasi.", email },
@@ -112,17 +117,31 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
       [login, login],
     );
     if (!user || !(await verifyPassword(password, user.password))) {
+      logger.audit("CUSTOMER_LOGIN", {
+        actor: { email: maskEmail(login) },
+        status: "failure",
+        reason: "invalid_credentials",
+      });
       throw new ApiError(422, "Email/No. Handphone atau password tidak sesuai.", {
         email: ["Email/No. Handphone atau password tidak sesuai."],
       });
     }
     if (!user.is_active) {
+      logger.audit("CUSTOMER_LOGIN", {
+        actor: { id: user.id, email: maskEmail(user.email) },
+        status: "blocked",
+        reason: "inactive_account",
+      });
       await newOtp(user, "verify");
       throw new ApiError(403, "Akun Anda belum aktif. Kode OTP baru telah dikirim ke email Anda.", {
         requires_otp: ["true"],
         email: [user.email],
       });
     }
+    logger.audit("CUSTOMER_LOGIN", {
+      actor: { id: user.id, email: maskEmail(user.email), role: user.role },
+      status: "success",
+    });
     return {
       data: {
         message: "Login berhasil.",
@@ -154,17 +173,20 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
 
   if (ctx.method === "POST" && path === "forgot-password") {
     const email = stringValue(body, "email").toLowerCase();
+    // Selalu kembalikan pesan yang sama untuk mencegah email enumeration attack
     const user = await findUserByEmail(email);
-    if (!user) throw new ApiError(404, "Email tidak ditemukan.");
-    await newOtp(user, "reset");
-    return { data: { message: "Kode OTP reset password telah dikirim ke email Anda. Berlaku selama 10 menit." } };
+    if (user) {
+      await newOtp(user, "reset");
+    }
+    return { data: { message: "Jika email terdaftar, kode OTP reset password telah dikirim. Berlaku selama 10 menit." } };
   }
 
   if (ctx.method === "POST" && path === "verify-reset-otp") {
     const email = stringValue(body, "email").toLowerCase();
     const otp = stringValue(body, "otp");
     const user = await findUserByEmail(email);
-    if (!user) throw new ApiError(404, "Email tidak ditemukan.");
+    // Gunakan pesan generik untuk mencegah email enumeration
+    if (!user) throw new ApiError(422, "Kode OTP tidak valid atau sudah kedaluwarsa.");
     assert(user.otp_code && await verifyPassword(otp, user.otp_code), "Kode OTP tidak valid.");
     assert(isOtpValid(user.otp_expires_at), "Kode OTP sudah kedaluwarsa. Silakan minta kode baru.");
     const resetToken = randomString(64);
@@ -210,7 +232,10 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
       const redirectUri = process.env.GOOGLE_REDIRECT_URI || "http://localhost:3001/auth/google/callback";
 
-      assert(clientId && clientSecret, "Konfigurasi Google OAuth belum lengkap di server.");
+      // Validasi keberadaan credentials sebelum digunakan
+      if (!clientId || !clientSecret) {
+        throw new ApiError(500, "Konfigurasi Google OAuth belum lengkap di server.");
+      }
 
       // Tukar code dengan token
       const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -228,7 +253,7 @@ export async function handleAuth(ctx: ApiContext): Promise<HandledResult | null>
 
       if (!tokenRes.ok) {
         const errBody = await tokenRes.text();
-        console.error("[Google OAuth] Token exchange failed:", errBody);
+        logger.error("[Google OAuth] Token exchange failed", { statusCode: tokenRes.status, error: errBody });
         throw new ApiError(422, "Gagal menukarkan authorization code dengan token Google.");
       }
 

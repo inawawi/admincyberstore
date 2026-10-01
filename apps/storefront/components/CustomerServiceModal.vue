@@ -2,14 +2,8 @@
   <ClientOnly>
     <Teleport to="body">
       <Transition name="cs-modal-fade">
-        <div
-          v-if="isCustomerServiceOpen"
-          class="cs-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="cs-modal-title"
-          @click.self="closeCustomerService"
-        >
+        <div v-if="isCustomerServiceOpen" class="cs-modal-backdrop" role="dialog" aria-modal="true"
+          aria-labelledby="cs-modal-title" @click.self="closeCustomerService">
           <div class="cs-modal-card cyber-card">
             <!-- Ambient Top Accent Line -->
             <div class="cs-modal-lightbar"></div>
@@ -18,55 +12,38 @@
             <div class="cs-modal-header">
               <div class="cs-header-left">
                 <div class="cs-header-icon cs-header-icon-complaint">
-                  <Icon name="lucide:shield-alert" class="w-5 h-5 text-amber-500" />
+                  <Icon name="lucide:headset" class="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <h3 id="cs-modal-title" class="cs-title">Pusat Layanan Komplain & CS</h3>
+                  <h3 id="cs-modal-title" class="cs-title">Pusat Layanan Konsultasi & Komplain</h3>
                   <div class="cs-status-indicator">
                     <span class="cs-pulse-dot cs-pulse-amber"></span>
-                    <span class="cs-status-text">Layanan Penanganan Komplain & Kendala (08.00 - 21.00 WIB)</span>
+                    <span class="cs-status-text">Layanan Penanganan Konsultasi & Komplain (08.00 - 21.00 WIB)</span>
                   </div>
                 </div>
               </div>
 
-              <button
-                type="button"
-                class="cs-close-btn"
-                @click="closeCustomerService"
-                aria-label="Tutup Bantuan"
-              >
+              <button type="button" class="cs-close-btn" @click="closeCustomerService" aria-label="Tutup Bantuan">
                 <Icon name="lucide:x" class="w-5 h-5" />
               </button>
             </div>
 
             <!-- Tab Navigation Bar -->
             <div class="cs-tabs-nav">
-              <button
-                type="button"
-                class="cs-tab-item"
-                :class="{ 'is-active': activeTab === 'chat' }"
-                @click="switchTab('chat')"
-              >
-                <Icon name="lucide:message-square-warning" class="w-4 h-4 text-amber-500" />
-                <span>Live Chat Komplain</span>
+              <button type="button" class="cs-tab-item" :class="{ 'is-active': activeTab === 'chat' }"
+                @click="switchTab('chat')">
+                <Icon name="lucide:message-square-text" class="w-4 h-4 text-blue-600" />
+                <span>Live Chat & Konsultasi</span>
               </button>
 
-              <button
-                type="button"
-                class="cs-tab-item"
-                :class="{ 'is-active': activeTab === 'contact' }"
-                @click="switchTab('contact')"
-              >
+              <button type="button" class="cs-tab-item" :class="{ 'is-active': activeTab === 'contact' }"
+                @click="switchTab('contact')">
                 <Icon name="lucide:phone-call" class="w-4 h-4" />
                 <span>Kontak Resmi</span>
               </button>
 
-              <button
-                type="button"
-                class="cs-tab-item"
-                :class="{ 'is-active': activeTab === 'faq' }"
-                @click="switchTab('faq')"
-              >
+              <button type="button" class="cs-tab-item" :class="{ 'is-active': activeTab === 'faq' }"
+                @click="switchTab('faq')">
                 <Icon name="lucide:help-circle" class="w-4 h-4" />
                 <span>Tanya Jawab (FAQ)</span>
               </button>
@@ -80,20 +57,16 @@
                   <Icon name="lucide:lock" class="w-10 h-10 text-bsi" />
                 </div>
                 <h4>Masuk untuk Memulai Live Chat Komplain</h4>
-                <p>Login akun Anda agar riwayat komplain dan tindak lanjut kendala transaksi tersimpan secara aman dalam sistem kami.</p>
-                
+                <p>Login akun Anda agar riwayat komplain dan tindak lanjut kendala transaksi tersimpan secara aman dalam
+                  sistem kami.</p>
+
                 <div class="cs-unauth-actions">
                   <NuxtLink to="/auth/login" class="btn btn-primary" @click="closeCustomerService">
                     <Icon name="lucide:log-in" class="w-4 h-4" />
                     <span>Masuk ke Akun</span>
                   </NuxtLink>
 
-                  <a
-                    :href="whatsappUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="btn btn-whatsapp-alt"
-                  >
+                  <a :href="whatsappUrl" target="_blank" rel="noopener noreferrer" class="btn btn-whatsapp-alt">
                     <Icon name="lucide:message-circle" class="w-4 h-4" />
                     <span>Chat WhatsApp (Tanpa Login)</span>
                   </a>
@@ -111,7 +84,8 @@
                       <span>Admin Layanan Komplain Cyber Store</span>
                     </div>
                     <div class="bubble-body">
-                      Halo <strong>{{ authStore.user?.name || 'Sobat Cyber' }}</strong>! Ini adalah saluran khusus <strong>Live Chat Penanganan Komplain & Pengaduan Kendala</strong>.
+                      Halo <strong>{{ authStore.user?.name || 'Sobat Cyber' }}</strong>! Ini adalah saluran khusus
+                      <strong>Live Chat Penanganan Komplain & Pengaduan Kendala</strong>.
                       <br><br>
                       Sampaikan keluhan Anda terkait:
                       <ul class="complaint-topics-list">
@@ -126,12 +100,8 @@
                   </div>
 
                   <!-- Messages List -->
-                  <div
-                    v-for="msg in messages"
-                    :key="msg.id"
-                    class="chat-bubble"
-                    :class="msg.sender_type === 'customer' ? 'user-bubble' : 'cs-bubble'"
-                  >
+                  <div v-for="msg in messages" :key="msg.id" class="chat-bubble"
+                    :class="msg.sender_type === 'customer' ? 'user-bubble' : 'cs-bubble'">
                     <div v-if="msg.sender_type !== 'customer'" class="bubble-sender">
                       <Icon name="lucide:shield-check" class="w-3.5 h-3.5 text-bsi" />
                       <span>Admin Customer Service</span>
@@ -152,32 +122,18 @@
 
                 <!-- Quick Prompts Chips -->
                 <div class="cs-quick-prompts">
-                  <button
-                    v-for="prompt in quickPrompts"
-                    :key="prompt"
-                    type="button"
-                    class="quick-prompt-btn"
-                    @click="sendQuickPrompt(prompt)"
-                  >
+                  <button v-for="prompt in quickPrompts" :key="prompt" type="button" class="quick-prompt-btn"
+                    @click="sendQuickPrompt(prompt)">
                     {{ prompt }}
                   </button>
                 </div>
 
                 <!-- Message Input Footer -->
                 <form @submit.prevent="handleSendMessage" class="cs-chat-input-bar">
-                  <input
-                    v-model="inputMessage"
-                    type="text"
-                    placeholder="Tulis rincian keluhan atau komplain Anda..."
-                    class="cs-chat-input"
-                    :disabled="isSending"
-                  />
-                  <button
-                    type="submit"
-                    class="cs-btn-send"
-                    :disabled="!inputMessage.trim() || isSending"
-                    aria-label="Kirim Pesan"
-                  >
+                  <input v-model="inputMessage" type="text" placeholder="Tulis rincian keluhan atau komplain Anda..."
+                    class="cs-chat-input" :disabled="isSending" />
+                  <button type="submit" class="cs-btn-send" :disabled="!inputMessage.trim() || isSending"
+                    aria-label="Kirim Pesan">
                     <Icon name="lucide:send" class="w-4 h-4" />
                   </button>
                 </form>
@@ -194,13 +150,9 @@
                   </div>
                   <div class="contact-card-content">
                     <h4>WhatsApp Customer Service</h4>
-                    <p>Respon instan melalui WhatsApp resmi BSI Cyber Store untuk konsultasi belanja, stok, dan komplain.</p>
-                    <a
-                      :href="whatsappUrl"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="btn btn-whatsapp"
-                    >
+                    <p>Respon instan melalui WhatsApp resmi BSI Cyber Store untuk konsultasi belanja, stok, dan
+                      komplain.</p>
+                    <a :href="whatsappUrl" target="_blank" rel="noopener noreferrer" class="btn btn-whatsapp">
                       <Icon name="lucide:send" class="w-4 h-4" />
                       <span>Chat WhatsApp Sekarang</span>
                     </a>
@@ -244,33 +196,18 @@
               <!-- Search FAQ -->
               <div class="faq-search-box">
                 <Icon name="lucide:search" class="w-4 h-4 text-muted" />
-                <input
-                  v-model="faqSearchQuery"
-                  type="text"
-                  placeholder="Cari pertanyaan seputar pembayaran, pengiriman, maba..."
-                  class="faq-search-input"
-                />
+                <input v-model="faqSearchQuery" type="text"
+                  placeholder="Cari pertanyaan seputar pembayaran, pengiriman, maba..." class="faq-search-input" />
               </div>
 
               <!-- FAQ Accordion List -->
               <div class="faq-accordion-list">
-                <div
-                  v-for="(faq, idx) in filteredFaqs"
-                  :key="idx"
-                  class="faq-accordion-item"
-                  :class="{ 'is-open': openFaqIndex === idx }"
-                >
-                  <button
-                    type="button"
-                    class="faq-question-btn"
-                    @click="toggleFaq(idx)"
-                  >
+                <div v-for="(faq, idx) in filteredFaqs" :key="idx" class="faq-accordion-item"
+                  :class="{ 'is-open': openFaqIndex === idx }">
+                  <button type="button" class="faq-question-btn" @click="toggleFaq(idx)">
                     <span class="faq-q-text">{{ faq.question }}</span>
-                    <Icon
-                      name="lucide:chevron-down"
-                      class="w-4 h-4 faq-chevron"
-                      :class="{ 'rotate-180': openFaqIndex === idx }"
-                    />
+                    <Icon name="lucide:chevron-down" class="w-4 h-4 faq-chevron"
+                      :class="{ 'rotate-180': openFaqIndex === idx }" />
                   </button>
 
                   <div v-if="openFaqIndex === idx" class="faq-answer-box">
@@ -309,7 +246,7 @@ const messages = ref<any[]>([])
 const inputMessage = ref('')
 const isSending = ref(false)
 const chatScrollRef = ref<HTMLElement | null>(null)
-const openFaqIndex = ref<number | null>(0)
+const openFaqIndex = ref<number | string | null>(0)
 const faqSearchQuery = ref('')
 
 const quickPrompts = [
@@ -357,11 +294,16 @@ const whatsappUrl = computed(() => {
   return baseWa.includes('?') ? `${baseWa}&text=${text}` : `${baseWa}?text=${text}`
 })
 
-const filteredFaqs = computed(() => {
-  const faqs = helpData.value?.faqs || [
+interface FaqItem {
+  question: string
+  answer: string
+}
+
+const filteredFaqs = computed<FaqItem[]>(() => {
+  const faqs: FaqItem[] = helpData.value?.faqs || [
     {
       question: 'Bagaimana cara konfirmasi pembayaran pesanan?',
-      answer: 'Pembayaran melalui Midtrans (Virtual Account, QRIS, GoPay, ShopeePay) terkonfirmasi secara otomatis dalam waktu 1-3 menit setelah pembayaran Anda berhasil.',
+      answer: 'Pembayaran melalui (Virtual Account) terkonfirmasi secara otomatis dalam waktu 1-3 menit setelah pembayaran Anda berhasil.',
     },
     {
       question: 'Berapa lama estimasi pengiriman barang?',
@@ -376,12 +318,12 @@ const filteredFaqs = computed(() => {
   if (!faqSearchQuery.value.trim()) return faqs
   const q = faqSearchQuery.value.toLowerCase()
   return faqs.filter(
-    (f: any) =>
+    (f: FaqItem) =>
       f.question?.toLowerCase().includes(q) || f.answer?.toLowerCase().includes(q)
   )
 })
 
-const toggleFaq = (idx: number) => {
+const toggleFaq = (idx: number | string) => {
   openFaqIndex.value = openFaqIndex.value === idx ? null : idx
 }
 
@@ -816,12 +758,24 @@ const handleSendMessage = async () => {
   animation: typing 1s infinite alternate;
 }
 
-.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes typing {
-  from { opacity: 0.3; transform: scale(0.8); }
-  to { opacity: 1; transform: scale(1.2); }
+  from {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.2);
+  }
 }
 
 /* Quick Prompts Chips */
@@ -835,7 +789,9 @@ const handleSendMessage = async () => {
   border-top: 1px solid var(--border-subtle, #e2e8f0);
 }
 
-.cs-quick-prompts::-webkit-scrollbar { display: none; }
+.cs-quick-prompts::-webkit-scrollbar {
+  display: none;
+}
 
 .quick-prompt-btn {
   white-space: nowrap;
@@ -945,11 +901,25 @@ const handleSendMessage = async () => {
   flex-shrink: 0;
 }
 
-.bg-emerald { background: #ecfdf5; }
-.text-emerald { color: #10b981; }
-.bg-blue { background: #eff6ff; }
-.bg-indigo { background: #eef2ff; }
-.text-indigo { color: #6366f1; }
+.bg-emerald {
+  background: #ecfdf5;
+}
+
+.text-emerald {
+  color: #10b981;
+}
+
+.bg-blue {
+  background: #eff6ff;
+}
+
+.bg-indigo {
+  background: #eef2ff;
+}
+
+.text-indigo {
+  color: #6366f1;
+}
 
 .contact-card-content {
   flex: 1;

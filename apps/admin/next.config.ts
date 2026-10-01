@@ -46,6 +46,33 @@ function getDevOrigins(): string[] {
   return Array.from(origins);
 }
 
+const isProd = process.env.NODE_ENV === "production";
+
+const securityHeaders = [
+  { key: "X-DNS-Prefetch-Control", value: "on" },
+  // HSTS: hanya aktif di production agar tidak memblokir akses HTTP lokal
+  ...(isProd
+    ? [{ key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" }]
+    : []),
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+    ].join("; "),
+  },
+];
+
 const nextConfig: NextConfig = {
   distDir: "next-build",
   output: "standalone",
@@ -55,6 +82,18 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: workspaceRoot,
   },
+  headers: async () => [
+    { source: "/(.*)", headers: securityHeaders },
+  ],
+  redirects: async () => [
+    { source: "/orders", destination: "/admin/orders", permanent: false },
+    { source: "/products", destination: "/admin/products", permanent: false },
+    { source: "/categories", destination: "/admin/categories", permanent: false },
+    { source: "/users", destination: "/admin/users", permanent: false },
+    { source: "/expeditions", destination: "/admin/expeditions", permanent: false },
+    { source: "/settings", destination: "/admin/settings", permanent: false },
+    { source: "/dashboard", destination: "/admin", permanent: false },
+  ],
 };
 
 export default nextConfig;

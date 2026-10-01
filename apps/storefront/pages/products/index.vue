@@ -368,7 +368,7 @@ import { useApi } from '~/composables/useApi'
 
 const route = useRoute()
 const router = useRouter()
-const { fetchProducts, fetchCategories } = useApi()
+const { fetchProducts, fetchCategories, clearClientCache } = useApi()
 
 // Filters state
 const searchQuery = ref(route.query.search ? String(route.query.search) : '')
@@ -407,7 +407,6 @@ const { data: catData } = await useAsyncData(
   () => fetchCategories(),
   {
     lazy: true,
-    getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
   }
 )
 const categories = computed(() => catData.value?.categories || [])
@@ -439,7 +438,10 @@ const selectQuickCategory = (catId: string) => {
 }
 
 // Fetch Products based on filters
-const fetchCurrentProducts = () => {
+const fetchCurrentProducts = (forceFresh = false) => {
+  if (forceFresh) {
+    clearClientCache('products')
+  }
   const params: any = {
     page: currentPage.value,
     per_page: 12,
@@ -449,7 +451,7 @@ const fetchCurrentProducts = () => {
   if (isRecommendedOnly.value) params.is_recommended = 1
   if (isEventMabaOnly.value) params.is_event_maba = 1
 
-  return fetchProducts(params)
+  return fetchProducts(params, forceFresh)
 }
 
 const { data: productResponse, pending, refresh } = await useAsyncData(
@@ -460,6 +462,25 @@ const { data: productResponse, pending, refresh } = await useAsyncData(
     watch: [() => route.query],
   }
 )
+
+if (import.meta.client) {
+  const syncCatalog = () => {
+    if (document.visibilityState === 'visible') {
+      clearClientCache('products')
+      refresh()
+    }
+  }
+
+  const catalogPollTimer = setInterval(syncCatalog, 5000)
+  document.addEventListener('visibilitychange', syncCatalog)
+  window.addEventListener('focus', syncCatalog)
+
+  onUnmounted(() => {
+    clearInterval(catalogPollTimer)
+    document.removeEventListener('visibilitychange', syncCatalog)
+    window.removeEventListener('focus', syncCatalog)
+  })
+}
 
 const rawProducts = computed(() => {
   if (!productResponse.value) return []

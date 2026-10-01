@@ -24,10 +24,41 @@
           </button>
         </div>
 
+        <!-- MABA Campus Banner in Drawer -->
+        <div v-if="authStore.isAuthenticated && cartStore.hasEventMaba" class="drawer-maba-banner">
+          <div class="drawer-maba-icon">
+            <Icon name="lucide:graduation-cap" class="w-4 h-4 text-bsi" />
+          </div>
+          <div class="drawer-maba-info">
+            <div class="drawer-maba-title-row">
+              <strong class="drawer-maba-title">Pengambilan Kampus UBSI</strong>
+              <span class="badge badge-purple" style="font-size: 0.65rem;">MABA</span>
+            </div>
+            <p class="drawer-maba-campus-name">{{ cartStore.mabaCampusLocation }}</p>
+            <button type="button" @click="isCampusModalOpen = true" class="drawer-maba-change-btn">
+              <Icon name="lucide:arrow-left-right" class="w-3 h-3 mr-0.5" />
+              <span>Tukar Kampus</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Drawer Body -->
         <div class="drawer-body">
+          <!-- Guest State (Belum Login) -->
+          <div v-if="!authStore.isAuthenticated" class="empty-cart-state">
+            <div class="empty-icon-box" style="background: rgba(0, 51, 153, 0.08); border: 1.5px solid rgba(0, 51, 153, 0.2);">
+              <Icon name="lucide:lock" class="empty-svg w-12 h-12 text-bsi" />
+            </div>
+            <h4>Masuk ke Akun Anda</h4>
+            <p>Silakan masuk terlebih dahulu untuk melihat dan menambahkan produk ke keranjang belanja.</p>
+            <NuxtLink to="/auth/login" @click="cartStore.closeCart()" class="btn btn-primary">
+              <Icon name="lucide:log-in" class="w-4 h-4 mr-1.5 inline" />
+              <span>Masuk Sekarang</span>
+            </NuxtLink>
+          </div>
+
           <!-- Empty Cart State -->
-          <div v-if="cartStore.items.length === 0" class="empty-cart-state">
+          <div v-else-if="cartStore.items.length === 0" class="empty-cart-state">
             <div class="empty-icon-box">
               <Icon name="lucide:shopping-cart" class="empty-svg w-12 h-12 text-muted" />
             </div>
@@ -63,9 +94,32 @@
                 </NuxtLink>
 
                 <div class="cart-item-variants">
-                  <span v-if="item.selectedSize" class="variant-chip">Size: {{ item.selectedSize }}</span>
-                  <span v-if="item.selectedColor" class="variant-chip">Color: {{ item.selectedColor }}</span>
-                  <span v-if="item.nim" class="variant-chip" style="background: rgba(139, 92, 246, 0.15); color: #7c3aed; border: 1px solid rgba(139, 92, 246, 0.3);">
+                  <!-- Quick Size Switcher Dropdown in Drawer -->
+                  <div v-if="item.selectedSize || item.product.is_event_maba || (item.product.sizes && item.product.sizes.length)" class="drawer-size-swap-box">
+                    <span class="variant-chip size-chip font-bold">
+                      Size: {{ item.selectedSize || 'Pilih' }}
+                    </span>
+                    <div class="drawer-size-select-wrap">
+                      <select
+                        :value="item.selectedSize"
+                        @change="onHandleChangeSize(item.id, ($event.target as HTMLSelectElement).value)"
+                        class="drawer-select-size"
+                        title="Tukar Ukuran"
+                      >
+                        <option
+                          v-for="s in getItemSizes(item)"
+                          :key="s"
+                          :value="s"
+                        >
+                          Size {{ s }}
+                        </option>
+                      </select>
+                      <Icon name="lucide:chevron-down" class="drawer-chevron-mini" />
+                    </div>
+                  </div>
+
+                  <span v-if="item.selectedColor" class="variant-chip color-chip">Color: {{ item.selectedColor }}</span>
+                  <span v-if="item.nim" class="variant-chip" style="background: rgba(139, 92, 246, 0.15); color: #7c3aed; border: 1px solid rgba(139, 92, 246, 0.3); font-weight: 700;">
                     NIM: {{ item.nim }}
                   </span>
                   <span v-if="item.product.is_event_maba" class="variant-chip" style="background: #eff6ff; color: #004aad; border: 1px solid #bfdbfe; font-weight: 700;">
@@ -79,16 +133,22 @@
 
                 <!-- Quantity Stepper -->
                 <div class="cart-item-controls">
-                  <div class="qty-stepper">
+                  <div class="qty-stepper" :class="{ 'stepper-locked': item.product.is_event_maba }">
                     <button
+                      type="button"
                       @click="cartStore.updateQuantity(item.id, item.quantity - 1)"
                       class="qty-btn"
+                      :disabled="item.quantity <= 1 || item.product.is_event_maba"
+                      :title="item.product.is_event_maba ? 'Maksimal 1 unit untuk Event Maba' : item.quantity <= 1 ? 'Minimal 1 unit' : undefined"
                       aria-label="Kurangi Jumlah"
                     >
                       -
                     </button>
-                    <span class="qty-val">{{ item.quantity }}</span>
+                    <span class="qty-val" :title="item.product.is_event_maba ? 'Kuantitas terkunci 1 unit untuk Event MABA' : undefined">
+                      {{ item.quantity }}
+                    </span>
                     <button
+                      type="button"
                       @click="cartStore.updateQuantity(item.id, item.quantity + 1)"
                       class="qty-btn"
                       :disabled="item.quantity >= (item.product.is_event_maba ? 1 : item.product.stock)"
@@ -113,7 +173,7 @@
         </div>
 
         <!-- Drawer Footer -->
-        <div v-if="cartStore.items.length > 0" class="drawer-footer">
+        <div v-if="authStore.isAuthenticated && cartStore.items.length > 0" class="drawer-footer">
           <div class="subtotal-row">
             <span class="subtotal-label">Subtotal Belanja:</span>
             <span class="subtotal-value">{{ formatRupiah(cartStore.subtotal) }}</span>
@@ -127,7 +187,7 @@
               Lihat Keranjang
             </NuxtLink>
             <NuxtLink
-              to="/cart"
+              to="/checkout"
               @click="cartStore.closeCart()"
               class="btn btn-primary w-full"
             >
@@ -137,17 +197,63 @@
         </div>
       </div>
     </transition>
+
+    <!-- Modal Tukar Kampus UBSI -->
+    <CampusPickupModal
+      :is-open="isCampusModalOpen"
+      :selected-campus-name="cartStore.mabaCampusLocation"
+      @close="isCampusModalOpen = false"
+      @select="handleSelectCampus"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { useCartStore } from '~/stores/cart'
+import { ref } from 'vue'
+import { useCartStore, type CartItem } from '~/stores/cart'
+import { useAuthStore } from '~/stores/auth'
 import { useFormat } from '~/composables/useFormat'
 import { useApi } from '~/composables/useApi'
+import { useToast } from '~/composables/useToast'
+import CampusPickupModal from '~/components/CampusPickupModal.vue'
+import type { UbsiCampus } from '~/utils/ubsi-campuses'
 
 const cartStore = useCartStore()
+const authStore = useAuthStore()
+const toast = useToast()
 const { formatRupiah } = useFormat()
 const { getImageUrl } = useApi()
+
+const isCampusModalOpen = ref(false)
+
+const getItemSizes = (item: CartItem): string[] => {
+  if (Array.isArray(item.product?.sizes) && item.product.sizes.length > 0) {
+    return item.product.sizes
+  }
+  if (item.product?.is_event_maba) {
+    return ['S', 'M', 'L', 'XL', 'XXL', '3XL']
+  }
+  return item.selectedSize ? [item.selectedSize] : ['S', 'M', 'L', 'XL']
+}
+
+const onHandleChangeSize = (itemId: string, newSize: string) => {
+  if (!newSize) return
+  const success = cartStore.changeItemSize(itemId, newSize)
+  if (success) {
+    toast.success(`Ukuran produk berhasil ditukar ke: ${newSize}`, {
+      title: 'Ukuran Diperbarui',
+      duration: 3000,
+    })
+  }
+}
+
+const handleSelectCampus = (campus: UbsiCampus) => {
+  cartStore.setAllMabaCampus(campus.name)
+  toast.success(`Lokasi pengambilan kampus berhasil diubah ke: ${campus.name}`, {
+    title: 'Lokasi Kampus Diperbarui',
+    duration: 3500,
+  })
+}
 </script>
 
 <style scoped>
@@ -212,6 +318,72 @@ const { getImageUrl } = useApi()
 .close-btn:hover {
   background: #f1f5f9;
   color: #0f172a;
+}
+
+/* Drawer MABA Banner */
+.drawer-maba-banner {
+  background: #f0f7ff;
+  border-bottom: 1.5px solid #bfdbfe;
+  padding: 0.85rem 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.drawer-maba-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.drawer-maba-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.drawer-maba-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.drawer-maba-title {
+  font-size: 0.8rem;
+  color: #003399;
+}
+
+.drawer-maba-campus-name {
+  font-size: 0.75rem;
+  color: #334155;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.drawer-maba-change-btn {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #004aad;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.25rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.drawer-maba-change-btn:hover {
+  color: #003399;
 }
 
 .drawer-body {
@@ -308,6 +480,40 @@ const { getImageUrl } = useApi()
   display: flex;
   gap: 0.35rem;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.drawer-size-swap-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.drawer-size-select-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.drawer-select-size {
+  appearance: none;
+  background: #ffffff;
+  border: 1px solid #004aad;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #004aad;
+  padding: 1px 16px 1px 6px;
+  cursor: pointer;
+}
+
+.drawer-chevron-mini {
+  position: absolute;
+  right: 3px;
+  width: 10px;
+  height: 10px;
+  color: #004aad;
+  pointer-events: none;
 }
 
 .variant-chip {
@@ -318,6 +524,12 @@ const { getImageUrl } = useApi()
   border-radius: 4px;
   color: #003399;
   font-weight: 600;
+}
+
+.color-chip {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+  color: #7e22ce;
 }
 
 .item-price {
@@ -366,38 +578,29 @@ const { getImageUrl } = useApi()
 }
 
 .qty-val {
-  padding: 0 0.5rem;
-  font-size: 0.8rem;
+  width: 30px;
+  text-align: center;
+  font-size: 0.825rem;
   font-weight: 700;
   color: #0f172a;
 }
 
 .remove-item-btn {
-  color: var(--text-muted);
+  color: #94a3b8;
   padding: 4px;
   border-radius: 4px;
   transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.remove-item-btn svg {
-  width: 14px;
-  height: 14px;
-  min-width: 14px;
-  flex-shrink: 0;
 }
 
 .remove-item-btn:hover {
-  color: var(--accent-coral);
-  background: #fef2f2;
+  color: #ef4444;
+  background: #fee2e2;
 }
 
 .drawer-footer {
   padding: 1.25rem 1.5rem;
   border-top: 1px solid var(--border-subtle);
-  background: #ffffff;
+  background: #f8fafc;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -405,18 +608,16 @@ const { getImageUrl } = useApi()
 
 .subtotal-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
 }
 
 .subtotal-label {
   font-size: 0.9rem;
-  font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .subtotal-value {
-  font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 800;
   color: #003399;
@@ -424,86 +625,7 @@ const { getImageUrl } = useApi()
 
 .footer-actions {
   display: flex;
-  gap: 0.75rem;
-}
-
-.footer-actions .btn {
-  padding: 0.6rem 0.85rem;
-  font-size: 0.825rem;
-}
-
-.w-full {
-  flex: 1;
-}
-
-/* Animations */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.slide-enter-from,
-.slide-leave-to {
-  transform: translateX(100%);
-}
-
-/* Responsive */
-@media (max-width: 480px) {
-  .cart-drawer {
-    max-width: 100%;
-  }
-
-  .drawer-header {
-    padding: 1rem 1.15rem;
-  }
-
-  .drawer-body {
-    padding: 1rem 1.15rem;
-  }
-
-  .drawer-footer {
-    padding: 1rem 1.15rem;
-  }
-
-  .cart-item-img {
-    width: 60px;
-    height: 60px;
-  }
-
-  .cart-item-name {
-    font-size: 0.825rem;
-  }
-
-  .item-price {
-    font-size: 0.875rem;
-  }
-
-  .footer-actions {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-
-  .footer-actions .btn {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 360px) {
-  .drawer-title {
-    font-size: 1rem;
-  }
-
-  .subtotal-value {
-    font-size: 1.1rem;
-  }
+  flex-direction: column;
+  gap: 0.5rem;
 }
 </style>

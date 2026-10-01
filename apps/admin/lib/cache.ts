@@ -98,8 +98,28 @@ export const catalogCache = new MemoryCache({
 });
 
 /**
+ * Singleton cache untuk pencarian & query daftar di Admin Panel
+ */
+export const adminSearchCache = new MemoryCache({
+  maxSize: 2000,
+  defaultTtlMs: 2 * 60 * 1000, // 2 menit
+});
+
+/**
  * Bersihkan seluruh cache katalog (dipanggil saat admin menambah, mengubah, atau menghapus produk/kategori)
  */
 export function clearCatalogCache(): void {
   catalogCache.clear();
 }
+
+/**
+ * Bersihkan cache pencarian admin (bisa per modul atau seluruhnya)
+ */
+export function clearAdminSearchCache(resourceKey?: string): void {
+  if (resourceKey) {
+    adminSearchCache.invalidatePattern(`admin:${resourceKey}`);
+  } else {
+    adminSearchCache.clear();
+  }
+}
+

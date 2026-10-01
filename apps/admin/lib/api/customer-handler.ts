@@ -16,6 +16,7 @@ import {
   publicUrl,
 } from "@/lib/utils";
 import type { ApiContext, HandledResult } from "@/lib/api/types";
+import { clearCatalogCache, clearAdminSearchCache } from "@/lib/cache";
 
 type AnyRow = RowDataPacket & Record<string, unknown>;
 
@@ -231,6 +232,9 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
     );
     const aggregate = await row<AnyRow>("SELECT AVG(rating) AS rating, COUNT(*) AS total FROM product_reviews WHERE product_id = ?", [product.id]);
     await execute("UPDATE products SET rating = ?, reviews_count = ?, updated_at = ? WHERE id = ?", [aggregate?.rating || 0, aggregate?.total || 0, nowSql(), product.id]);
+    clearCatalogCache();
+    clearAdminSearchCache("reviews");
+    clearAdminSearchCache("products");
     return { status: 201, data: { message: "Ulasan berhasil dikirim.", review: await row<AnyRow>("SELECT * FROM product_reviews WHERE id = ?", [result.insertId]) } };
   }
 
@@ -240,6 +244,8 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
     const reply = text(body, "reply") || text(body, "message");
     assert(reply, "Balasan wajib diisi.");
     const result = await execute("INSERT INTO product_review_replies (product_review_id, user_id, reply, created_at, updated_at) VALUES (?, ?, ?, ?, ?)", [Number(replyMatch[1]), userId, reply, nowSql(), nowSql()]);
+    clearCatalogCache();
+    clearAdminSearchCache("reviews");
     return { status: 201, data: { message: "Balasan berhasil dikirim.", reply: await row<AnyRow>("SELECT * FROM product_review_replies WHERE id = ?", [result.insertId]) } };
   }
 
@@ -282,7 +288,7 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
 
   if (ctx.method === "POST" && path === "chats") {
     const productId = asNumber(body.product_id) || null;
-    const defaultSubject = productId ? "Pertanyaan Produk" : "Komplain Layanan & Kendala Pesanan";
+    const defaultSubject = productId ? "Pertanyaan Produk" : "Layanan Bantuan & Customer Service";
     const subject = text(body, "subject") || defaultSubject;
     const message = text(body, "message");
     assert(message, "Pesan wajib diisi.");
@@ -302,6 +308,7 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
       );
       return created.insertId;
     });
+    clearAdminSearchCache("chats");
     return { status: 201, data: { message: "Chat berhasil dibuat.", chat: await row<AnyRow>("SELECT * FROM chats WHERE id = ?", [chatId]) } };
   }
 
@@ -324,6 +331,7 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
         await tx.execute("UPDATE chats SET last_message_at = ?, updated_at = ? WHERE id = ?", [nowSql(), nowSql(), chatId]);
         return created;
       });
+      clearAdminSearchCache("chats");
       return { status: 201, data: { message: await row<AnyRow>("SELECT * FROM chat_messages WHERE id = ?", [result.insertId]) } };
     }
   }
@@ -331,25 +339,183 @@ export async function handleCustomer(ctx: ApiContext): Promise<HandledResult | n
   if (ctx.method === "GET" && path === "notifications") {
     const page = Math.max(1, asNumber(ctx.url.searchParams.get("page"), 1));
     const perPage = Math.min(50, Math.max(1, asNumber(ctx.url.searchParams.get("per_page"), 20)));
+
+    try {
+      const missingAnnouncements = await rows<AnyRow>(
+        `SELECT a.id FROM announcements a 
+         LEFT JOIN user_notifications n ON n.announcement_id = a.id AND n.user_id = ?
+         WHERE n.id IS NULL`,
+        [userId]
+      );
+      for (const ann of missingAnnouncements) {
+        await execute(
+          "INSERT IGNORE INTO user_notifications (user_id, announcement_id, created_at, updated_at) VALUES (?, ?, NOW(), NOW())",
+          [userId, ann.id]
+        );
+      }
+    } catch {
+      // Ignore sync error
+    }
+
     const count = await row<AnyRow>("SELECT COUNT(*) AS total FROM user_notifications WHERE user_id = ?", [userId]);
-    const notifications = await rows<AnyRow>(
+    const announcements = await rows<AnyRow>(
       `SELECT n.id, n.read_at, n.created_at, a.id AS announcement_id, a.title, a.content, a.type, a.action_url
          FROM user_notifications n JOIN announcements a ON a.id = n.announcement_id
         WHERE n.user_id = ? ORDER BY n.created_at DESC LIMIT ? OFFSET ?`,
       [userId, perPage, (page - 1) * perPage],
     );
-    const unread = await row<AnyRow>("SELECT COUNT(*) AS total FROM user_notifications WHERE user_id = ? AND read_at IS NULL", [userId]);
-    return { data: { ...pagination(ctx.request.url, notifications, asNumber(count?.total), page, perPage), unread_count: asNumber(unread?.total) } };
+
+    const formattedAnnouncements = announcements.map((a) => {
+      const text = `${a.type || ""} ${a.title || ""} ${a.content || ""}`.toLowerCase();
+      const isOrder =
+        a.type === "order" ||
+        a.type === "transaction" ||
+        text.includes("pesanan") ||
+        text.includes("invoice") ||
+        text.includes("inv-") ||
+        text.includes("transaksi") ||
+        text.includes("pembayaran") ||
+        text.includes("pembatalan") ||
+        text.includes("refund");
+
+      if (isOrder) {
+        const invMatch = (a.title || "").match(/#?(INV-[\w-]+)/i) || (a.content || "").match(/#?(INV-[\w-]+)/i);
+        const searchParam = invMatch ? `?search=${encodeURIComponent(invMatch[1])}` : "";
+        return {
+          ...a,
+          type: "transaction",
+          action_url: `/account/orders${searchParam}`,
+        };
+      }
+      return a;
+    });
+
+    // Ambil pesan chat terbaru dari admin untuk customer ini
+    const adminChatMsgs = await rows<AnyRow>(
+      `SELECT m.id AS msg_id, m.chat_id, m.message AS content, m.is_read, m.created_at, m.updated_at,
+              c.product_id, c.product_name, c.subject
+         FROM chat_messages m
+         JOIN chats c ON c.id = m.chat_id
+        WHERE c.customer_id = ? AND m.sender_type = 'admin'
+        ORDER BY m.created_at DESC, m.id DESC LIMIT 30`,
+      [userId]
+    );
+
+    const chatNotifications = adminChatMsgs.map((m) => ({
+      id: `chat_${m.msg_id}`,
+      announcement_id: null,
+      title: m.product_name ? `Pesan: ${m.product_name}` : (m.subject || "Pesan Baru dari Customer Service"),
+      content: m.content,
+      type: "chat",
+      action_url: m.product_id ? `/chat/${m.product_id}` : "cs:chat",
+      is_read: Number(m.is_read) === 1,
+      read_at: Number(m.is_read) === 1 ? m.updated_at : null,
+      created_at: m.created_at,
+      metadata: { chat_id: m.chat_id, message_id: m.msg_id, product_id: m.product_id }
+    }));
+
+    // Ambil riwayat status transaksi & update pesanan terbaru untuk customer ini
+    const customerOrders = await rows<AnyRow>(
+      `SELECT o.id, o.invoice_number, o.status, o.grand_total, o.created_at, o.updated_at, o.cancel_request_status,
+              (SELECT name FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = o.id LIMIT 1) AS first_product_name,
+              (SELECT p.id FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = o.id LIMIT 1) AS first_product_id,
+              (SELECT p.slug FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = o.id LIMIT 1) AS first_product_slug,
+              (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count,
+              (SELECT description FROM order_trackings WHERE order_id = o.id ORDER BY created_at DESC, id DESC LIMIT 1) AS latest_tracking_desc,
+              (SELECT created_at FROM order_trackings WHERE order_id = o.id ORDER BY created_at DESC, id DESC LIMIT 1) AS latest_tracking_time
+         FROM orders o
+        WHERE o.user_id = ?
+        ORDER BY o.updated_at DESC, o.id DESC LIMIT 20`,
+      [userId]
+    );
+
+    const formatOrderTitle = (o: AnyRow) => {
+      if (o.cancel_request_status === "pending") return `🚨 Pembatalan Diajukan #${o.invoice_number}`;
+      if (o.cancel_request_status === "approved" || o.status === "cancelled") return `❌ Pesanan Dibatalkan #${o.invoice_number}`;
+      if (o.cancel_request_status === "rejected") return `⚠️ Pengajuan Pembatalan Ditolak #${o.invoice_number}`;
+      if (o.status === "pending_payment") return `⏳ Menunggu Pembayaran #${o.invoice_number}`;
+      if (o.status === "paid") return `💳 Pembayaran Berhasil #${o.invoice_number}`;
+      if (o.status === "packed") return `📦 Pesanan Dikemas #${o.invoice_number}`;
+      if (o.status === "shipped") return `🚚 Pesanan Dikirim #${o.invoice_number}`;
+      if (o.status === "arrived") return `🏠 Pesanan Tiba #${o.invoice_number}`;
+      if (o.status === "completed") return `✅ Pesanan Selesai #${o.invoice_number}`;
+      return `📦 Status Pesanan #${o.invoice_number}`;
+    };
+
+    const formatOrderContent = (o: AnyRow) => {
+      const productInfo = o.first_product_name
+        ? `${o.first_product_name}${Number(o.item_count) > 1 ? ` (+${Number(o.item_count) - 1} produk lainnya)` : ""}`
+        : "Pesanan Produk";
+      const totalRupiah = `Rp ${Number(o.grand_total || 0).toLocaleString("id-ID")}`;
+      
+      if (o.latest_tracking_desc) {
+        return `${o.latest_tracking_desc} • ${productInfo} (${totalRupiah})`;
+      }
+      return `${productInfo} • Total: ${totalRupiah}`;
+    };
+
+    const orderNotifications = customerOrders.map((o) => {
+      const isCancelled = o.status === "cancelled" || o.cancel_request_status === "approved";
+      const actionUrl = isCancelled
+        ? `/account/orders?status=cancelled&search=${encodeURIComponent(o.invoice_number)}`
+        : `/account/orders?search=${encodeURIComponent(o.invoice_number)}`;
+
+      return {
+        id: `order_${o.id}`,
+        announcement_id: null,
+        title: formatOrderTitle(o),
+        content: formatOrderContent(o),
+        type: "transaction",
+        action_url: actionUrl,
+        is_read: false,
+        read_at: null,
+        created_at: o.latest_tracking_time || o.updated_at || o.created_at,
+        metadata: {
+          order_id: o.id,
+          invoice: o.invoice_number,
+          status: o.status,
+          cancel_request_status: o.cancel_request_status,
+          product_id: o.first_product_slug || o.first_product_id || null,
+          product_name: o.first_product_name || null,
+        },
+      };
+    });
+
+    // Gabungkan notifikasi pengumuman, chat admin, & riwayat transaksi, urutkan berdasarkan created_at DESC
+    const merged = [...formattedAnnouncements, ...chatNotifications, ...orderNotifications].sort((a, b) => {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
+    });
+
+    const unreadAnnouncements = await row<AnyRow>("SELECT COUNT(*) AS total FROM user_notifications WHERE user_id = ? AND read_at IS NULL", [userId]);
+    const unreadChats = await row<AnyRow>(
+      "SELECT COUNT(*) AS total FROM chat_messages m JOIN chats c ON c.id = m.chat_id WHERE c.customer_id = ? AND m.sender_type = 'admin' AND m.is_read = 0",
+      [userId]
+    );
+    const unreadOrdersCount = orderNotifications.filter((n) => !n.is_read).length;
+    const totalUnread = asNumber(unreadAnnouncements?.total) + asNumber(unreadChats?.total) + unreadOrdersCount;
+
+    return { data: { ...pagination(ctx.request.url, merged, asNumber(count?.total) + adminChatMsgs.length + customerOrders.length, page, perPage), notifications: merged, unread_count: totalUnread } };
   }
 
-  const notificationMatch = path.match(/^notifications\/(\d+)\/read$/);
+  const notificationMatch = path.match(/^notifications\/(.+)\/read$/);
   if (ctx.method === "POST" && notificationMatch) {
-    await execute("UPDATE user_notifications SET read_at = ?, updated_at = ? WHERE id = ? AND user_id = ?", [nowSql(), nowSql(), Number(notificationMatch[1]), userId]);
+    const rawId = notificationMatch[1];
+    if (rawId.startsWith("chat_")) {
+      const msgId = Number(rawId.replace("chat_", ""));
+      await execute("UPDATE chat_messages SET is_read = 1, updated_at = ? WHERE id = ? AND sender_type = 'admin' AND chat_id IN (SELECT id FROM chats WHERE customer_id = ?)", [nowSql(), msgId, userId]);
+    } else if (rawId.startsWith("order_")) {
+      // Order notification read acknowledged
+    } else {
+      await execute("UPDATE user_notifications SET read_at = ?, updated_at = ? WHERE id = ? AND user_id = ?", [nowSql(), nowSql(), Number(rawId), userId]);
+    }
     return { data: { message: "Notifikasi ditandai sudah dibaca." } };
   }
 
   if (ctx.method === "POST" && path === "notifications/read-all") {
     await execute("UPDATE user_notifications SET read_at = ?, updated_at = ? WHERE user_id = ? AND read_at IS NULL", [nowSql(), nowSql(), userId]);
+    await execute("UPDATE chat_messages SET is_read = 1, updated_at = ? WHERE sender_type = 'admin' AND is_read = 0 AND chat_id IN (SELECT id FROM chats WHERE customer_id = ?)", [nowSql(), userId]);
     return { data: { message: "Semua notifikasi ditandai sudah dibaca." } };
   }
 

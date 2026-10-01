@@ -1,6 +1,7 @@
 import { currentAdmin } from "@/lib/auth";
 import { row, rows, execute } from "@/lib/db";
 import { encryptOrderId } from "@/lib/id-cipher";
+import { clearAdminSearchCache } from "@/lib/cache";
 import type { RowDataPacket } from "mysql2/promise";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,10 @@ interface OrderNotifRow extends RowDataPacket {
   invoice_number: string;
   grand_total: number;
   status: string;
+  cancel_request_status: string | null;
+  cancel_request_reason: string | null;
   created_at: string;
+  updated_at: string;
   customer_name: string | null;
   customer_photo: string | null;
 }
@@ -52,10 +56,11 @@ export async function GET() {
   }
 
   try {
-    const [unreadChatsRow, unreadReviewsRow, pendingOrdersRow] = await Promise.all([
+    const [unreadChatsRow, unreadReviewsRow, pendingOrdersRow, pendingCancelRequestsRow] = await Promise.all([
       row<CountRow>("SELECT COUNT(*) AS total FROM chat_messages WHERE sender_type = 'customer' AND is_read = 0"),
       row<CountRow>("SELECT COUNT(*) AS total FROM product_reviews WHERE is_read = 0"),
-      row<CountRow>("SELECT COUNT(*) AS total FROM orders WHERE status IN ('pending_payment', 'paid') OR cancel_request_status IN ('pending', 'refund_processing')"),
+      row<CountRow>("SELECT COUNT(*) AS total FROM orders WHERE status IN ('pending_payment', 'paid')"),
+      row<CountRow>("SELECT COUNT(*) AS total FROM orders WHERE cancel_request_status = 'pending'"),
     ]);
 
     const [recentChats, recentReviews, recentOrders] = await Promise.all([
@@ -80,20 +85,21 @@ export async function GET() {
          LIMIT 6`
       ),
       rows<OrderNotifRow>(
-        `SELECT o.id, o.invoice_number, o.grand_total, o.status, o.cancel_request_status, o.created_at,
+        `SELECT o.id, o.invoice_number, o.grand_total, o.status, o.cancel_request_status, o.cancel_request_reason, o.created_at, o.updated_at,
                 u.name AS customer_name, u.photo AS customer_photo
          FROM orders o
          LEFT JOIN users u ON u.id = o.user_id
          WHERE o.status IN ('pending_payment', 'paid') OR o.cancel_request_status IN ('pending', 'refund_processing')
-         ORDER BY (o.cancel_request_status IN ('pending', 'refund_processing')) DESC, o.updated_at DESC
-         LIMIT 5`
+         ORDER BY (o.cancel_request_status = 'pending') DESC, (o.cancel_request_status = 'refund_processing') DESC, o.updated_at DESC
+         LIMIT 8`
       ),
     ]);
 
     const unreadChats = Number(unreadChatsRow?.total || 0);
     const unreadReviews = Number(unreadReviewsRow?.total || 0);
     const pendingOrders = Number(pendingOrdersRow?.total || 0);
-    const totalUnread = unreadChats + unreadReviews;
+    const pendingCancelRequests = Number(pendingCancelRequestsRow?.total || 0);
+    const totalUnread = unreadChats + unreadReviews + pendingCancelRequests;
 
     const formattedOrders = recentOrders.map((o) => ({
       ...o,
@@ -104,6 +110,7 @@ export async function GET() {
       unreadChats,
       unreadReviews,
       pendingOrders,
+      pendingCancelRequests,
       totalUnread,
       recentChats,
       recentReviews,
@@ -129,12 +136,16 @@ export async function POST(request: Request) {
 
     if (type === "chats") {
       await execute("UPDATE chat_messages SET is_read = 1 WHERE sender_type = 'customer' AND is_read = 0");
+      clearAdminSearchCache("chats");
     } else if (type === "reviews") {
       await execute("UPDATE product_reviews SET is_read = 1 WHERE is_read = 0");
+      clearAdminSearchCache("reviews");
     } else {
       // Mark all as read
       await execute("UPDATE chat_messages SET is_read = 1 WHERE sender_type = 'customer' AND is_read = 0");
       await execute("UPDATE product_reviews SET is_read = 1 WHERE is_read = 0");
+      clearAdminSearchCache("chats");
+      clearAdminSearchCache("reviews");
     }
 
     return Response.json({ success: true, message: "Notifikasi berhasil ditandai telah dibaca." });

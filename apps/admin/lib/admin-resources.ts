@@ -7,7 +7,7 @@ import { saveImage } from "@/lib/media";
 import { planProductGallery } from "@/lib/product-images";
 import type { TransactionDb } from "@/lib/db";
 import { asBoolean, asNumber, cleanNullable, nowSql, parseColorsArray, parseJsonArray, publicUrl, slugify } from "@/lib/utils";
-import { clearCatalogCache } from "@/lib/cache";
+import { clearCatalogCache, adminSearchCache, clearAdminSearchCache } from "@/lib/cache";
 import { decideCancellation } from "@/lib/order-cancellation";
 import { encryptOrderId, decryptOrderId } from "@/lib/id-cipher";
 
@@ -259,34 +259,184 @@ export async function getResourceMeta(key: string) {
   return meta;
 }
 
+const SYNONYMS_MAP: Record<string, string[]> = {
+  // clothes / baju / pakaian
+  baju: ["kaos", "tshirt", "t-shirt", "kemeja", "jaket", "hoodie", "almamater", "pakaian", "busana"],
+  kaos: ["baju", "tshirt", "t-shirt", "polo", "oblong"],
+  tshirt: ["kaos", "baju", "t-shirt"],
+  jaket: ["hoodie", "outerwear", "sweater", "almamater", "zipper", "bomber", "varsity"],
+  hoodie: ["jaket", "sweater", "outerwear", "zipper", "jumper"],
+  sweater: ["hoodie", "jaket", "outerwear", "sweatshirt"],
+  almamater: ["jaket", "jas", "almet", "seragam", "blazer"],
+  almet: ["almamater", "jaket", "jas", "seragam"],
+  kemeja: ["baju", "pakaian", "hem", "atasan", "formal"],
+  celana: ["trousers", "pants", "bawahan", "kulot", "jeans", "chinos", "training", "jogger"],
+
+  // accessories & bags
+  tas: ["totebag", "backpack", "ransel", "waistbag", "slingbag", "pouch", "handbag"],
+  totebag: ["tas", "tote", "tas jinjing", "goodie bag"],
+  backpack: ["tas", "ransel", "daypack"],
+  ransel: ["tas", "backpack", "daypack"],
+  waistbag: ["tas", "tas pinggang", "slingbag"],
+  slingbag: ["tas", "tas selempang"],
+  pouch: ["tas", "dompet", "organizer", "tempat pensil"],
+  topi: ["hat", "cap", "snapback", "bucket hat", "beanie"],
+  tumbler: ["botol", "minum", "thermos", "termos", "mug", "cup"],
+  botol: ["tumbler", "termos", "tempat minum"],
+  mug: ["cangkir", "gelas", "tumbler", "keramik"],
+  gelas: ["mug", "cangkir", "tumbler"],
+  pin: ["bros", "lencana", "badge", "enamel pin"],
+  lencana: ["pin", "bros", "badge"],
+  ganci: ["gantungan", "keychain", "gantungan kunci"],
+  gantungan: ["ganci", "keychain", "gantungan kunci"],
+  keychain: ["ganci", "gantungan kunci", "gantungan"],
+  lanyard: ["tali id", "tali id card", "tali gantungan", "strap", "gantungan kartu"],
+  idcard: ["lanyard", "kartu nama", "holder"],
+  stiker: ["sticker", "decal", "tempelan"],
+  sticker: ["stiker", "decal"],
+  buku: ["notebook", "notes", "agenda", "catatan", "jurnal"],
+  notebook: ["buku", "notes", "agenda", "catatan", "jurnal"],
+  notes: ["buku", "notebook", "agenda", "catatan"],
+  pulpen: ["pen", "ballpoint", "alat tulis", "pena"],
+  pen: ["pulpen", "ballpoint", "pena"],
+  payung: ["umbrella", "jas hujan"],
+  helm: ["helmet"],
+  jas: ["almamater", "blazer"],
+  seragam: ["almamater", "baju", "kaos", "pakaian"],
+
+  // campus / university terms
+  ubsi: ["bsi", "bina sarana informatika", "cyber", "kampus", "universitas"],
+  bsi: ["ubsi", "bina sarana informatika", "cyber", "kampus"],
+  maba: ["mahasiswa baru", "orientasi", "ospek", "seragam maba"],
+};
+
+const BRAND_TERMS = new Set(["ubsi", "bsi", "cyber", "store", "cyberstore", "universitas", "kampus", "official", "original"]);
+
+function buildSmartSearchClause(searchTerm: string, columns: string[]): { clause: string; values: unknown[] } {
+  const trimmed = searchTerm.trim().toLowerCase();
+  if (!trimmed) {
+    return { clause: "", values: [] };
+  }
+
+  const rawTokens = trimmed.split(/[\s,._\-+/]+/).filter(Boolean);
+  const searchTokens: string[] = [];
+  const expandedTokens: string[] = [];
+
+  for (const token of rawTokens) {
+    searchTokens.push(token);
+    const synonyms = SYNONYMS_MAP[token] || [];
+    for (const syn of synonyms) {
+      if (!expandedTokens.includes(syn) && !searchTokens.includes(syn)) {
+        expandedTokens.push(syn);
+      }
+    }
+  }
+
+  const nonBrandTokens = searchTokens.filter((t) => !BRAND_TERMS.has(t));
+  const effectiveTokens = nonBrandTokens.length > 0 ? nonBrandTokens : searchTokens;
+
+  const tokenClauses: string[] = [];
+  const mainValues: unknown[] = [];
+
+  for (const token of effectiveTokens) {
+    const colClauses = columns.map((col) => `${col} LIKE ?`);
+    tokenClauses.push(`(${colClauses.join(" OR ")})`);
+    for (let i = 0; i < columns.length; i++) {
+      mainValues.push(`%${token}%`);
+    }
+  }
+
+  const mainClause = tokenClauses.length > 0 ? `(${tokenClauses.join(" AND ")})` : "1=1";
+
+  if (expandedTokens.length > 0) {
+    const synClauses: string[] = [];
+    const synValues: unknown[] = [];
+    for (const syn of expandedTokens.slice(0, 5)) {
+      const colClauses = columns.map((col) => `${col} LIKE ?`);
+      synClauses.push(`(${colClauses.join(" OR ")})`);
+      for (let i = 0; i < columns.length; i++) {
+        synValues.push(`%${syn}%`);
+      }
+    }
+    const synClause = `(${synClauses.join(" OR ")})`;
+    return {
+      clause: `(${mainClause} OR ${synClause})`,
+      values: [...mainValues, ...synValues],
+    };
+  }
+
+  return {
+    clause: mainClause,
+    values: mainValues,
+  };
+}
+
 function listQuery(key: string, search: string, status = "", productId = "", typeFilter = "", cancelStatus = "") {
-  const like = `%${search}%`;
   const statusNum = status === "1" ? 1 : status === "0" ? 0 : status;
+
+  const searchClauseProducts = buildSmartSearchClause(search, ["p.name", "c.name", "p.sku", "p.material", "p.description", "p.slug"]);
+  const searchClauseCategories = buildSmartSearchClause(search, ["c.name", "c.slug", "c.description"]);
+  const searchClauseOrders = buildSmartSearchClause(search, [
+    "o.invoice_number",
+    "COALESCE(o.resi_number, '')",
+    "u.name",
+    "u.email",
+    "u.phone",
+    "COALESCE(ca.receiver_name, '')",
+    "COALESCE(ca.city, '')",
+    "COALESCE(ca.province, '')",
+    "COALESCE(ca.address, '')",
+    "COALESCE(e.name, '')",
+    "COALESCE(o.note, '')",
+    "(SELECT COALESCE(GROUP_CONCAT(CONCAT(oi_search.product_name, ' ', COALESCE(oi_search.color, ''), ' ', COALESCE(oi_search.size, ''), ' ', COALESCE(oi_search.nim, '')) SEPARATOR ' '), '') FROM order_items oi_search WHERE oi_search.order_id = o.id)"
+  ]);
+  const searchClausePayments = buildSmartSearchClause(search, ["o.invoice_number", "u.name", "pay.external_reference", "pay.bank_code"]);
+  const searchClauseUsers = buildSmartSearchClause(search, ["name", "email", "phone", "address"]);
+  const searchClauseStock = buildSmartSearchClause(search, ["p.name", "c.name", "p.sku", "sm.reference", "sm.note", "sm.type", "COALESCE(u.name, '')"]);
+  const searchClauseExpeditions = buildSmartSearchClause(search, ["name", "code", "service"]);
+  const searchClauseChats = buildSmartSearchClause(search, [
+    "u.name", "u.email", "u.phone", "c.subject", "c.product_name",
+    "(SELECT GROUP_CONCAT(cm_search.message SEPARATOR ' ') FROM chat_messages cm_search WHERE cm_search.chat_id = c.id)"
+  ]);
+  const searchClauseReviews = buildSmartSearchClause(search, ["p.name", "c.name", "u.name", "u.email", "u.phone", "pr.comment", "pr.reply"]);
+  const searchClauseBanners = buildSmartSearchClause(search, ["title", "description"]);
+  const searchClauseAnnouncements = buildSmartSearchClause(search, ["title", "content"]);
+  const searchClauseSettings = buildSmartSearchClause(search, ["`key`", "`value`"]);
 
   const queries: Record<string, { select: string; count: string; values: unknown[] }> = {
     products: {
       select: `SELECT p.*, c.name AS category_name FROM products p JOIN categories c ON c.id = p.category_id
-        WHERE (? = '' OR p.name LIKE ? OR p.sku LIKE ?) AND (? = '' OR p.is_active = ?) ORDER BY p.created_at DESC, p.id DESC`,
-      count: "SELECT COUNT(*) AS total FROM products p WHERE (? = '' OR p.name LIKE ? OR p.sku LIKE ?) AND (? = '' OR p.is_active = ?)",
-      values: [search, like, like, status, statusNum],
+        WHERE ${searchClauseProducts.clause ? `${searchClauseProducts.clause} AND ` : ""}(? = '' OR p.is_active = ?) ORDER BY p.created_at DESC, p.id DESC`,
+      count: `SELECT COUNT(*) AS total FROM products p JOIN categories c ON c.id = p.category_id WHERE ${searchClauseProducts.clause ? `${searchClauseProducts.clause} AND ` : ""}(? = '' OR p.is_active = ?)`,
+      values: [...searchClauseProducts.values, status, statusNum],
     },
     categories: {
       select: `SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.category_id = c.id) AS products_count FROM categories c
-        WHERE (? = '' OR c.name LIKE ?) AND (? = '' OR c.is_active = ?) ORDER BY c.name`,
-      count: "SELECT COUNT(*) AS total FROM categories c WHERE (? = '' OR c.name LIKE ?) AND (? = '' OR c.is_active = ?)",
-      values: [search, like, status, statusNum],
+        WHERE ${searchClauseCategories.clause ? `${searchClauseCategories.clause} AND ` : ""}(? = '' OR c.is_active = ?) ORDER BY c.name`,
+      count: `SELECT COUNT(*) AS total FROM categories c WHERE ${searchClauseCategories.clause ? `${searchClauseCategories.clause} AND ` : ""}(? = '' OR c.is_active = ?)`,
+      values: [...searchClauseCategories.values, status, statusNum],
     },
     orders: {
       select: `SELECT o.*,
           u.name AS customer_name, u.email AS customer_email, u.phone AS customer_phone,
           e.name AS expedition_name, e.service AS expedition_service, e.code AS expedition_code,
-          ca.address AS customer_address, ca.province, ca.city, ca.district, ca.village, ca.postal_code, ca.receiver_name, ca.phone AS address_phone
+          ca.address AS customer_address, ca.province, ca.city, ca.district, ca.village, ca.postal_code, ca.receiver_name, ca.phone AS address_phone,
+          (
+            EXISTS(
+              SELECT 1 FROM order_items oi_maba 
+              JOIN products p_maba ON p_maba.id = oi_maba.product_id 
+              WHERE oi_maba.order_id = o.id AND (p_maba.is_event_maba = 1 OR oi_maba.nim IS NOT NULL)
+            )
+            OR COALESCE(o.note, '') LIKE '%MABA%'
+            OR COALESCE(o.note, '') LIKE '%Kampus UBSI%'
+            OR COALESCE(e.name, '') LIKE '%MABA%'
+          ) AS is_event_maba
         FROM orders o
         LEFT JOIN users u ON u.id = o.user_id
         LEFT JOIN expeditions e ON e.id = o.expedition_id
         LEFT JOIN customer_addresses ca ON ca.id = o.customer_address_id
-        WHERE (? = '' OR o.invoice_number LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR o.resi_number LIKE ?)
-          AND (? = '' OR o.status = ?)
+        WHERE ${searchClauseOrders.clause ? `${searchClauseOrders.clause} AND ` : ""}
+          (? = '' OR o.status = ? OR (? = 'pending' AND o.status = 'pending_payment') OR (? = 'processing' AND o.status = 'packed'))
           AND (
             ? = ''
             OR (? = 'has_request' AND o.cancel_request_status IS NOT NULL AND o.cancel_request_status != '')
@@ -297,8 +447,10 @@ function listQuery(key: string, search: string, status = "", productId = "", typ
       count: `SELECT COUNT(*) AS total
         FROM orders o
         LEFT JOIN users u ON u.id = o.user_id
-        WHERE (? = '' OR o.invoice_number LIKE ? OR u.name LIKE ? OR u.email LIKE ? OR o.resi_number LIKE ?)
-          AND (? = '' OR o.status = ?)
+        LEFT JOIN expeditions e ON e.id = o.expedition_id
+        LEFT JOIN customer_addresses ca ON ca.id = o.customer_address_id
+        WHERE ${searchClauseOrders.clause ? `${searchClauseOrders.clause} AND ` : ""}
+          (? = '' OR o.status = ? OR (? = 'pending' AND o.status = 'pending_payment') OR (? = 'processing' AND o.status = 'packed'))
           AND (
             ? = ''
             OR (? = 'has_request' AND o.cancel_request_status IS NOT NULL AND o.cancel_request_status != '')
@@ -306,43 +458,46 @@ function listQuery(key: string, search: string, status = "", productId = "", typ
             OR o.cancel_request_status = ?
           )`,
       values: [
-        search, like, like, like, like,
-        status, status,
+        ...searchClauseOrders.values,
+        status, status, status, status,
         cancelStatus, cancelStatus, cancelStatus, cancelStatus
       ],
     },
     payments: {
       select: `SELECT pay.*, o.invoice_number, u.name AS customer_name FROM payments pay LEFT JOIN orders o ON o.id = pay.order_id LEFT JOIN users u ON u.id = o.user_id
-        WHERE (? = '' OR o.invoice_number LIKE ? OR u.name LIKE ?) AND (? = '' OR pay.status = ?) ORDER BY pay.created_at DESC`,
-      count: "SELECT COUNT(*) AS total FROM payments pay LEFT JOIN orders o ON o.id = pay.order_id LEFT JOIN users u ON u.id = o.user_id WHERE (? = '' OR o.invoice_number LIKE ? OR u.name LIKE ?) AND (? = '' OR pay.status = ?)",
-      values: [search, like, like, status, status],
+        WHERE ${searchClausePayments.clause ? `${searchClausePayments.clause} AND ` : ""}(? = '' OR pay.status = ?) ORDER BY pay.created_at DESC`,
+      count: `SELECT COUNT(*) AS total FROM payments pay LEFT JOIN orders o ON o.id = pay.order_id LEFT JOIN users u ON u.id = o.user_id WHERE ${searchClausePayments.clause ? `${searchClausePayments.clause} AND ` : ""}(? = '' OR pay.status = ?)`,
+      values: [...searchClausePayments.values, status, status],
     },
     users: {
-      select: `SELECT * FROM users WHERE (? = '' OR name LIKE ? OR email LIKE ?) AND (? = '' OR is_active = ?) ORDER BY created_at DESC`,
-      count: "SELECT COUNT(*) AS total FROM users WHERE (? = '' OR name LIKE ? OR email LIKE ?) AND (? = '' OR is_active = ?)",
-      values: [search, like, like, status, statusNum],
+      select: `SELECT * FROM users WHERE ${searchClauseUsers.clause ? `${searchClauseUsers.clause} AND ` : ""}(? = '' OR is_active = ?) ORDER BY created_at DESC`,
+      count: `SELECT COUNT(*) AS total FROM users WHERE ${searchClauseUsers.clause ? `${searchClauseUsers.clause} AND ` : ""}(? = '' OR is_active = ?)`,
+      values: [...searchClauseUsers.values, status, statusNum],
     },
     "stock-movements": {
       select: `SELECT sm.*, p.name AS product_name, p.stock AS current_stock, COALESCE(u.name, 'Sistem') AS user_name
         FROM stock_movements sm
         JOIN products p ON p.id = sm.product_id
+        LEFT JOIN categories c ON c.id = p.category_id
         LEFT JOIN users u ON u.id = sm.user_id
-        WHERE (? = '' OR p.name LIKE ? OR sm.reference LIKE ? OR sm.note LIKE ?)
-          AND (? = '' OR sm.product_id = ?)
+        WHERE ${searchClauseStock.clause ? `${searchClauseStock.clause} AND ` : ""}
+          (? = '' OR sm.product_id = ?)
           AND (? = '' OR sm.type = ?)
         ORDER BY sm.created_at DESC, sm.id DESC`,
       count: `SELECT COUNT(*) AS total
         FROM stock_movements sm
         JOIN products p ON p.id = sm.product_id
-        WHERE (? = '' OR p.name LIKE ? OR sm.reference LIKE ? OR sm.note LIKE ?)
-          AND (? = '' OR sm.product_id = ?)
+        LEFT JOIN categories c ON c.id = p.category_id
+        LEFT JOIN users u ON u.id = sm.user_id
+        WHERE ${searchClauseStock.clause ? `${searchClauseStock.clause} AND ` : ""}
+          (? = '' OR sm.product_id = ?)
           AND (? = '' OR sm.type = ?)`,
-      values: [search, like, like, like, productId, productId, typeFilter, typeFilter],
+      values: [...searchClauseStock.values, productId, productId, typeFilter, typeFilter],
     },
     expeditions: {
-      select: `SELECT * FROM expeditions WHERE (? = '' OR name LIKE ? OR code LIKE ?) AND (? = '' OR is_active = ?) ORDER BY name`,
-      count: "SELECT COUNT(*) AS total FROM expeditions WHERE (? = '' OR name LIKE ? OR code LIKE ?) AND (? = '' OR is_active = ?)",
-      values: [search, like, like, status, statusNum],
+      select: `SELECT * FROM expeditions WHERE ${searchClauseExpeditions.clause ? `${searchClauseExpeditions.clause} AND ` : ""}(? = '' OR is_active = ?) ORDER BY name`,
+      count: `SELECT COUNT(*) AS total FROM expeditions WHERE ${searchClauseExpeditions.clause ? `${searchClauseExpeditions.clause} AND ` : ""}(? = '' OR is_active = ?)`,
+      values: [...searchClauseExpeditions.values, status, statusNum],
     },
     chats: {
       select: `SELECT c.*,
@@ -352,15 +507,15 @@ function listQuery(key: string, search: string, status = "", productId = "", typ
           COALESCE(c.last_message_at, c.created_at) AS last_activity_time
         FROM chats c
         LEFT JOIN users u ON u.id = c.customer_id
-        WHERE (? = '' OR u.name LIKE ? OR u.email LIKE ? OR c.subject LIKE ?)
-          AND (? = '' OR c.status = ?)
+        WHERE ${searchClauseChats.clause ? `${searchClauseChats.clause} AND ` : ""}
+          (? = '' OR c.status = ?)
         ORDER BY COALESCE(c.last_message_at, c.created_at) DESC, c.id DESC`,
       count: `SELECT COUNT(*) AS total
         FROM chats c
         LEFT JOIN users u ON u.id = c.customer_id
-        WHERE (? = '' OR u.name LIKE ? OR u.email LIKE ? OR c.subject LIKE ?)
-          AND (? = '' OR c.status = ?)`,
-      values: [search, like, like, like, status, status],
+        WHERE ${searchClauseChats.clause ? `${searchClauseChats.clause} AND ` : ""}
+          (? = '' OR c.status = ?)`,
+      values: [...searchClauseChats.values, status, status],
     },
     reviews: {
       select: `SELECT pr.*,
@@ -368,9 +523,10 @@ function listQuery(key: string, search: string, status = "", productId = "", typ
           u.name AS customer_name, u.email AS customer_email, u.phone AS customer_phone, u.photo AS customer_photo, u.created_at AS customer_registered_at
         FROM product_reviews pr
         JOIN products p ON p.id = pr.product_id
+        LEFT JOIN categories c ON c.id = p.category_id
         LEFT JOIN users u ON u.id = pr.user_id
-        WHERE (? = '' OR p.name LIKE ? OR u.name LIKE ? OR pr.comment LIKE ?)
-          AND (
+        WHERE ${searchClauseReviews.clause ? `${searchClauseReviews.clause} AND ` : ""}
+          (
             ? = ''
             OR (? = 'unreplied' AND (pr.reply IS NULL OR pr.reply = ''))
             OR (? = 'replied' AND pr.reply IS NOT NULL AND pr.reply != '')
@@ -380,30 +536,31 @@ function listQuery(key: string, search: string, status = "", productId = "", typ
       count: `SELECT COUNT(*) AS total
         FROM product_reviews pr
         JOIN products p ON p.id = pr.product_id
+        LEFT JOIN categories c ON c.id = p.category_id
         LEFT JOIN users u ON u.id = pr.user_id
-        WHERE (? = '' OR p.name LIKE ? OR u.name LIKE ? OR pr.comment LIKE ?)
-          AND (
+        WHERE ${searchClauseReviews.clause ? `${searchClauseReviews.clause} AND ` : ""}
+          (
             ? = ''
             OR (? = 'unreplied' AND (pr.reply IS NULL OR pr.reply = ''))
             OR (? = 'replied' AND pr.reply IS NOT NULL AND pr.reply != '')
             OR pr.rating = ?
           )`,
-      values: [search, like, like, like, status, status, status, statusNum],
+      values: [...searchClauseReviews.values, status, status, status, statusNum],
     },
     banners: {
-      select: `SELECT * FROM banners WHERE (? = '' OR title LIKE ?) ORDER BY \`order\` ASC, created_at DESC`,
-      count: "SELECT COUNT(*) AS total FROM banners WHERE (? = '' OR title LIKE ?)",
-      values: [search, like],
+      select: `SELECT * FROM banners WHERE ${searchClauseBanners.clause ? `${searchClauseBanners.clause}` : "1=1"} ORDER BY \`order\` ASC, created_at DESC`,
+      count: `SELECT COUNT(*) AS total FROM banners WHERE ${searchClauseBanners.clause ? `${searchClauseBanners.clause}` : "1=1"}`,
+      values: [...searchClauseBanners.values],
     },
     announcements: {
-      select: `SELECT * FROM announcements WHERE (? = '' OR title LIKE ?) ORDER BY created_at DESC`,
-      count: "SELECT COUNT(*) AS total FROM announcements WHERE (? = '' OR title LIKE ?)",
-      values: [search, like],
+      select: `SELECT * FROM announcements WHERE ${searchClauseAnnouncements.clause ? `${searchClauseAnnouncements.clause}` : "1=1"} ORDER BY created_at DESC`,
+      count: `SELECT COUNT(*) AS total FROM announcements WHERE ${searchClauseAnnouncements.clause ? `${searchClauseAnnouncements.clause}` : "1=1"}`,
+      values: [...searchClauseAnnouncements.values],
     },
     settings: {
-      select: `SELECT * FROM settings WHERE \`key\` NOT LIKE 'rajaongkir_%' AND \`key\` NOT LIKE 'midtrans_%' AND (? = '' OR \`key\` LIKE ? OR \`value\` LIKE ?) ORDER BY \`key\``,
-      count: "SELECT COUNT(*) AS total FROM settings WHERE `key` NOT LIKE 'rajaongkir_%' AND `key` NOT LIKE 'midtrans_%' AND (? = '' OR `key` LIKE ? OR `value` LIKE ?)",
-      values: [search, like, like],
+      select: `SELECT * FROM settings WHERE \`key\` NOT LIKE 'rajaongkir_%' AND \`key\` NOT LIKE 'midtrans_%' ${searchClauseSettings.clause ? `AND ${searchClauseSettings.clause}` : ""} ORDER BY \`key\``,
+      count: `SELECT COUNT(*) AS total FROM settings WHERE \`key\` NOT LIKE 'rajaongkir_%' AND \`key\` NOT LIKE 'midtrans_%' ${searchClauseSettings.clause ? `AND ${searchClauseSettings.clause}` : ""}`,
+      values: [...searchClauseSettings.values],
     },
   };
   const item = queries[key];
@@ -491,6 +648,12 @@ export async function listResource(
     perPage = perPageArg || 15;
   }
 
+  const cacheKey = `admin:${key}:${JSON.stringify({ search: search.trim().toLowerCase(), status, productId, typeFilter, cancelStatus, page, perPage })}`;
+  const cached = adminSearchCache.get<{ data: AnyRow[]; total: number; page: number; perPage: number; pages: number }>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const query = listQuery(key, search, status, productId, typeFilter, cancelStatus);
   const offset = Math.max(0, (page - 1) * perPage);
   const [totalRow] = await rows<AnyRow>(query.count, query.values);
@@ -498,7 +661,9 @@ export async function listResource(
 
   if (key === "settings") {
     const data = await rows<AnyRow>(query.select, query.values);
-    return { data, total: data.length, page: 1, perPage: Math.max(1, data.length), pages: 1 };
+    const result = { data, total: data.length, page: 1, perPage: Math.max(1, data.length), pages: 1 };
+    adminSearchCache.set(cacheKey, result);
+    return result;
   }
 
   const data = await rows<AnyRow>(`${query.select} LIMIT ? OFFSET ?`, [...query.values, perPage, offset]);
@@ -519,7 +684,9 @@ export async function listResource(
       order.encrypted_id = encryptOrderId(Number(order.id));
     }
   }
-  return { data, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
+  const result = { data, total, page, perPage, pages: Math.max(1, Math.ceil(total / perPage)) };
+  adminSearchCache.set(cacheKey, result);
+  return result;
 }
 
 export async function getOrderDetail(orderId: number | string) {
@@ -542,13 +709,24 @@ export async function getOrderDetail(orderId: number | string) {
   order.encrypted_id = encryptOrderId(Number(order.id));
 
   const items = await rows<AnyRow>(
-    `SELECT oi.*, p.main_photo, p.name AS catalog_name
+    `SELECT oi.*, p.main_photo, p.name AS catalog_name, p.is_event_maba, p.sizes, p.maba_color_ganjil, p.maba_color_genap
      FROM order_items oi
      LEFT JOIN products p ON p.id = oi.product_id
      WHERE oi.order_id = ?
      ORDER BY oi.id ASC`,
     [numericId]
   );
+
+  for (const it of items) {
+    it.has_sizes = Boolean(it.sizes && it.sizes !== "[]" && it.sizes !== "null");
+  }
+
+  const isEventMaba = items.some((it) => Boolean(it.is_event_maba || it.nim || it.campus_location)) ||
+    Boolean(order.is_event_maba) ||
+    Boolean(order.note && (String(order.note).toLowerCase().includes("maba") || String(order.note).toLowerCase().includes("kampus ubsi"))) ||
+    Boolean(order.expedition_name && String(order.expedition_name).toLowerCase().includes("maba"));
+
+  order.is_event_maba = isEventMaba ? 1 : 0;
 
   const [payment] = await rows<AnyRow>(
     `SELECT * FROM payments WHERE order_id = ? ORDER BY id DESC LIMIT 1`,
@@ -583,6 +761,7 @@ export async function getChatDetail(chatId: number) {
     "UPDATE chat_messages SET is_read = 1 WHERE chat_id = ? AND sender_type = 'customer' AND is_read = 0",
     [chatId]
   );
+  clearAdminSearchCache("chats");
 
   const messages = await rows<AnyRow>(
     `SELECT m.*, u.name AS sender_name, u.photo AS sender_photo
@@ -632,6 +811,7 @@ export async function getReviewDetail(reviewId: number) {
   if (!review.is_read) {
     await execute("UPDATE product_reviews SET is_read = 1 WHERE id = ?", [reviewId]);
     review.is_read = 1;
+    clearAdminSearchCache("reviews");
   }
 
   // Customer's other reviews
@@ -740,6 +920,8 @@ export async function createResource(key: string, data: Record<string, unknown>,
       return newId;
     });
     clearCatalogCache();
+    clearAdminSearchCache("products");
+    clearAdminSearchCache("stock-movements");
     return insertedId;
   }
 
@@ -754,6 +936,8 @@ export async function createResource(key: string, data: Record<string, unknown>,
       [name, slug, desc, isActive ? 1 : 0]
     );
     clearCatalogCache();
+    clearAdminSearchCache("categories");
+    clearAdminSearchCache("products");
     return res.insertId;
   }
 
@@ -786,6 +970,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [name, email, hash, role, phone, address, photoFile, isActive ? 1 : 0]
     );
+    clearAdminSearchCache("users");
     return res.insertId;
   }
 
@@ -799,7 +984,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
     const reference = String(data.reference || `ADJ-${Date.now()}`).trim();
     const note = cleanNullable(data.note as string);
 
-    return await transaction(async (tx) => {
+    const smId = await transaction(async (tx) => {
       const prod = await tx.rows<AnyRow>("SELECT stock FROM products WHERE id = ?", [productId]);
       if (!prod.length) throw new ApiError(404, "Produk tidak ditemukan.");
       const currentStock = Number(prod[0].stock || 0);
@@ -813,6 +998,10 @@ export async function createResource(key: string, data: Record<string, unknown>,
       );
       return sm.insertId;
     });
+    clearCatalogCache();
+    clearAdminSearchCache("stock-movements");
+    clearAdminSearchCache("products");
+    return smId;
   }
 
   if (key === "expeditions") {
@@ -828,6 +1017,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [name, code, service, baseCost, estDays, isActive ? 1 : 0]
     );
+    clearAdminSearchCache("expeditions");
     return res.insertId;
   }
 
@@ -840,6 +1030,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
       "INSERT INTO banners (title, description, image_path, `order`, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
       [title, desc, imageFile, order]
     );
+    clearAdminSearchCache("banners");
     return res.insertId;
   }
 
@@ -853,7 +1044,20 @@ export async function createResource(key: string, data: Record<string, unknown>,
       "INSERT INTO announcements (title, content, type, action_url, created_at, updated_at) VALUES (?, ?, ?, ?, NOW(), NOW())",
       [title, content, type, actionUrl]
     );
-    return res.insertId;
+    const announcementId = res.insertId;
+    try {
+      const allUsers = await rows<AnyRow>("SELECT id FROM users");
+      for (const u of allUsers) {
+        await execute(
+          "INSERT IGNORE INTO user_notifications (user_id, announcement_id, created_at, updated_at) VALUES (?, ?, NOW(), NOW())",
+          [u.id, announcementId]
+        );
+      }
+    } catch (e) {
+      console.error("Failed to broadcast announcement to user_notifications:", e);
+    }
+    clearAdminSearchCache("announcements");
+    return announcementId;
   }
 
   if (key === "settings") {
@@ -883,6 +1087,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
           [k, v === null || v === undefined ? "" : String(v)]
         );
       }
+      clearAdminSearchCache("settings");
       return 1;
     }
 
@@ -896,6 +1101,7 @@ export async function createResource(key: string, data: Record<string, unknown>,
       "INSERT INTO settings (`key`, `value`, created_at, updated_at) VALUES (?, ?, NOW(), NOW()) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`), updated_at = NOW()",
       [settingKey, settingVal]
     );
+    clearAdminSearchCache("settings");
     return res.insertId;
   }
 
@@ -1002,6 +1208,8 @@ export async function updateResource(key: string, id: number, data: Record<strin
       }
     });
     clearCatalogCache();
+    clearAdminSearchCache("products");
+    clearAdminSearchCache("stock-movements");
     return;
   }
 
@@ -1018,6 +1226,8 @@ export async function updateResource(key: string, id: number, data: Record<strin
       [name, slug, desc, isActive ? 1 : 0, id]
     );
     clearCatalogCache();
+    clearAdminSearchCache("categories");
+    clearAdminSearchCache("products");
     return;
   }
 
@@ -1026,7 +1236,16 @@ export async function updateResource(key: string, id: number, data: Record<strin
     if (!existing) throw new ApiError(404, "Pesanan tidak ditemukan.");
 
     if (["approved", "rejected"].includes(String(data.cancel_request_status)) || (data.cancel_request_status !== undefined && String(data.cancel_request_status || "") !== String(existing.cancel_request_status || ""))) {
-      await decideCancellation(id, String(data.cancel_request_status), Number(adminUser.id));
+      await decideCancellation(id, String(data.cancel_request_status), Number(adminUser.id), {
+        refund_bank_name: data.refund_bank_name !== undefined ? String(data.refund_bank_name) : undefined,
+        refund_account_number: data.refund_account_number !== undefined ? String(data.refund_account_number) : undefined,
+        refund_account_name: data.refund_account_name !== undefined ? String(data.refund_account_name) : undefined,
+        refund_amount: data.refund_amount !== undefined ? Number(data.refund_amount) : undefined,
+        refund_notes: data.refund_notes !== undefined ? String(data.refund_notes) : undefined,
+        refund_proof_photo: data.refund_proof_photo !== undefined ? String(data.refund_proof_photo) : undefined,
+      });
+      clearAdminSearchCache("orders");
+      clearAdminSearchCache("stock-movements");
       return;
     }
     assert(!["pending", "refund_processing"].includes(String(existing.cancel_request_status)), "Tanggapi pengajuan pembatalan terlebih dahulu.");
@@ -1068,8 +1287,33 @@ export async function updateResource(key: string, id: number, data: Record<strin
     assert(updated.affectedRows === 1, "Pesanan berubah. Muat ulang sebelum menyimpan.", 409);
 
     if (finalStatus !== String(existing.status) || (resiNumber && resiNumber !== String(existing.resi_number || ""))) {
-      const statusLabels: Record<string, { desc: string; loc: string }> = {
-        packed: { desc: "Pesanan sedang diproses dan dikemas di gudang.", loc: "Gudang Cyber Store" },
+      const [mabaItem] = await rows<AnyRow>(
+        "SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id WHERE oi.order_id = ? AND (p.is_event_maba = 1 OR oi.nim IS NOT NULL) LIMIT 1",
+        [id]
+      );
+      const isMaba = Boolean(
+        existing.is_event_maba ||
+        Boolean(mabaItem) ||
+        (existing.note && String(existing.note).toLowerCase().includes("maba")) ||
+        (existing.note && String(existing.note).toLowerCase().includes("kampus ubsi")) ||
+        (existing.expedition_name && String(existing.expedition_name).toLowerCase().includes("maba"))
+      );
+
+      const [storeSetting] = await rows<AnyRow>(
+        "SELECT value FROM settings WHERE `key` = 'store_address' LIMIT 1"
+      );
+      const storeAddress = String(storeSetting?.value || "Gudang Logistik UBSI").trim();
+
+      const statusLabels: Record<string, { desc: string; loc: string }> = isMaba ? {
+        pending_payment: { desc: "Menunggu pembayaran perlengkapan dari calon mahasiswa.", loc: "Sistem" },
+        paid: { desc: "Pembayaran berhasil diverifikasi. Pesanan masuk antrean penyiapan seragam MABA.", loc: "Sistem / PMB" },
+        packed: { desc: "Perlengkapan Event MABA sedang disiapkan dan dikemas oleh Admin Kampus.", loc: storeAddress },
+        shipped: { desc: `Perlengkapan Event MABA dalam proses distribusi menuju lokasi Kampus UBSI.${resiNumber ? ` (Ref: ${resiNumber})` : ""}`, loc: "Distribusi Internal Kampus" },
+        arrived: { desc: "Perlengkapan telah tiba di Kampus UBSI tujuan dan siap diambil di titik temu PMB.", loc: "Titik Temu Kampus UBSI" },
+        completed: { desc: "Perlengkapan Event MABA telah resmi diserahkan dan diterima oleh Mahasiswa Baru.", loc: "Kampus UBSI" },
+        cancelled: { desc: "Pesanan perlengkapan Event MABA telah dibatalkan.", loc: "Sistem" },
+      } : {
+        packed: { desc: "Pesanan sedang diproses dan dikemas di gudang.", loc: storeAddress },
         shipped: { desc: `Pesanan telah dikirim via kurir ${existing.expedition_name || "ekspedisi"}${resiNumber ? ` (Resi: ${resiNumber})` : ""}.`, loc: "Kurir Hub" },
         arrived: { desc: "Paket telah tiba di alamat tujuan.", loc: "Alamat Pelanggan" },
         completed: { desc: "Pesanan telah selesai dan diterima (Proof of Delivery / POD).", loc: "Sistem" },
@@ -1084,6 +1328,8 @@ export async function updateResource(key: string, id: number, data: Record<strin
         [id, finalStatus, info.desc, info.loc]
       );
     }
+    clearAdminSearchCache("orders");
+    clearAdminSearchCache("stock-movements");
     return;
   }
 
@@ -1126,6 +1372,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       `UPDATE users SET name = ?, email = ?, password = ?, role = ?, phone = ?, address = ?, photo = ?, is_active = ?, updated_at = NOW() WHERE id = ?`,
       [name, email, hash, role, phone, address, photo, isActive ? 1 : 0, id]
     );
+    clearAdminSearchCache("users");
     return;
   }
 
@@ -1145,6 +1392,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       `UPDATE expeditions SET name = ?, code = ?, service = ?, base_cost = ?, estimated_days = ?, is_active = ?, updated_at = NOW() WHERE id = ?`,
       [name, code, service, baseCost, estDays, isActive ? 1 : 0, id]
     );
+    clearAdminSearchCache("expeditions");
     return;
   }
 
@@ -1165,6 +1413,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       }
       await tx.execute("UPDATE chat_messages SET is_read = 1 WHERE chat_id = ? AND sender_type = 'customer'", [id]);
     });
+    clearAdminSearchCache("chats");
     return;
   }
 
@@ -1179,6 +1428,8 @@ export async function updateResource(key: string, id: number, data: Record<strin
       "UPDATE product_reviews SET reply = ?, is_read = ?, updated_at = NOW() WHERE id = ?",
       [reply, isRead ? 1 : 0, id]
     );
+    clearCatalogCache();
+    clearAdminSearchCache("reviews");
     return;
   }
 
@@ -1196,6 +1447,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       "UPDATE banners SET title = ?, description = ?, image_path = ?, `order` = ?, updated_at = NOW() WHERE id = ?",
       [title, desc, imageFile, order, id]
     );
+    clearAdminSearchCache("banners");
     return;
   }
 
@@ -1212,6 +1464,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       "UPDATE announcements SET title = ?, content = ?, type = ?, action_url = ?, updated_at = NOW() WHERE id = ?",
       [title, content, type, actionUrl, id]
     );
+    clearAdminSearchCache("announcements");
     return;
   }
 
@@ -1235,6 +1488,7 @@ export async function updateResource(key: string, id: number, data: Record<strin
       "UPDATE settings SET `key` = ?, `value` = ?, updated_at = NOW() WHERE id = ?",
       [settingKey, settingVal, id]
     );
+    clearAdminSearchCache("settings");
     return;
   }
 
@@ -1250,7 +1504,7 @@ export async function deleteResource(key: string, id: number, _adminUser: ApiUse
     if (!existing) throw new ApiError(404, "Pengguna tidak ditemukan.");
 
     if (existing.id === _adminUser.id) {
-      throw new ApiError(400, "Anda tidak dapat menghapus atau menonaktifkan akun Anda sendiri yang sedang aktif digunakan.");
+      throw new ApiError(400, "Anda tidak dapat menghapus akun Anda sendiri yang sedang aktif digunakan.");
     }
 
     if (_adminUser.role !== "superadmin") {
@@ -1259,34 +1513,79 @@ export async function deleteResource(key: string, id: number, _adminUser: ApiUse
       }
     }
 
-    const orderCount = await row<AnyRow>("SELECT COUNT(*) AS total FROM orders WHERE user_id = ?", [id]);
-    const hasOrders = Number(orderCount?.total || 0) > 0;
-
-    if (hasOrders) {
-      await execute("UPDATE users SET is_active = 0, updated_at = NOW() WHERE id = ?", [id]);
-      await execute("DELETE FROM personal_access_tokens WHERE tokenable_type = 'App\\\\Models\\\\User' AND tokenable_id = ?", [id]);
-      return "deactivated";
-    }
-
     await transaction(async (tx) => {
+      // 1. Bersihkan sesi dan token autentikasi
       await tx.execute("DELETE FROM personal_access_tokens WHERE tokenable_type = 'App\\\\Models\\\\User' AND tokenable_id = ?", [id]);
       await tx.execute("DELETE FROM password_reset_tokens WHERE email = ?", [existing.email]);
       await tx.execute("DELETE FROM user_notifications WHERE user_id = ?", [id]);
+
+      // 2. Bersihkan keranjang
       await tx.execute("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id = ?)", [id]);
       await tx.execute("DELETE FROM carts WHERE user_id = ?", [id]);
-      await tx.execute("DELETE FROM customer_addresses WHERE user_id = ?", [id]);
+
+      // 3. Bersihkan pesan obrolan / support
       await tx.execute("DELETE FROM chat_messages WHERE sender_id = ? OR chat_id IN (SELECT id FROM chats WHERE customer_id = ?)", [id, id]);
       await tx.execute("DELETE FROM chats WHERE customer_id = ?", [id]);
-      await tx.execute("DELETE FROM product_review_replies WHERE user_id = ?", [id]);
+
+      // 4. Bersihkan ulasan dan balasan
+      await tx.execute("DELETE FROM product_review_replies WHERE user_id = ? OR product_review_id IN (SELECT id FROM product_reviews WHERE user_id = ?)", [id, id]);
       await tx.execute("DELETE FROM product_reviews WHERE user_id = ?", [id]);
+
+      // 5. Update user_id di histori pergerakan stok menjadi NULL (agar data stok tidak rusak/hilang)
+      await tx.execute("UPDATE stock_movements SET user_id = NULL WHERE user_id = ?", [id]);
+
+      // 6. Bersihkan riwayat pesanan (orders, payments, order_items, trackings)
+      const userOrders = await tx.rows<AnyRow>("SELECT id FROM orders WHERE user_id = ?", [id]);
+      const orderIds = userOrders.map((o: AnyRow) => Number(o.id)).filter(Boolean);
+      if (orderIds.length > 0) {
+        const orderPlaceholders = orderIds.map(() => "?").join(",");
+        await tx.execute(`DELETE FROM order_trackings WHERE order_id IN (${orderPlaceholders})`, orderIds);
+        await tx.execute(`DELETE FROM order_items WHERE order_id IN (${orderPlaceholders})`, orderIds);
+        await tx.execute(`DELETE FROM payments WHERE order_id IN (${orderPlaceholders})`, orderIds);
+        await tx.execute(`DELETE FROM orders WHERE id IN (${orderPlaceholders})`, orderIds);
+      }
+
+      // 7. Bersihkan alamat pengiriman
+      await tx.execute("DELETE FROM customer_addresses WHERE user_id = ?", [id]);
+
+      // 8. Hapus record pengguna
       await tx.execute("DELETE FROM users WHERE id = ?", [id]);
     });
+
+    clearAdminSearchCache("users");
+    clearAdminSearchCache("chats");
+    clearAdminSearchCache("reviews");
     return "deleted";
   }
 
   if (key === "products") {
-    await execute("DELETE FROM products WHERE id = ?", [id]);
+    await transaction(async (tx) => {
+      // 1. Bersihkan dari keranjang aktif
+      await tx.execute("DELETE FROM cart_items WHERE product_id = ?", [id]);
+
+      // 2. Bersihkan chat terkait produk
+      await tx.execute("DELETE FROM chat_messages WHERE chat_id IN (SELECT id FROM chats WHERE product_id = ?)", [id]);
+      await tx.execute("DELETE FROM chats WHERE product_id = ?", [id]);
+
+      // 3. Bersihkan ulasan & balasan ulasan produk
+      await tx.execute("DELETE FROM product_review_replies WHERE product_review_id IN (SELECT id FROM product_reviews WHERE product_id = ?)", [id]);
+      await tx.execute("DELETE FROM product_reviews WHERE product_id = ?", [id]);
+
+      // 4. Bersihkan foto produk dan histori pergerakan stok
+      await tx.execute("DELETE FROM product_images WHERE product_id = ?", [id]);
+      await tx.execute("DELETE FROM stock_movements WHERE product_id = ?", [id]);
+
+      // 5. Bersihkan item pesanan yang terikat foreign key ke produk ini
+      await tx.execute("DELETE FROM order_items WHERE product_id = ?", [id]);
+
+      // 6. Hapus master produk
+      await tx.execute("DELETE FROM products WHERE id = ?", [id]);
+    });
+
     clearCatalogCache();
+    clearAdminSearchCache("products");
+    clearAdminSearchCache("stock-movements");
+    clearAdminSearchCache("reviews");
     return "deleted";
   }
 
@@ -1295,37 +1594,46 @@ export async function deleteResource(key: string, id: number, _adminUser: ApiUse
     if (Number(count?.total || 0) > 0) throw new ApiError(422, "Kategori tidak dapat dihapus karena masih digunakan oleh produk.");
     await execute("DELETE FROM categories WHERE id = ?", [id]);
     clearCatalogCache();
+    clearAdminSearchCache("categories");
+    clearAdminSearchCache("products");
     return "deleted";
   }
 
   if (key === "expeditions") {
     await execute("DELETE FROM expeditions WHERE id = ?", [id]);
+    clearAdminSearchCache("expeditions");
     return "deleted";
   }
 
   if (key === "banners") {
     await execute("DELETE FROM banners WHERE id = ?", [id]);
+    clearAdminSearchCache("banners");
     return "deleted";
   }
 
   if (key === "announcements") {
     await execute("DELETE FROM announcements WHERE id = ?", [id]);
+    clearAdminSearchCache("announcements");
     return "deleted";
   }
 
   if (key === "chats") {
     await execute("DELETE FROM chat_messages WHERE chat_id = ?", [id]);
     await execute("DELETE FROM chats WHERE id = ?", [id]);
+    clearAdminSearchCache("chats");
     return "deleted";
   }
 
   if (key === "reviews") {
     await execute("DELETE FROM product_reviews WHERE id = ?", [id]);
+    clearCatalogCache();
+    clearAdminSearchCache("reviews");
     return "deleted";
   }
 
   if (key === "settings") {
     await execute("DELETE FROM settings WHERE id = ?", [id]);
+    clearAdminSearchCache("settings");
     return "deleted";
   }
 

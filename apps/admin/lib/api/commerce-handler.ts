@@ -1,12 +1,14 @@
 import type { RowDataPacket } from "mysql2";
 import { execute, row, rows, transaction } from "@/lib/db";
 import { ApiError, assert, pagination } from "@/lib/http";
-import { createSnapTransaction, getMidtransStatus, verifyMidtransSignature } from "@/lib/midtrans";
+import { cancelMidtransTransaction, createSnapTransaction, getMidtransStatus, verifyMidtransSignature } from "@/lib/midtrans";
+import { isWithinBusinessDay } from "@/lib/business-day";
 import { hydrateOrder } from "@/lib/api/serializers";
 import { findCityId, shippingCost } from "@/lib/shipping";
 import { asNumber, nowSql, randomString } from "@/lib/utils";
 import type { ApiContext, HandledResult } from "@/lib/api/types";
-import { clearCatalogCache } from "@/lib/cache";
+import { clearCatalogCache, clearAdminSearchCache } from "@/lib/cache";
+import { logger } from "@/lib/logger";
 
 type AnyRow = RowDataPacket & Record<string, unknown>;
 
@@ -69,6 +71,9 @@ async function applyPaymentStatus(payment: AnyRow, statusData: { status: string;
         }
       });
       clearCatalogCache();
+      clearAdminSearchCache("orders");
+      clearAdminSearchCache("stock-movements");
+      clearAdminSearchCache("products");
     }
     return;
   }
@@ -80,25 +85,63 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
   const body = ctx.body;
 
   if (ctx.method === "POST" && path === "payments/midtrans-callback") {
+    const orderId = text(body, "order_id");
+    const statusCode = text(body, "status_code");
+    const grossAmount = text(body, "gross_amount");
+    const transactionStatus = text(body, "transaction_status");
+
+    logger.info(`[Midtrans Webhook Received] Order: ${orderId}, Status: ${transactionStatus}, Code: ${statusCode}`, {
+      orderId,
+      statusCode,
+      grossAmount,
+      transactionStatus,
+      paymentType: text(body, "payment_type"),
+    });
+
     const required = ["order_id", "status_code", "gross_amount", "signature_key"];
-    assert(required.every((key) => text(body, key)), "Parameter tidak lengkap.", 400);
-    assert(verifyMidtransSignature({
-      order_id: text(body, "order_id"),
-      status_code: text(body, "status_code"),
-      gross_amount: text(body, "gross_amount"),
+    if (!required.every((key) => text(body, key))) {
+      logger.warn("[Midtrans Webhook Rejected] Missing required webhook fields", { orderId, bodyKeys: Object.keys(body) });
+      throw new ApiError(400, "Parameter tidak lengkap.");
+    }
+
+    const isValidSignature = verifyMidtransSignature({
+      order_id: orderId,
+      status_code: statusCode,
+      gross_amount: grossAmount,
       signature_key: text(body, "signature_key"),
-    }), "Tanda tangan tidak valid.", 403);
+    });
+
+    if (!isValidSignature) {
+      logger.warn(`[Midtrans Webhook Rejected] Signature verification failed for order ${orderId}`, {
+        orderId,
+        statusCode,
+        grossAmount,
+      });
+      throw new ApiError(403, "Tanda tangan tidak valid.");
+    }
+
     const payment = await row<AnyRow>(
       "SELECT p.* FROM payments p JOIN orders o ON o.id = p.order_id WHERE o.invoice_number = ? LIMIT 1",
-      [text(body, "order_id")],
+      [orderId],
     );
-    if (!payment) throw new ApiError(404, "Data pembayaran order tidak ditemukan.");
+    if (!payment) {
+      logger.warn(`[Midtrans Webhook Error] Payment row not found for invoice: ${orderId}`, { orderId });
+      throw new ApiError(404, "Data pembayaran order tidak ditemukan.");
+    }
+
     await applyPaymentStatus(payment, {
-      status: text(body, "transaction_status"),
+      status: transactionStatus,
       bank: text(body, "bank") || text(body, "payment_type") || null,
       va_number: Array.isArray(body.va_numbers) ? String((body.va_numbers[0] as Record<string, unknown>)?.va_number || "") : text(body, "permata_va_number") || null,
       biller_code: text(body, "biller_code") || null,
     });
+
+    logger.audit("MIDTRANS_PAYMENT_STATUS_SYNC", {
+      target: { type: "order_payment", id: String(payment.id) },
+      status: "success",
+      metadata: { invoice: orderId, newStatus: transactionStatus, grossAmount },
+    });
+
     return { data: { message: "Status pembayaran berhasil diperbarui." } };
   }
 
@@ -122,7 +165,7 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
         const prodId = asNumber(rawItem.product_id);
         const qty = Math.max(1, asNumber(rawItem.quantity, 1));
         if (prodId <= 0) continue;
-        const prod = await row<AnyRow>("SELECT id, name, price, stock, weight, is_active FROM products WHERE id = ?", [prodId]);
+        const prod = await row<AnyRow>("SELECT id, name, price, stock, weight, is_active, is_event_maba FROM products WHERE id = ?", [prodId]);
         if (!prod) throw new ApiError(404, `Produk dengan ID ${prodId} tidak ditemukan.`);
         cartItems.push({
           id: asNumber(rawItem.id || 0),
@@ -132,6 +175,7 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
           stock: prod.stock,
           weight: prod.weight,
           is_active: prod.is_active,
+          is_event_maba: Boolean(prod.is_event_maba),
           quantity: qty,
           size: rawItem.size ? String(rawItem.size).slice(0, 50) : null,
           color: rawItem.color ? String(rawItem.color).slice(0, 50) : null,
@@ -147,7 +191,7 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
         const selectedIds = Array.isArray(body.cart_item_ids) ? body.cart_item_ids.map(Number).filter(Number.isFinite) : [];
         const whereSelected = selectedIds.length ? ` AND ci.id IN (${selectedIds.map(() => "?").join(",")})` : "";
         cartItems = await rows<AnyRow>(
-          `SELECT ci.*, p.name, p.price, p.stock, p.weight, p.is_active
+          `SELECT ci.*, p.name, p.price, p.stock, p.weight, p.is_active, p.is_event_maba
              FROM cart_items ci JOIN products p ON p.id = ci.product_id
             WHERE ci.cart_id = ?${whereSelected}`,
           [cart.id, ...selectedIds],
@@ -163,6 +207,7 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
       assert(item.is_active, `Produk ${item.name} saat ini sedang tidak aktif.`);
       assert(asNumber(item.stock) >= asNumber(item.quantity), `Stok produk ${item.name} hanya tersisa ${item.stock} unit.`);
     }
+    const hasEventMaba = cartItems.some((item) => Boolean(item.is_event_maba));
     const subtotal = cartItems.reduce((total, item) => total + asNumber(item.price) * asNumber(item.quantity), 0);
     const totalWeight = cartItems.reduce((total, item) => total + Math.max(1, asNumber(item.weight, 1000)) * asNumber(item.quantity), 0);
     const totalQuantity = cartItems.reduce((total, item) => total + asNumber(item.quantity), 0);
@@ -170,9 +215,9 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
     const origin = await setting("store_city_id", "152");
     const courier = expedition.code === "sicepat" ? "jne" : String(expedition.code).replace(/_reg$/, "");
     const remoteCost = destination ? await shippingCost({ origin, destination, weight: totalWeight, courier, service: expedition.code === "pos" ? "Pos Kilat Khusus" : "REG" }) : null;
-    let shipping = remoteCost?.value || asNumber(expedition.base_cost) + Math.max(0, totalQuantity - 1) * 1000;
-    if (expedition.code === "sicepat" && remoteCost) shipping = Math.max(8000, shipping - 2000);
-    const serviceFee = 2000;
+    let shipping = hasEventMaba ? 0 : (remoteCost?.value || asNumber(expedition.base_cost) + Math.max(0, totalQuantity - 1) * 1000);
+    if (!hasEventMaba && expedition.code === "sicepat" && remoteCost) shipping = Math.max(8000, shipping - 2000);
+    const serviceFee = 4400;
     const grandTotal = subtotal + shipping + serviceFee;
     // Urutkan item berdasarkan product_id secara deterministik untuk mencegah deadlock saat row-level locking
     cartItems.sort((a, b) => Number(a.product_id) - Number(b.product_id));
@@ -217,6 +262,9 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
     });
 
     clearCatalogCache();
+    clearAdminSearchCache("orders");
+    clearAdminSearchCache("stock-movements");
+    clearAdminSearchCache("products");
 
     let midtrans: Awaited<ReturnType<typeof createSnapTransaction>>;
     try {
@@ -235,7 +283,7 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
         [midtrans.token, midtrans.redirect_url, midtrans.transaction_id || null, nowSql(), orderId],
       );
     } catch (midtransError) {
-      console.error("[Midtrans Snap Creation Failed]", midtransError);
+      logger.error("[Midtrans Snap Creation Failed]", { invoice, orderId, error: midtransError });
       await transaction(async (tx) => {
         await tx.execute("UPDATE orders SET status = 'cancelled', updated_at = ? WHERE id = ?", [nowSql(), orderId]);
         await tx.execute("UPDATE payments SET status = 'failed', updated_at = ? WHERE order_id = ?", [nowSql(), orderId]);
@@ -332,18 +380,126 @@ export async function handleCommerce(ctx: ApiContext): Promise<HandledResult | n
   const cancelMatch = path.match(/^orders\/(\d+)\/cancel$/);
   if (ctx.method === "POST" && cancelMatch) {
     const id = Number(cancelMatch[1]);
-    const reason = text(body, "reason").trim();
-    assert(reason.length > 0 && reason.length <= 1000, "Alasan pembatalan wajib diisi, maksimal 1000 karakter.");
+    const reason = text(body, "reason").trim() || "Dibatalkan oleh pelanggan";
+    assert(reason.length <= 1000, "Alasan pembatalan maksimal 1000 karakter.");
+
+    let wasInstantCancel = false;
+    let orderInvoice = "";
+
     await transaction(async (tx) => {
       const order = await tx.row<AnyRow>("SELECT * FROM orders WHERE id = ? AND user_id = ? FOR UPDATE", [id, userId]);
       assert(order, "Pesanan tidak ditemukan.", 404);
-      assert(["pending_payment", "paid"].includes(String(order.status)), "Pesanan sudah diproses dan tidak dapat dibatalkan.");
+      assert(["pending_payment", "paid"].includes(String(order.status)), "Pesanan sudah diproses atau dikirim dan tidak dapat dibatalkan.");
       assert(!["pending", "approved", "refund_processing"].includes(String(order.cancel_request_status)), "Pengajuan pembatalan sedang diproses atau sudah disetujui.");
-      assert(Date.now() - new Date(String(order.created_at)).getTime() <= 86400000, "Batas pengajuan pembatalan 24 jam telah berakhir.");
-      await tx.execute("UPDATE orders SET cancel_request_status = 'pending', cancel_request_reason = ?, updated_at = NOW() WHERE id = ?", [reason, id]);
-      await tx.execute("INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, ?, ?, 'Pelanggan', NOW(), NOW())", [id, order.status, `Mengajukan pembatalan pesanan. Alasan: ${reason}`]);
+
+      orderInvoice = String(order.invoice_number);
+
+      if (order.status === "pending_payment") {
+        // KASUS 1: BELUM MEMBAYAR -> Langsung batalkan seketika tanpa perlu pengajuan/persetujuan admin
+        wasInstantCancel = true;
+        await tx.execute(
+          "UPDATE orders SET status = 'cancelled', cancel_request_status = NULL, cancel_request_reason = ?, updated_at = NOW() WHERE id = ?",
+          [reason, id],
+        );
+        await tx.execute(
+          "UPDATE payments SET status = 'failed', updated_at = NOW() WHERE order_id = ? AND status = 'waiting_payment'",
+          [id],
+        );
+        // Kembalikan stok produk
+        const items = await tx.rows<AnyRow>("SELECT product_id, quantity FROM order_items WHERE order_id = ?", [id]);
+        for (const item of items) {
+          await tx.execute("UPDATE products SET stock = stock + ?, updated_at = NOW() WHERE id = ?", [item.quantity, item.product_id]);
+          await tx.execute(
+            "INSERT INTO stock_movements (product_id, user_id, type, quantity, reference, note, created_at, updated_at) VALUES (?, ?, 'in', ?, ?, 'Restock: Dibatalkan pelanggan (belum bayar)', NOW(), NOW())",
+            [item.product_id, userId, item.quantity, order.invoice_number],
+          );
+        }
+      } else {
+        // KASUS 2: SUDAH MEMBAYAR
+        // Aturan Khusus Event MABA: Pesanan Event MABA yang sudah berhasil dibayar TIDAK DAPAT DIBATALKAN.
+        const mabaItem = await tx.row<AnyRow>(
+          `SELECT oi.id FROM order_items oi 
+           JOIN products p ON p.id = oi.product_id 
+           WHERE oi.order_id = ? AND (p.is_event_maba = 1 OR p.is_event_maba = TRUE) LIMIT 1`,
+          [id],
+        );
+        assert(!mabaItem, "Pesanan produk Event MABA yang telah dibayar tidak dapat dibatalkan sesuai dengan ketentuan resmi admin kampus UBSI.");
+
+        // Wajib pengajuan pembatalan untuk produk reguler, batas waktu 1 hari kerja sejak pembayaran
+        const payment = await tx.row<AnyRow>("SELECT paid_at FROM payments WHERE order_id = ? LIMIT 1", [id]);
+        const paidTime = payment?.paid_at ? new Date(String(payment.paid_at)) : new Date(String(order.updated_at || order.created_at));
+
+        assert(isWithinBusinessDay(paidTime), "Batas waktu pengajuan pembatalan (1 hari kerja) telah berakhir.");
+
+        const refundBank = text(body, "refund_bank_name") || text(body, "bank_name") || null;
+        const refundAccNum = text(body, "refund_account_number") || text(body, "account_number") || null;
+        const refundAccName = text(body, "refund_account_name") || text(body, "account_name") || null;
+
+        await tx.execute(
+          "UPDATE orders SET cancel_request_status = 'pending', cancel_request_reason = ?, refund_bank_name = ?, refund_account_number = ?, refund_account_name = ?, refund_amount = grand_total, updated_at = NOW() WHERE id = ?",
+          [reason, refundBank, refundAccNum, refundAccName, id],
+        );
+
+        let trackingInfo = `Mengajukan pembatalan pesanan (menunggu persetujuan & konfirmasi refund admin). Alasan: ${reason}`;
+        if (refundBank && refundAccNum) {
+          trackingInfo += `. Rekening Pengembalian Dana: ${refundBank} - ${refundAccNum} (a/n ${refundAccName || "Pelanggan"})`;
+        }
+
+        await tx.execute(
+          "INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, 'paid', ?, 'Pelanggan', NOW(), NOW())",
+          [id, trackingInfo],
+        );
+      }
     });
-    return { data: { message: "Pengajuan pembatalan dikirim. Menunggu keputusan admin.", order: await hydrateOrder(id) } };
+
+    clearCatalogCache();
+    clearAdminSearchCache("orders");
+    clearAdminSearchCache("stock-movements");
+
+    if (wasInstantCancel && orderInvoice) {
+      cancelMidtransTransaction(orderInvoice).catch(() => {});
+    }
+
+    return {
+      data: {
+        message: wasInstantCancel
+          ? "Pesanan berhasil dibatalkan."
+          : "Pengajuan pembatalan berhasil dikirim. Menunggu konfirmasi rekening & persetujuan admin.",
+        order: await hydrateOrder(id),
+      },
+    };
+  }
+
+  const refundBankMatch = path.match(/^orders\/(\d+)\/refund-bank$/);
+  if ((ctx.method === "POST" || ctx.method === "PATCH") && refundBankMatch) {
+    const id = Number(refundBankMatch[1]);
+    const bankName = text(body, "refund_bank_name") || text(body, "bank_name");
+    const accNum = text(body, "refund_account_number") || text(body, "account_number");
+    const accName = text(body, "refund_account_name") || text(body, "account_name");
+    assert(bankName && accNum && accName, "Nama bank/e-wallet, nomor rekening, dan nama pemilik rekening wajib diisi.");
+
+    const order = await row<AnyRow>("SELECT id, status, cancel_request_status FROM orders WHERE id = ? AND user_id = ?", [id, userId]);
+    assert(order, "Pesanan tidak ditemukan.", 404);
+    assert(["pending", "refund_processing", "approved"].includes(String(order.cancel_request_status)), "Rekening pengembalian dana hanya dapat diubah saat pembatalan diajukan.");
+
+    await execute(
+      "UPDATE orders SET refund_bank_name = ?, refund_account_number = ?, refund_account_name = ?, updated_at = NOW() WHERE id = ? AND user_id = ?",
+      [bankName, accNum, accName, id, userId]
+    );
+
+    await execute(
+      "INSERT INTO order_trackings (order_id, status, description, location, created_at, updated_at) VALUES (?, ?, ?, 'Pelanggan', NOW(), NOW())",
+      [id, String(order.status), `Pelanggan memperbarui data rekening pengembalian dana: ${bankName} - ${accNum} (a/n ${accName})`]
+    );
+
+    clearAdminSearchCache("orders");
+
+    return {
+      data: {
+        message: "Data rekening pengembalian dana berhasil diperbarui.",
+        order: await hydrateOrder(id),
+      },
+    };
   }
 
   const paymentMatch = path.match(/^payments\/(\d+)\/check-status$/);

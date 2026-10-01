@@ -25,27 +25,33 @@ export async function GET(request: Request, context: Context) {
     const id = resolveResourceId(resource, rawId);
     if (!Number.isFinite(id)) throw new ApiError(400, "ID tidak valid.");
 
+    const noCacheHeaders = {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    };
+
     if (resource === "orders") {
       const details = await getOrderDetail(id);
       if (!details) throw new ApiError(404, "Pesanan tidak ditemukan.");
-      return Response.json(details);
+      return Response.json(details, { headers: noCacheHeaders });
     }
 
     if (resource === "chats") {
       const details = await getChatDetail(id);
       if (!details) throw new ApiError(404, "Chat tidak ditemukan.");
-      return Response.json(details);
+      return Response.json(details, { headers: noCacheHeaders });
     }
 
     if (resource === "reviews") {
       const details = await getReviewDetail(id);
       if (!details) throw new ApiError(404, "Ulasan tidak ditemukan.");
-      return Response.json(details);
+      return Response.json(details, { headers: noCacheHeaders });
     }
 
     const item = await row(`SELECT * FROM ${resource} WHERE id = ? LIMIT 1`, [id]);
     if (!item) throw new ApiError(404, "Data tidak ditemukan.");
-    return Response.json(item);
+    return Response.json(item, { headers: noCacheHeaders });
   } catch (error) {
     return handleApiError(request, error);
   }
@@ -58,7 +64,19 @@ export async function PATCH(request: Request, context: Context) {
     const id = resolveResourceId(resource, rawId);
     if (!Number.isFinite(id)) throw new ApiError(400, "ID tidak valid.");
     await updateResource(resource, id, await requestData(request), admin);
-    return Response.json({ message: "Perubahan berhasil disimpan." });
+
+    const noCacheHeaders = {
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    };
+
+    if (resource === "orders") {
+      const details = await getOrderDetail(id);
+      return Response.json({ message: "Perubahan berhasil disimpan.", ...details }, { headers: noCacheHeaders });
+    }
+
+    return Response.json({ message: "Perubahan berhasil disimpan." }, { headers: noCacheHeaders });
   } catch (error) {
     return handleApiError(request, error);
   }

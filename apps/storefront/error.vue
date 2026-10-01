@@ -25,9 +25,9 @@
         <p class="error-description">{{ errorDescription }}</p>
       </div>
 
-      <!-- Technical detail box (if available) -->
-      <div v-if="error?.message && error.message !== errorTitle" class="error-debug-box">
-        <span class="debug-label">Detail Teknis:</span>
+      <!-- Technical detail box (only shown in development mode to prevent leaking internal stack/query details in production) -->
+      <div v-if="isDev && error?.message && error.message !== errorTitle" class="error-debug-box">
+        <span class="debug-label">Detail Teknis (Dev):</span>
         <code class="debug-message">{{ error.message }}</code>
       </div>
 
@@ -49,6 +49,8 @@
 <script setup lang="ts">
 import { useHead } from '#imports'
 import { computed } from 'vue'
+
+const isDev = import.meta.dev
 
 const props = defineProps({
   error: {

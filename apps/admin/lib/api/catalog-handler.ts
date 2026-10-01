@@ -12,6 +12,29 @@ async function settingsMap() {
   return Object.fromEntries(values.map((entry) => [entry.key, entry.value]));
 }
 
+const SYNONYMS_MAP: Record<string, string[]> = {
+  baju: ["baju", "kaos", "pakaian", "t-shirt", "tshirt", "polo", "jersey", "kemeja", "almamater"],
+  kaos: ["kaos", "baju", "t-shirt", "tshirt", "polo", "jersey", "pakaian"],
+  pakaian: ["pakaian", "baju", "kaos", "polo"],
+  jaket: ["jaket", "jacket", "varsity", "hoodie", "bomber", "outerwear", "sweater", "almamater"],
+  hoodie: ["hoodie", "jaket", "jacket", "varsity", "sweater"],
+  varsity: ["varsity", "jaket", "jacket"],
+  botol: ["botol", "tumbler", "minum", "thermos", "mug", "gelas"],
+  tumbler: ["tumbler", "botol", "minum", "thermos", "mug"],
+  minum: ["minum", "botol", "tumbler", "mug", "gelas"],
+  topi: ["topi", "hat", "cap", "snapback", "baseball", "bucket"],
+  snapback: ["snapback", "topi"],
+  bantal: ["bantal", "cushion", "sofa"],
+  tas: ["tas", "pouch", "tote", "totebag", "handbag", "ransel", "backpack"],
+  pouch: ["pouch", "handbag", "totebag"],
+  totebag: ["totebag", "tote", "tas"],
+  maba: ["maba", "ormik", "semot", "pmb", "mahasiswa baru"],
+  ormik: ["ormik", "semot", "maba", "pmb"],
+  semot: ["semot", "ormik", "maba", "pmb"],
+};
+
+const BRAND_TERMS = new Set(["ubsi", "bsi", "cyber", "store", "cyberstore"]);
+
 export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | null> {
   const path = ctx.segments.join("/");
 
@@ -41,22 +64,45 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
     const params: unknown[] = [];
     const category = ctx.url.searchParams.get("category_id");
     const search = ctx.url.searchParams.get("search");
-    if (category) { where.push("p.category_id = ?"); params.push(category); }
-    if (search) { where.push("p.name LIKE ?"); params.push(`%${search}%`); }
+
+    if (category) {
+      where.push("p.category_id = ?");
+      params.push(category);
+    }
+
+    if (search && search.trim()) {
+      const rawTokens = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      const nonBrandTokens = rawTokens.filter((t) => !BRAND_TERMS.has(t));
+      const tokens = nonBrandTokens.length > 0 ? nonBrandTokens : rawTokens;
+
+      for (const token of tokens) {
+        const synonyms = Array.from(new Set([token, ...(SYNONYMS_MAP[token] || [])]));
+        const tokenClauses: string[] = [];
+        for (const syn of synonyms) {
+          tokenClauses.push("(p.name LIKE ? OR c.name LIKE ? OR p.description LIKE ?)");
+          params.push(`%${syn}%`, `%${syn}%`, `%${syn}%`);
+        }
+        where.push(`(${tokenClauses.join(" OR ")})`);
+      }
+    }
+
     for (const key of ["is_recommended", "is_event_maba"]) {
       if (ctx.url.searchParams.has(key)) {
         where.push(`p.${key} = ?`);
         params.push(["1", "true"].includes(ctx.url.searchParams.get(key) || "") ? 1 : 0);
       }
     }
+
     const count = await row<RowDataPacket & { total: number }>(
-      `SELECT COUNT(*) AS total FROM products p WHERE ${where.join(" AND ")}`,
+      `SELECT COUNT(DISTINCT p.id) AS total FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE ${where.join(" AND ")}`,
       params,
     );
+
     const products = await rows<RowDataPacket & Record<string, unknown>>(
-      `SELECT p.* FROM products p WHERE ${where.join(" AND ")} ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`,
+      `SELECT p.* FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE ${where.join(" AND ")} ORDER BY p.created_at DESC, p.id DESC LIMIT ? OFFSET ?`,
       [...params, perPage, (page - 1) * perPage],
     );
+
     const result = pagination(ctx.request.url, await hydrateProducts(products), count?.total || 0, page, perPage);
     catalogCache.set(cacheKey, result); // Cache hasil list/search 3 menit
     return { data: result };
@@ -264,6 +310,8 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
       store_logo: publicUrl(setting.store_logo),
       city_id: setting.store_city_id || 152,
       city_name: setting.store_city_name || "Jakarta Pusat",
+      event_maba_title: setting.event_maba_title || "RESMI KEGIATAN MAHASISWA BARU 2026",
+      event_maba_description: setting.event_maba_description || "",
       announcement: {
         is_active: setting.top_announcement_active !== "0",
         text: setting.top_announcement_text || "PROMO SPESIAL MAHASISWA BARU 2026! Dapatkan Diskon Hingga 50% Menggunakan Kode: <strong>MABA2026</strong>",
@@ -274,6 +322,55 @@ export async function handleCatalog(ctx: ApiContext): Promise<HandledResult | nu
         link: setting.top_announcement_link || "",
       },
     } };
+  }
+
+  if (ctx.method === "GET" && path === "announcements") {
+    const page = Math.max(1, asNumber(ctx.url.searchParams.get("page"), 1));
+    const perPage = Math.min(50, Math.max(1, asNumber(ctx.url.searchParams.get("per_page"), 12)));
+    const search = ctx.url.searchParams.get("search");
+    const type = ctx.url.searchParams.get("type");
+
+    // Filter out internal system order notifications
+    const where: string[] = ["a.title NOT LIKE '%Pesanan Dibatalkan%' AND a.title NOT LIKE '%#INV-%'"];
+    const params: unknown[] = [];
+
+    if (search) {
+      where.push("(a.title LIKE ? OR a.content LIKE ?)");
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    if (type && type !== "all") {
+      where.push("a.type = ?");
+      params.push(type);
+    }
+
+    const count = await row<RowDataPacket & { total: number }>(
+      `SELECT COUNT(*) AS total FROM announcements a WHERE ${where.join(" AND ")}`,
+      params
+    );
+
+    const announcements = await rows<RowDataPacket & Record<string, unknown>>(
+      `SELECT a.* FROM announcements a WHERE ${where.join(" AND ")} ORDER BY a.created_at DESC, a.id DESC LIMIT ? OFFSET ?`,
+      [...params, perPage, (page - 1) * perPage]
+    );
+
+    return {
+      data: {
+        ...pagination(ctx.request.url, announcements, count?.total || 0, page, perPage),
+        announcements,
+      },
+    };
+  }
+
+  const announcementMatch = path.match(/^announcements\/(\d+)$/);
+  if (ctx.method === "GET" && announcementMatch) {
+    const id = Number(announcementMatch[1]);
+    const item = await row<RowDataPacket & Record<string, unknown>>(
+      "SELECT * FROM announcements WHERE id = ? LIMIT 1",
+      [id]
+    );
+    if (!item) throw new ApiError(404, "Pengumuman tidak ditemukan.");
+    return { data: { announcement: item } };
   }
 
   return null;

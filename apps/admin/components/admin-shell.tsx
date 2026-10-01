@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Icon } from "@/components/icon";
+import { FloatingAdminChat } from "@/components/floating-admin-chat";
 import type { ResourceMeta } from "@/types";
 
 interface Props {
@@ -30,7 +31,7 @@ interface NavSectionConfig {
 
 interface FloatingToast {
   id: string;
-  type: "chat" | "review" | "order";
+  type: "chat" | "review" | "order" | "cancellation";
   title: string;
   message: string;
   url: string;
@@ -72,7 +73,7 @@ const specialBadges: Record<string, string> = {
  * Pure synthesized Web Audio chime for Admin notifications.
  * Works without any external sound assets.
  */
-function playAdminNotificationSound(type: "chat" | "review" | "order" | "default" = "default") {
+function playAdminNotificationSound(type: "chat" | "review" | "order" | "cancellation" | "cancel" | "default" = "default") {
   if (typeof window === "undefined") return;
   try {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -81,6 +82,44 @@ function playAdminNotificationSound(type: "chat" | "review" | "order" | "default
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => {});
     }
+
+    if (type === "cancellation" || type === "cancel") {
+      // Urgent, attention-grabbing chime for cancellation request
+      const now = ctx.currentTime;
+
+      // Tone 1: high urgency alert
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(880, now); // A5
+      gain1.gain.setValueAtTime(0.001, now);
+      gain1.gain.linearRampToValueAtTime(0.12, now + 0.03);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.23);
+
+      // Tone 2: descending attention ping
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "triangle";
+      osc2.frequency.setValueAtTime(740, now + 0.16); // F#5
+      osc2.frequency.exponentialRampToValueAtTime(587.33, now + 0.38); // D5
+      gain2.gain.setValueAtTime(0.001, now + 0.16);
+      gain2.gain.linearRampToValueAtTime(0.14, now + 0.20);
+      gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.60);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.16);
+      osc2.stop(now + 0.62);
+
+      setTimeout(() => {
+        ctx.close().catch(() => {});
+      }, 700);
+      return;
+    }
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -136,6 +175,7 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
     unreadChats: number;
     unreadReviews: number;
     pendingOrders: number;
+    pendingCancelRequests: number;
     totalUnread: number;
     recentChats: any[];
     recentReviews: any[];
@@ -144,16 +184,26 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
     unreadChats: 0,
     unreadReviews: 0,
     pendingOrders: 0,
+    pendingCancelRequests: 0,
     totalUnread: 0,
     recentChats: [],
     recentReviews: [],
     recentOrders: [],
   });
 
-  const prevCountsRef = useRef<{ chats: number; reviews: number; orders: number; initialized: boolean }>({
+  const prevCountsRef = useRef<{
+    chats: number;
+    reviews: number;
+    orders: number;
+    cancelRequests: number;
+    knownCancelOrderIds: Set<string | number>;
+    initialized: boolean;
+  }>({
     chats: 0,
     reviews: 0,
     orders: 0,
+    cancelRequests: 0,
+    knownCancelOrderIds: new Set(),
     initialized: false,
   });
 
@@ -265,7 +315,42 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
 
         setNotifData(data);
 
+        const currentCancelOrders = (data.recentOrders || []).filter(
+          (o: any) => o.cancel_request_status === "pending"
+        );
+        const currentCancelCount = Number(data.pendingCancelRequests ?? currentCancelOrders.length ?? 0);
+
         if (prevCountsRef.current.initialized) {
+          // Check for new cancellation requests
+          const newCancelOrders = currentCancelOrders.filter(
+            (o: any) => !prevCountsRef.current.knownCancelOrderIds.has(o.id)
+          );
+
+          if (currentCancelCount > prevCountsRef.current.cancelRequests || newCancelOrders.length > 0) {
+            setBellBadgeDismissed(false);
+            setViewedBadges((prev) => {
+              const next = { ...prev };
+              delete next.orders;
+              return next;
+            });
+            const currentMuted = localStorage.getItem("cyber-admin-sound-muted") === "true";
+            if (!currentMuted) playAdminNotificationSound("cancellation");
+
+            const latestCancel = newCancelOrders[0] || currentCancelOrders[0];
+            const invoiceNum = latestCancel?.invoice_number || `Order #${latestCancel?.id || ""}`;
+            const reason = latestCancel?.cancel_request_reason ? ` Alasan: "${latestCancel.cancel_request_reason}"` : "";
+
+            const newToast: FloatingToast = {
+              id: `cancel-${latestCancel?.id || Date.now()}`,
+              type: "cancellation",
+              title: `🚨 Pengajuan Pembatalan: ${invoiceNum}`,
+              message: `Customer ${latestCancel?.customer_name || "Pelanggan"} mengajukan pembatalan pesanan.${reason}`,
+              url: `/admin/orders?order_id=${latestCancel?.encrypted_id || latestCancel?.id || ""}`,
+              time: "Baru saja",
+            };
+            setFloatingToasts((prev) => [newToast, ...prev.filter((t) => t.id !== newToast.id).slice(0, 2)]);
+          }
+
           // Check for new chat messages
           if (data.unreadChats > prevCountsRef.current.chats) {
             setBellBadgeDismissed(false);
@@ -313,9 +398,11 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
           prevCountsRef.current.initialized = true;
         }
 
+        currentCancelOrders.forEach((o: any) => prevCountsRef.current.knownCancelOrderIds.add(o.id));
         prevCountsRef.current.chats = data.unreadChats;
         prevCountsRef.current.reviews = data.unreadReviews;
         prevCountsRef.current.orders = data.pendingOrders;
+        prevCountsRef.current.cancelRequests = currentCancelCount;
       } catch {
         // ignore network error
       }
@@ -397,7 +484,15 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
             <div key={toast.id} className={`admin-floating-notif-card type-${toast.type}`}>
               <div className="notif-card-icon">
                 <Icon
-                  name={toast.type === "chat" ? "MessagesSquare" : toast.type === "review" ? "Star" : "ShoppingBag"}
+                  name={
+                    toast.type === "cancellation"
+                      ? "AlertTriangle"
+                      : toast.type === "chat"
+                      ? "MessagesSquare"
+                      : toast.type === "review"
+                      ? "Star"
+                      : "ShoppingBag"
+                  }
                   size={18}
                 />
               </div>
@@ -414,10 +509,11 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
                     setFloatingToasts((prev) => prev.filter((t) => t.id !== toast.id));
                     if (toast.type === "chat") handleMarkTypeAsRead("chats");
                     if (toast.type === "review") handleMarkTypeAsRead("reviews");
+                    if (toast.type === "order" || toast.type === "cancellation") handleMarkTypeAsRead("orders");
                     router.push(toast.url);
                   }}
                 >
-                  Buka & Balas →
+                  {toast.type === "cancellation" ? "Konfirmasi Pembatalan Sekarang →" : "Buka & Balas →"}
                 </button>
               </div>
               <button
@@ -528,17 +624,27 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
 
                     // Dynamic realtime badge counter (disappears immediately if current page or opened)
                     let dynamicCount = 0;
+                    let isUrgentCancel = false;
                     if (res.key === "chats" && !isCurrentPage && !isBadgeOpened) {
                       dynamicCount = notifData.unreadChats;
                     } else if (res.key === "reviews" && !isCurrentPage && !isBadgeOpened) {
                       dynamicCount = notifData.unreadReviews;
                     } else if (res.key === "orders" && !isCurrentPage && !isBadgeOpened) {
-                      dynamicCount = notifData.pendingOrders;
+                      if (notifData.pendingCancelRequests > 0) {
+                        dynamicCount = notifData.pendingCancelRequests;
+                        isUrgentCancel = true;
+                      } else {
+                        dynamicCount = notifData.pendingOrders;
+                      }
                     }
 
                     // Static badges (e.g. "NEW") disappear when opened or currently on page
                     const staticBadge = (!isBadgeOpened && !isCurrentPage) ? specialBadges[res.key] : undefined;
-                    const badgeText = dynamicCount > 0 ? String(dynamicCount) : staticBadge;
+                    const badgeText = isUrgentCancel
+                      ? `! ${dynamicCount}`
+                      : dynamicCount > 0
+                      ? String(dynamicCount)
+                      : staticBadge;
 
                     return (
                       <Link
@@ -568,10 +674,18 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
                                 style={
                                   dynamicCount > 0
                                     ? {
-                                        background: res.key === "chats" ? "#6366f1" : res.key === "reviews" ? "#f59e0b" : "#ef4444",
+                                        background: isUrgentCancel
+                                          ? "#dc2626"
+                                          : res.key === "chats"
+                                          ? "#6366f1"
+                                          : res.key === "reviews"
+                                          ? "#f59e0b"
+                                          : "#ef4444",
                                         color: "#ffffff",
                                         fontWeight: 700,
-                                        boxShadow: "0 0 8px rgba(0,0,0,0.2)",
+                                        boxShadow: isUrgentCancel
+                                          ? "0 0 10px rgba(220, 38, 38, 0.6)"
+                                          : "0 0 8px rgba(0,0,0,0.2)",
                                       }
                                     : undefined
                                 }
@@ -736,7 +850,20 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
                       onClick={() => setNotifTab("orders")}
                     >
                       Pesanan
-                      {notifData.pendingOrders > 0 && <span className="notif-tab-count">{notifData.pendingOrders}</span>}
+                      {(notifData.pendingOrders > 0 || notifData.pendingCancelRequests > 0) && (
+                        <span
+                          className="notif-tab-count"
+                          style={
+                            notifData.pendingCancelRequests > 0
+                              ? { background: "#dc2626", color: "#ffffff", fontWeight: 700 }
+                              : undefined
+                          }
+                        >
+                          {notifData.pendingCancelRequests > 0
+                            ? `! ${notifData.pendingCancelRequests}`
+                            : notifData.pendingOrders}
+                        </span>
+                      )}
                     </button>
                   </div>
 
@@ -821,29 +948,76 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
                     {/* Order items */}
                     {(notifTab === "all" || notifTab === "orders") &&
                       notifData.recentOrders.map((o) => {
+                        const isCancelPending = o.cancel_request_status === "pending";
+                        const isCancelRefund = o.cancel_request_status === "refund_processing";
+                        const isCancellation = isCancelPending || isCancelRefund;
+
                         return (
                           <Link
                             key={`order-${o.id}`}
                             href={`/admin/orders?order_id=${o.encrypted_id || o.id}`}
                             prefetch={false}
-                            className="notif-dropdown-item"
+                            className={`notif-dropdown-item ${isCancellation ? "notif-item-cancellation" : ""}`}
+                            style={
+                              isCancellation
+                                ? {
+                                    background: "rgba(239, 68, 68, 0.08)",
+                                    borderLeft: "3px solid #ef4444",
+                                  }
+                                : undefined
+                            }
                             onClick={() => {
                               setNotificationsOpen(false);
                               handleMarkTypeAsRead("orders");
                             }}
                           >
-                            <div className="notif-card-icon" style={{ width: "32px", height: "32px", background: "#ecfdf5", color: "#10b981" }}>
-                              <Icon name="ShoppingBag" size={16} />
+                            <div
+                              className="notif-card-icon"
+                              style={{
+                                width: "32px",
+                                height: "32px",
+                                background: isCancellation ? "#fee2e2" : "#ecfdf5",
+                                color: isCancellation ? "#ef4444" : "#10b981",
+                              }}
+                            >
+                              <Icon name={isCancellation ? "AlertTriangle" : "ShoppingBag"} size={16} />
                             </div>
                             <div className="notif-dropdown-body">
                               <div className="notif-dropdown-top">
-                                <span className="notif-dropdown-sender">📦 {o.invoice_number || `Order #${o.id}`}</span>
+                                <span
+                                  className="notif-dropdown-sender"
+                                  style={isCancellation ? { color: "#dc2626", fontWeight: 700 } : undefined}
+                                >
+                                  {isCancelPending
+                                    ? `🚨 Batal: ${o.invoice_number || `Order #${o.id}`}`
+                                    : isCancelRefund
+                                    ? `⏳ Refund: ${o.invoice_number || `Order #${o.id}`}`
+                                    : `📦 ${o.invoice_number || `Order #${o.id}`}`}
+                                </span>
                                 <span className="notif-dropdown-time">
-                                  {o.created_at ? new Date(o.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : ""}
+                                  {o.created_at
+                                    ? new Date(o.created_at).toLocaleTimeString("id-ID", {
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : ""}
                                 </span>
                               </div>
                               <p className="notif-dropdown-snippet">
-                                {o.customer_name || "Pelanggan"} • Rp {Number(o.grand_total || 0).toLocaleString("id-ID")}
+                                {isCancellation && o.cancel_request_reason ? (
+                                  <>
+                                    <span style={{ color: "#b91c1c", fontWeight: 600 }}>Alasan: </span>
+                                    {o.cancel_request_reason}
+                                    <br />
+                                    <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
+                                      {o.customer_name || "Pelanggan"} • Rp {Number(o.grand_total || 0).toLocaleString("id-ID")}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    {o.customer_name || "Pelanggan"} • Rp {Number(o.grand_total || 0).toLocaleString("id-ID")}
+                                  </>
+                                )}
                               </p>
                             </div>
                           </Link>
@@ -933,6 +1107,12 @@ export function AdminShell({ user, resources, storeSettings, children }: Props) 
           {children}
         </main>
       </div>
+
+      {/* ── Floating Live Chat for Admin ── */}
+      <FloatingAdminChat
+        unreadCount={notifData.unreadChats}
+        onRefreshParentNotif={() => handleMarkTypeAsRead("chats")}
+      />
     </div>
   );
 }

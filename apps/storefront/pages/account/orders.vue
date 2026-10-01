@@ -115,11 +115,14 @@
           <!-- 2. Ordered Items List -->
           <div class="order-items-list">
             <div v-for="item in (order.items || [])" :key="item.id" class="order-item-row">
-              <img :src="getImageUrl(item.product?.main_photo)" :alt="item.product_name || item.product?.name"
-                class="order-item-img" />
+              <NuxtLink :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}`"
+                class="order-item-img-link" title="Lihat Detail Produk">
+                <img :src="getImageUrl(item.product?.main_photo)" :alt="item.product_name || item.product?.name"
+                  class="order-item-img" />
+              </NuxtLink>
               <div class="order-item-details">
                 <NuxtLink :to="`/products/${item.product?.slug || item.product?.encrypted_id || item.product_id}`"
-                  class="order-item-title">
+                  class="order-item-title" title="Lihat Detail Produk">
                   {{ item.product_name || item.product?.name }}
                 </NuxtLink>
                 <div class="order-item-sub">
@@ -138,21 +141,13 @@
                 </div>
                 <!-- Tombol Nilai / Lihat Penilaian per produk jika sudah tiba / selesai -->
                 <div v-if="isOrderArrivedOrCompleted(order)" class="order-item-action-btns">
-                  <NuxtLink
-                    v-if="!isItemReviewed(item)"
-                    :to="getItemReviewUrl(order, item, true)"
-                    class="btn btn-xs btn-item-review"
-                    title="Beri penilaian untuk produk ini"
-                  >
+                  <NuxtLink v-if="!isItemReviewed(item)" :to="getItemReviewUrl(order, item, true)"
+                    class="btn btn-xs btn-item-review" title="Beri penilaian untuk produk ini">
                     <Icon name="lucide:star" class="w-3 h-3 mr-1 inline text-amber-500" />
                     <span>Nilai</span>
                   </NuxtLink>
-                  <NuxtLink
-                    v-else
-                    :to="getItemReviewUrl(order, item, false)"
-                    class="btn btn-xs btn-item-view"
-                    title="Lihat ulasan dan penilaian produk ini"
-                  >
+                  <NuxtLink v-else :to="getItemReviewUrl(order, item, false)" class="btn btn-xs btn-item-view"
+                    title="Lihat ulasan dan penilaian produk ini">
                     <Icon name="lucide:check-circle-2" class="w-3 h-3 mr-1 inline text-emerald-500" />
                     <span>Lihat Penilaian</span>
                   </NuxtLink>
@@ -163,7 +158,17 @@
 
           <!-- 3. Courier & Tracking Snapshot -->
           <div class="shipping-tracking-bar">
-            <div class="courier-badge-box">
+            <!-- Mode Event MABA: Pengambilan di Kampus UBSI -->
+            <div v-if="isEventMabaOrder(order)" class="courier-badge-box maba-pickup-badge">
+              <Icon name="lucide:graduation-cap" class="w-4 h-4 text-bsi" />
+              <span class="courier-text">
+                <strong>Pengambilan di Kampus UBSI</strong>
+                <span class="courier-svc">(Event MABA)</span>
+              </span>
+            </div>
+
+            <!-- Mode Reguler: Kurir Ekspedisi -->
+            <div v-else class="courier-badge-box">
               <Icon name="lucide:truck" class="w-4 h-4 text-emerald" />
               <span class="courier-text">
                 <strong>{{ order.expedition?.name || 'Kurir Ekspedisi' }}</strong>
@@ -172,9 +177,10 @@
             </div>
 
             <div v-if="order.resi_number" class="resi-snapshot">
-              <span class="resi-label">No. Resi:</span>
+              <span class="resi-label">{{ isEventMabaOrder(order) ? 'Kode Ambil:' : 'No. Resi:' }}</span>
               <span class="resi-value font-mono">{{ order.resi_number }}</span>
-              <button type="button" class="btn-copy-resi" @click="copyText(order.resi_number)" title="Salin No Resi">
+              <button type="button" class="btn-copy-resi" @click="copyText(order.resi_number)"
+                :title="isEventMabaOrder(order) ? 'Salin Kode Pengambilan' : 'Salin No Resi'">
                 <Icon name="lucide:copy" class="w-3.5 h-3.5" />
               </button>
             </div>
@@ -198,31 +204,25 @@
 
             <div class="order-action-buttons">
               <!-- Detail / Track Button: Disembunyikan (hilang) jika pesanan sudah dinilai oleh user -->
-              <button v-if="!isOrderReviewed(order)" type="button" class="btn btn-secondary btn-sm" @click="openTrackingModal(order)">
+              <button v-if="!isOrderReviewed(order)" type="button" class="btn btn-secondary btn-sm"
+                @click="openTrackingModal(order)">
                 <Icon name="lucide:map-pin" class="w-4 h-4 mr-1 inline-block text-bsi" />
-                <span>Lacak & Rincian</span>
+                <span>Lihat Detail</span>
               </button>
 
               <!-- Tombol Nilai / Lihat Penilaian: Muncul ketika produk tiba/selesai -->
               <template v-if="isOrderArrivedOrCompleted(order)">
                 <!-- Belum dinilai: Muncul button Nilai -->
-                <NuxtLink
-                  v-if="!isOrderReviewed(order)"
-                  :to="getOrderReviewUrl(order, true)"
-                  class="btn btn-primary btn-sm btn-order-review-action"
-                  title="Beri penilaian produk"
-                >
+                <NuxtLink v-if="!isOrderReviewed(order)" :to="getOrderReviewUrl(order, true)"
+                  class="btn btn-primary btn-sm btn-order-review-action" title="Beri penilaian produk">
                   <Icon name="lucide:star" class="w-3.5 h-3.5 mr-1 inline-block text-amber-300" />
                   <span>Nilai</span>
                 </NuxtLink>
 
                 <!-- Sudah dinilai: Berubah menjadi Lihat Penilaian -->
-                <NuxtLink
-                  v-else
-                  :to="getOrderReviewUrl(order, false)"
+                <NuxtLink v-else :to="getOrderReviewUrl(order, false)"
                   class="btn btn-secondary btn-sm btn-view-review-action"
-                  title="Lihat ulasan dan penilaian yang telah dibuat"
-                >
+                  title="Lihat ulasan dan penilaian yang telah dibuat">
                   <Icon name="lucide:message-square" class="w-3.5 h-3.5 mr-1 inline-block text-bsi" />
                   <span>Lihat Penilaian</span>
                 </NuxtLink>
@@ -239,7 +239,8 @@
 
               <!-- Pay with Midtrans Button if Waiting Payment -->
               <button v-if="order.status === 'pending_payment'" type="button"
-                class="btn btn-primary btn-sm btn-pay-action" :disabled="openingPayment" @click="handlePayWithMidtrans(order)">
+                class="btn btn-primary btn-sm btn-pay-action" :disabled="openingPayment"
+                @click="handlePayWithMidtrans(order)">
                 <Icon name="lucide:lock" class="w-4 h-4 mr-1 inline-block" />
                 <span>Bayar Sekarang</span>
               </button>
@@ -253,21 +254,61 @@
               </button>
 
               <!-- Status Pengajuan Pembatalan (Jika sedang diproses Admin) -->
-              <p v-if="order.cancel_request_status === 'refund_processing'" role="status">Pembatalan sedang dikonfirmasi ke Midtrans. Pengembalian dana mengikuti proses penyedia pembayaran.</p>
-              <p v-if="order.cancel_request_status === 'approved'" role="status">Pembatalan disetujui. Lihat riwayat pesanan untuk proses pengembalian dana ke metode pembayaran asal.</p>
-              <p v-if="order.cancel_request_status === 'rejected'" role="status">Pengajuan pembatalan ditolak admin. Pesanan dilanjutkan.</p>
+              <p v-if="order.cancel_request_status === 'refund_processing'" role="status">Pembatalan sedang dikonfirmasi
+                ke Midtrans.
+                Pengembalian dana mengikuti proses penyedia pembayaran.</p>
+              <p v-if="order.cancel_request_status === 'approved'" role="status">Pembatalan disetujui. Lihat riwayat
+                pesanan untuk
+                proses pengembalian dana ke metode pembayaran asal.</p>
+              <p v-if="order.cancel_request_status === 'rejected'" role="status">Pengajuan pembatalan ditolak admin.
+                Pesanan
+                dilanjutkan.</p>
               <div v-if="order.cancel_request_status === 'pending'" class="cancel-pending-tag">
                 <span class="pulse-amber-dot"></span>
                 <span>Pembatalan Diajukan</span>
               </div>
 
-              <!-- Button Batalkan Pesanan (Berlaku hanya 1 hari & sebelum toko memperbarui status menjadi diproses) -->
-              <button v-else-if="isOrderCancellable(order)" type="button"
-                class="btn btn-outline-danger btn-sm btn-cancel-order" @click="openCancelModal(order)"
-                :title="`Dapat dibatalkan dalam 1 hari sejak pemesanan (Sisa waktu: ${getCancelTimeRemaining(order.created_at)})`">
-                <Icon name="lucide:x-circle" class="w-3.5 h-3.5 mr-1 inline-block" />
-                <span>Batalkan Pesanan</span>
-              </button>
+              <!-- Status Event MABA Lunas (Pernyataan Tidak Dapat Dibatalkan) -->
+              <div v-if="order.status === 'paid' && isEventMabaOrder(order)" class="maba-paid-lock-tag"
+                title="Sesuai ketentuan admin kampus UBSI, pesanan produk Event MABA yang sudah lunas tidak dapat dibatalkan.">
+                <Icon name="lucide:shield-alert" class="w-3.5 h-3.5 text-bsi inline mr-1 flex-shrink-0" />
+                <span>(Tidak dapat dibatalkan</span>
+              </div>
+
+              <!-- Button Batalkan Pesanan (Belum Bayar: Langsung Batalkan | Sudah Bayar: Ajukan Pembatalan max 1 hari kerja) -->
+              <template v-else-if="isOrderCancellable(order)">
+                <!-- Belum Bayar -> Langsung Batalkan Seketika -->
+                <button v-if="order.status === 'pending_payment'" type="button"
+                  class="btn btn-outline-danger btn-sm btn-cancel-order" @click="openCancelModal(order)"
+                  title="Batalkan pesanan ini langsung seketika (belum dibayar)">
+                  <Icon name="lucide:x-circle" class="w-3.5 h-3.5 mr-1 inline-block" />
+                  <span>Batalkan Pesanan</span>
+                </button>
+
+                <!-- Sudah Bayar -> Ajukan Pembatalan (Batas 1 Hari Kerja) -->
+                <button v-else-if="order.status === 'paid'" type="button"
+                  class="btn btn-outline-amber btn-sm btn-cancel-request" @click="openCancelModal(order)"
+                  :title="`Ajukan pembatalan pesanan (Batas 1 hari kerja${getCancelTimeRemaining(order) ? ', sisa waktu: ' + getCancelTimeRemaining(order) : ''})`">
+                  <Icon name="lucide:alert-triangle" class="w-3.5 h-3.5 mr-1 inline-block" />
+                  <span>Ajukan Pembatalan</span>
+                </button>
+              </template>
+
+              <!-- Tombol Rincian Pembatalan jika ada pengajuan pembatalan / pengembalian dana (pesanan berbayar) -->
+              <NuxtLink v-if="Boolean(order.cancel_request_status)" :to="`/account/cancellation/${order.id}`"
+                class="btn btn-outline-rose btn-sm btn-cancellation-detail"
+                title="Lihat Rincian & Status Pengembalian Dana">
+                <Icon name="lucide:file-text" class="w-3.5 h-3.5 mr-1 inline-block" />
+                <span>Rincian Pembatalan</span>
+              </NuxtLink>
+
+              <!-- Tombol Beli Lagi / Lihat Produk untuk Pesanan Dibatalkan -->
+              <NuxtLink v-if="order.status === 'cancelled' && order.items?.length"
+                :to="`/products/${order.items[0].product?.slug || order.items[0].product?.encrypted_id || order.items[0].product_id}`"
+                class="btn btn-secondary btn-sm btn-reorder-action" title="Lihat produk dan pesan kembali">
+                <Icon name="lucide:shopping-bag" class="w-3.5 h-3.5 mr-1 inline-block text-bsi" />
+                <span>Beli Lagi</span>
+              </NuxtLink>
             </div>
           </div>
         </div>
@@ -294,15 +335,17 @@
     <!-- Payment Success Modal with Checklist Icon -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="isPaymentSuccessModalOpen && paidSuccessOrder" class="checkout-success-backdrop" @click.self="handlePaymentSuccessOk">
+        <div v-if="isPaymentSuccessModalOpen && paidSuccessOrder" class="checkout-success-backdrop"
+          @click.self="handlePaymentSuccessOk">
           <div class="checkout-success-card cyber-card" role="dialog" aria-modal="true">
             <!-- Animated Checklist Icon Badge -->
             <div class="success-icon-badge">
-              <Icon name="lucide:check-circle-2" class="w-12 h-12 text-emerald-500 checkmark-pulse-icon" />
+              <Icon name="lucide:check-circle-2" class="w-7 h-7 text-emerald-500 checkmark-pulse-icon" />
             </div>
             <h2 class="success-title">Pembayaran Berhasil!</h2>
             <p class="success-desc">
-              Terima kasih! Pembayaran Anda telah terverifikasi secara resmi. Toko akan segera mengemas dan mengirimkan pesanan Anda.
+              Terima kasih! Pembayaran Anda telah terverifikasi secara resmi. Toko akan segera mengemas dan mengirimkan
+              pesanan Anda.
             </p>
 
             <!-- Product Purchased Preview Box -->
@@ -318,8 +361,10 @@
                 <div class="preview-product-info">
                   <h4 class="preview-product-name">{{ primaryPurchasedProduct.name }}</h4>
                   <div class="preview-product-meta">
-                    <span v-if="primaryPurchasedProduct.size" class="meta-pill">Ukuran: {{ primaryPurchasedProduct.size }}</span>
-                    <span v-if="primaryPurchasedProduct.color" class="meta-pill">Warna: {{ primaryPurchasedProduct.color }}</span>
+                    <span v-if="primaryPurchasedProduct.size" class="meta-pill">Ukuran: {{ primaryPurchasedProduct.size
+                      }}</span>
+                    <span v-if="primaryPurchasedProduct.color" class="meta-pill">Warna: {{ primaryPurchasedProduct.color
+                      }}</span>
                     <span class="meta-qty">{{ primaryPurchasedProduct.quantity }}x</span>
                   </div>
                   <span class="preview-product-price font-mono">{{ formatRupiah(primaryPurchasedProduct.price) }}</span>
@@ -331,11 +376,14 @@
             <div class="success-order-box">
               <div class="success-box-row">
                 <span class="box-label">Nomor Invoice:</span>
-                <strong class="box-val font-mono text-bsi">{{ paidSuccessOrder.invoice_number || `ORD-#${paidSuccessOrder.id}` }}</strong>
+                <strong class="box-val font-mono text-bsi">{{ paidSuccessOrder.invoice_number ||
+                  `ORD-#${paidSuccessOrder.id}` }}</strong>
               </div>
               <div class="success-box-row">
                 <span class="box-label">Total Pembayaran:</span>
-                <strong class="box-val font-mono text-emerald-600 font-bold">{{ formatRupiah(paidSuccessOrder.grand_total || paidSuccessOrder.subtotal) }}</strong>
+                <strong class="box-val font-mono text-emerald-600 font-bold">{{
+                  formatRupiah(paidSuccessOrder.grand_total ||
+                    paidSuccessOrder.subtotal) }}</strong>
               </div>
               <div class="success-box-row">
                 <span class="box-label">Status:</span>
@@ -354,7 +402,8 @@
               </button>
 
               <div class="success-secondary-row">
-                <button type="button" class="btn btn-secondary btn-sm" @click="openInvoiceModal(paidSuccessOrder); isPaymentSuccessModalOpen = false;">
+                <button type="button" class="btn btn-secondary btn-sm"
+                  @click="openInvoiceModal(paidSuccessOrder); isPaymentSuccessModalOpen = false;">
                   <Icon name="lucide:printer" class="w-4 h-4 mr-1" />
                   <span>Cetak Invoice</span>
                 </button>
@@ -407,6 +456,7 @@ import OrderTrackingModal from '~/components/OrderTrackingModal.vue'
 import OrderCancelModal from '~/components/OrderCancelModal.vue'
 import OrderCompleteModal from '~/components/OrderCompleteModal.vue'
 import OrderInvoiceModal from '~/components/OrderInvoiceModal.vue'
+import { isWithinBusinessDay, getBusinessTimeRemaining } from '~/utils/business-day'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -705,10 +755,31 @@ const openCancelModal = (order: any) => {
 }
 
 // Validasi apakah pesanan dapat dibatalkan oleh pengguna:
-// 1. Toko BELUM memperbarui status menjadi diproses (status: packed, shipped, arrived, completed, cancelled)
-// 2. Berlaku hanya 1 hari (24 jam = 86.400.000 ms) sejak pesanan dibuat
+// 1. KASUS BELUM BAYAR (pending_payment): Langsung batalkan seketika tanpa perlu pengajuan admin
+// 2. KASUS SUDAH BAYAR (paid): Pengajuan pembatalan dengan batas maksimal 1 hari kerja (24 jam kerja)
 const currentTime = ref(Date.now())
 let clockTimer: any = null
+
+const isEventMabaOrder = (order: any): boolean => {
+  if (!order) return false
+  return Boolean(
+    order.is_event_maba ||
+    order.campus_location ||
+    (order.items || []).some((item: any) =>
+      Boolean(
+        item.is_event_maba ||
+        item.product?.is_event_maba ||
+        item.nim ||
+        item.campus_location ||
+        (item.product_name && /ormik|semot|maba/i.test(item.product_name)) ||
+        (item.product?.name && /ormik|semot|maba/i.test(item.product.name))
+      )
+    ) ||
+    (order.note && /pengambilan kampus ubsi|event maba|ormik|semot/i.test(String(order.note))) ||
+    (order.expedition?.name && /maba|kampus/i.test(String(order.expedition.name))) ||
+    (order.trackings && order.trackings.some((t: any) => /event maba|admin kampus|panitia|kampus ubsi/i.test(String(t.description || ''))))
+  )
+}
 
 const isOrderCancellable = (order: any): boolean => {
   if (!order) return false
@@ -724,52 +795,54 @@ const isOrderCancellable = (order: any): boolean => {
     return false
   }
 
-  // Cek batas waktu 1 hari (24 jam) sejak pesanan dibuat
-  if (!order.created_at) return false
-  const orderTime = new Date(order.created_at).getTime()
-  if (isNaN(orderTime)) return false
-
-  const oneDayInMs = 24 * 60 * 60 * 1000 // 24 jam = 1 hari
-  const elapsed = currentTime.value - orderTime
-
-  // Jika sudah lebih dari 24 jam, tombol otomatis hilang
-  if (elapsed > oneDayInMs || elapsed < 0) {
-    return false
+  // KASUS 1: BELUM MEMBAYAR (pending_payment)
+  // Dapat langsung dibatalkan kapan saja sebelum status kedaluwarsa
+  if (order.status === 'pending_payment') {
+    return true
   }
 
-  return true
-}
-
-// Menghitung sisa waktu pembatalan yang tersisa
-const getCancelTimeRemaining = (createdAt: string): string => {
-  if (!createdAt) return ''
-  const orderTime = new Date(createdAt).getTime()
-  if (isNaN(orderTime)) return ''
-
-  const oneDayInMs = 24 * 60 * 60 * 1000
-  const remaining = (orderTime + oneDayInMs) - currentTime.value
-
-  if (remaining <= 0) return ''
-
-  const hours = Math.floor(remaining / (1000 * 60 * 60))
-  const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
-
-  if (hours > 0) {
-    return `${hours}j ${minutes}m`
+  // KASUS 2: SUDAH MEMBAYAR (paid)
+  // Aturan Khusus Event MABA: Tidak bisa dibatalkan jika mahasiswa sudah berhasil membayar
+  if (order.status === 'paid') {
+    if (isEventMabaOrder(order)) {
+      return false
+    }
+    const paidAt = order.payment?.paid_at || order.updated_at || order.created_at
+    return isWithinBusinessDay(paidAt)
   }
-  return `${minutes}m`
+
+  return false
 }
 
-// Confirm Cancel
-const handleConfirmCancel = async ({ orderId, reason }: { orderId: number | string; reason: string }) => {
+// Menghitung sisa waktu pembatalan (1 hari kerja untuk pesanan yang sudah dibayar)
+const getCancelTimeRemaining = (order: any): string => {
+  if (!order || order.status !== 'paid') return ''
+  const paidAt = order.payment?.paid_at || order.updated_at || order.created_at
+  return getBusinessTimeRemaining(paidAt)
+}
+
+// Confirm Cancel (Otomatis menyesuaikan pesan jika langsung dibatalkan atau berupa pengajuan)
+const handleConfirmCancel = async (payload: {
+  orderId: number | string
+  reason: string
+  refund_bank_name?: string
+  refund_account_number?: string
+  refund_account_name?: string
+}) => {
   try {
-    await cancelOrder(orderId, reason)
+    const res: any = await cancelOrder(payload.orderId, payload)
     isCancelModalOpen.value = false
     if (isTrackingModalOpen.value) {
       isTrackingModalOpen.value = false
     }
     await refreshOrders()
-    showToast('Pengajuan dikirim. Menunggu keputusan admin.', 'success', 'Pengajuan Pembatalan')
+    const msg = res?.message || res?.data?.message || 'Pesanan berhasil diproses.'
+    showToast(msg, 'success', 'Pembatalan Pesanan')
+
+    // Navigate to cancellation detail page if it was a paid order cancellation request
+    if (payload.refund_bank_name) {
+      router.push(`/account/cancellation/${payload.orderId}`)
+    }
   } catch (err: any) {
     showToast(err.data?.message || err.message || 'Gagal membatalkan pesanan.', 'error', 'Gagal Membatalkan')
   }
@@ -1031,6 +1104,16 @@ onMounted(() => {
 
   watch(() => [orders.value, route.query.print_invoice, route.query.invoice], () => {
     checkInvoiceFromQuery()
+  }, { immediate: true })
+
+  // Sync status filter & search query from URL (e.g. from notification clicks)
+  watch(() => [route.query.status, route.query.search], ([statusParam, searchParam]) => {
+    if (statusParam !== undefined && statusParam !== null) {
+      activeStatus.value = String(statusParam).trim() || 'all'
+    }
+    if (searchParam !== undefined && searchParam !== null) {
+      searchQuery.value = String(searchParam).trim()
+    }
   }, { immediate: true })
 })
 
@@ -1570,6 +1653,15 @@ useHead({
   color: #0f172a;
 }
 
+.maba-pickup-badge {
+  color: #003399;
+}
+
+.maba-pickup-badge .courier-svc {
+  color: #004aad;
+  font-weight: 600;
+}
+
 .courier-icon {
   font-size: 1rem;
 }
@@ -1702,6 +1794,31 @@ useHead({
 
 .btn-outline-danger:hover {
   background: #fef2f2;
+}
+
+.btn-outline-amber {
+  background: transparent;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-outline-amber:hover {
+  background: #fffbeb;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.cancel-time-badge {
+  font-size: 0.7rem;
+  background: #fef3c7;
+  color: #92400e;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-left: 0.35rem;
+  font-weight: 700;
 }
 
 .cancel-action-wrap {
@@ -2066,31 +2183,35 @@ useHead({
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
+  padding: 1rem;
+  overflow-y: auto;
 }
 
 .checkout-success-card {
   background: #ffffff;
   border-radius: 16px;
-  max-width: 480px;
+  max-width: 440px;
+  max-height: min(88vh, 620px);
+  overflow-y: auto;
   width: 100%;
-  padding: 2.25rem 2rem;
+  padding: 1.25rem 1.25rem;
   text-align: center;
   box-shadow: 0 20px 50px rgba(0, 51, 153, 0.2);
   border: 1px solid #e2e8f0;
+  scrollbar-width: thin;
 }
 
 .success-icon-badge {
-  width: 76px;
-  height: 76px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: #ecfdf5;
-  border: 3px solid #10b981;
+  border: 2.5px solid #10b981;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 1.25rem;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
+  margin: 0 auto 0.65rem;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.3);
   animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
@@ -2099,10 +2220,13 @@ useHead({
 }
 
 @keyframes checkPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
     filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
   }
+
   50% {
     transform: scale(1.08);
     filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.7));
@@ -2110,53 +2234,60 @@ useHead({
 }
 
 @keyframes bounceIn {
-  0% { transform: scale(0.5); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .success-title {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: #0f172a;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.25rem;
 }
 
 .success-desc {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: #64748b;
-  line-height: 1.5;
-  margin-bottom: 1.25rem;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
 }
 
 .success-product-preview {
   background: #f0fdf4;
   border: 1.5px solid #bbf7d0;
-  border-radius: 12px;
-  padding: 0.85rem 1rem;
-  margin-bottom: 1.25rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.75rem;
   text-align: left;
 }
 
 .preview-tag-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #15803d;
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
 }
 
 .preview-product-card {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.65rem;
 }
 
 .preview-product-thumb {
-  width: 52px;
-  height: 52px;
-  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
   object-fit: cover;
   border: 1px solid #cbd5e1;
   background: #ffffff;
@@ -2169,10 +2300,10 @@ useHead({
 }
 
 .preview-product-name {
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: #0f172a;
-  margin: 0 0 0.2rem;
+  margin: 0 0 0.15rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2181,29 +2312,29 @@ useHead({
 .preview-product-meta {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   flex-wrap: wrap;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .meta-pill {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   background: #ffffff;
   border: 1px solid #cbd5e1;
   color: #475569;
-  padding: 1px 5px;
+  padding: 1px 4px;
   border-radius: 4px;
   font-weight: 600;
 }
 
 .meta-qty {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   color: #0f172a;
 }
 
 .preview-product-price {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   color: #003399;
 }
@@ -2212,11 +2343,11 @@ useHead({
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
-  padding: 0.85rem 1.15rem;
+  padding: 0.6rem 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  margin-bottom: 1.5rem;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
   text-align: left;
 }
 
@@ -2224,7 +2355,7 @@ useHead({
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .box-label {
@@ -2238,31 +2369,31 @@ useHead({
 .success-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .btn-success-ok {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #ffffff;
   font-weight: 700;
-  font-size: 0.95rem;
-  padding: 0.85rem 1.5rem;
-  border-radius: 12px;
+  font-size: 0.88rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
   transition: all 0.2s ease;
   width: 100%;
 }
 
 .btn-success-ok:hover {
   background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.4);
 }
 
 .success-secondary-row {
@@ -2273,20 +2404,43 @@ useHead({
 
 .success-secondary-row .btn {
   flex: 1;
-  padding: 0.6rem 0.85rem;
-  font-size: 0.8rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
   justify-content: center;
 }
 
 @media (max-width: 480px) {
   .checkout-success-backdrop {
-    padding: 0.75rem;
-    align-items: flex-end;
+    padding: 0.5rem;
+    align-items: center;
   }
 
   .checkout-success-card {
-    border-radius: 16px 16px 8px 8px;
-    padding: 1.75rem 1.25rem;
+    border-radius: 14px;
+    padding: 1.15rem 1rem;
+    max-height: 92vh;
   }
+
+  .success-title {
+    font-size: 1.05rem;
+  }
+
+  .success-desc {
+    font-size: 0.75rem;
+  }
+}
+
+.maba-paid-lock-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 20px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #004aad;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 74, 173, 0.06);
 }
 </style>

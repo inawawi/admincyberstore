@@ -43,18 +43,45 @@
     <div v-else class="checkout-grid">
       <!-- Left Column: Shipping & Delivery Settings -->
       <div class="checkout-steps-col">
-        <!-- Step 1: Alamat Pengiriman -->
+        <!-- Step 1: Alamat Pengiriman / Lokasi Kampus UBSI -->
         <section class="step-card cyber-card">
           <div class="step-card-header">
             <span class="step-badge">1</span>
             <div class="step-title-group">
-              <h2 class="step-title">Alamat Pengiriman</h2>
-              <span class="step-desc">Tujuan pengiriman pesanan kamu</span>
+              <h2 class="step-title">{{ shippingAddressStepTitle }}</h2>
+              <span class="step-desc">{{ shippingAddressStepDesc }}</span>
             </div>
           </div>
 
-          <!-- Existing Address Selector -->
-          <div v-if="addresses.length > 0 && !showNewAddressForm" class="address-selector-list">
+          <!-- Event MABA Mode: Campus Pickup Selector -->
+          <div v-if="cartStore.hasEventMaba" class="maba-checkout-campus-box">
+            <div class="maba-campus-selected-card">
+              <div class="maba-campus-icon">
+                <Icon name="lucide:building-2" class="w-6 h-6 text-bsi" />
+              </div>
+              <div class="maba-campus-details">
+                <div class="maba-campus-badge-row">
+                  <span class="badge badge-purple font-bold">EVENT MABA UBSI</span>
+                  <span class="badge badge-emerald">Gratis Pengambilan Kampus</span>
+                </div>
+                <h3 class="maba-campus-name">{{ cartStore.mabaCampusLocation }}</h3>
+                <p class="maba-campus-desc">
+                  Pesanan akan diserahkan langsung oleh admin masing-masing kampus &amp; akan di infokan kembali perihal
+                  pengambilan baju tersebut.
+                </p>
+                <div class="maba-campus-actions">
+                  <button type="button" @click="isCampusPickupModalOpen = true"
+                    class="btn btn-primary btn-sm btn-swap-campus">
+                    <Icon name="lucide:arrow-left-right" class="w-4 h-4 mr-1" />
+                    <span>Tukar Lokasi Kampus UBSI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Existing Address Selector for Non-MABA -->
+          <div v-else-if="addresses.length > 0 && !showNewAddressForm" class="address-selector-list">
             <label v-for="addr in addresses" :key="addr.id"
               :class="['address-card', { active: selectedAddressId === addr.id }]">
               <div class="radio-indicator">
@@ -296,17 +323,36 @@
           <div class="step-card-header">
             <span class="step-badge">2</span>
             <div class="step-title-group">
-              <h2 class="step-title">Pilihan Kurir & Ekspedisi</h2>
-              <span class="step-desc">Pilih kurir pengiriman terpercaya</span>
+              <h2 class="step-title">{{ shippingMethodStepTitle }}</h2>
+              <span class="step-desc">{{ shippingMethodStepDesc }}</span>
             </div>
           </div>
 
-          <!-- Loading state for expeditions -->
-          <div v-if="isLoadingExpeditions" class="expeditions-skeleton-list">
+          <!-- Mode Event MABA: Pengiriman Khusus Kampus UBSI -->
+          <div v-if="cartStore.hasEventMaba" class="maba-shipping-card active">
+            <div class="radio-indicator">
+              <span class="radio-dot" style="background: #004aad;"></span>
+            </div>
+            <div class="exp-info">
+              <div class="exp-name-row">
+                <span class="exp-name">Pengambilan di Kampus UBSI</span>
+                <span class="badge badge-emerald font-bold">GRATIS</span>
+              </div>
+              <span class="exp-estimate">
+                Lokasi: <strong>{{ cartStore.mabaCampusLocation }}</strong> • Estimasi: Saat Ormik &amp; Semot PMB
+              </span>
+            </div>
+            <div class="exp-cost-group">
+              <span class="exp-cost font-bold text-emerald-600">Rp 0</span>
+            </div>
+          </div>
+
+          <!-- Loading state for regular expeditions -->
+          <div v-else-if="isLoadingExpeditions" class="expeditions-skeleton-list">
             <div v-for="i in 3" :key="i" class="expedition-card-skeleton skeleton"></div>
           </div>
 
-          <!-- Expeditions list -->
+          <!-- Expeditions list for regular products -->
           <div v-else-if="expeditions.length > 0" class="expeditions-list">
             <label v-for="exp in expeditions" :key="exp.id"
               :class="['expedition-card', { active: selectedExpeditionId === exp.id }]">
@@ -322,7 +368,7 @@
                 <span class="exp-estimate">Estimasi tiba: {{ exp.estimated_days || '2-3' }} hari kerja</span>
               </div>
               <div class="exp-cost-group">
-                <span class="exp-cost">{{ formatRupiah(exp.base_cost || 14000) }}</span>
+                <span class="exp-cost">{{ formatRupiah(exp.cost || exp.base_cost || 14000) }}</span>
               </div>
             </label>
           </div>
@@ -341,9 +387,7 @@
               <span class="step-desc">Instruksi khusus atau catatan pengiriman</span>
             </div>
           </div>
-          <input v-model="orderNote" type="text"
-            placeholder="Misal: Tolong bubble wrap tebal, kirim sebelum jam 3 sore."
-            class="input-cyber order-note-input" />
+          <input v-model="orderNote" type="text" placeholder="Catatan" class="input-cyber order-note-input" />
         </section>
       </div>
 
@@ -380,48 +424,126 @@
 
           <!-- Calculation details -->
           <div class="checkout-calc-list">
+            <div class="calc-section-title">
+              <Icon name="lucide:receipt" class="w-4 h-4 text-bsi" />
+              <span>Rincian Pembayaran &amp; Biaya</span>
+            </div>
+
+            <!-- Subtotal Produk -->
             <div class="calc-row">
-              <span class="calc-label">Subtotal Produk</span>
+              <div class="calc-label-col">
+                <span class="calc-label">Subtotal Produk</span>
+                <span class="calc-sublabel">{{ cartStore.totalItems }} barang • Total Berat: {{ formattedWeight
+                }}</span>
+              </div>
               <span class="calc-value font-mono">{{ formatRupiah(cartStore.subtotal) }}</span>
             </div>
-            <div class="calc-row">
-              <span class="calc-label">Ongkos Kirim ({{ selectedExpedition?.name || 'Ekspedisi' }})</span>
+
+            <!-- Mode Event MABA: Pengiriman Kampus Gratis -->
+            <div v-if="cartStore.hasEventMaba" class="calc-row">
+              <div class="calc-label-col">
+                <span class="calc-label">
+                  Pengiriman Kampus UBSI
+                  <span class="calc-pill-badge badge-courier"
+                    style="background: rgba(16, 185, 129, 0.12); color: #059669; border-color: rgba(16, 185, 129, 0.3);">Event
+                    MABA</span>
+                </span>
+                <span class="calc-sublabel">Pengambilan resmi di {{ cartStore.mabaCampusLocation }}</span>
+              </div>
+              <span class="calc-free-badge">GRATIS (Ditanggung Kampus)</span>
+            </div>
+
+            <!-- Ongkos Kirim Standar -->
+            <div v-else class="calc-row">
+              <div class="calc-label-col">
+                <span class="calc-label">
+                  Ongkos Kirim
+                  <span class="calc-pill-badge badge-courier">{{ selectedExpedition?.name || 'Ekspedisi' }}{{
+                    selectedExpedition?.service ? ' (' + selectedExpedition.service + ')' : '' }}</span>
+                </span>
+                <span class="calc-sublabel">Estimasi tiba: {{ selectedExpedition?.estimated_days || '2-3' }} hari
+                  kerja</span>
+              </div>
               <span class="calc-value font-mono">{{ formatRupiah(shippingCost) }}</span>
             </div>
-            <div class="calc-row">
-              <span class="calc-label">Biaya Penanganan</span>
-              <span class="calc-value font-mono">{{ formatRupiah(handlingFee) }}</span>
+
+            <!-- Biaya Penanganan Transaksi Midtrans -->
+            <div class="calc-row highlight-fee-row">
+              <div class="calc-label-col">
+                <span class="calc-label">
+                  Biaya Penanganan Transaksi
+                  <span class="calc-pill-badge badge-midtrans">Payment Gateway</span>
+                </span>
+              </div>
+              <span class="calc-value font-mono fee-amount">{{ formatRupiah(handlingFee) }}</span>
             </div>
+
+            <!-- Biaya Layanan Aplikasi -->
+            <!-- <div class="calc-row">
+              <div class="calc-label-col">
+                <span class="calc-label">Biaya Layanan Aplikasi</span>
+                <span class="calc-sublabel text-emerald-600">Promo Bebas Biaya Layanan Toko</span>
+              </div>
+              <div class="calc-value-group">
+                <span class="calc-value-original font-mono">{{ formatRupiah(appServiceFee) }}</span>
+                <span class="calc-free-badge">GRATIS</span>
+              </div>
+            </div> -->
+
+            <!-- Asuransi Pengiriman -->
+            <!-- <div class="calc-row">
+              <div class="calc-label-col">
+                <span class="calc-label">Asuransi Pengiriman &amp; Proteksi</span>
+                <span class="calc-sublabel text-emerald-600">Garansi 100% perlindungan paket rusak/hilang</span>
+              </div>
+              <span class="calc-free-badge">GRATIS</span>
+            </div> -->
+
+            <!-- Pajak PPN (11%) -->
+            <!-- <div class="calc-row">
+              <div class="calc-label-col">
+                <span class="calc-label">Pajak Pertambahan Nilai (PPN 11%)</span>
+                <span class="calc-sublabel">Telah termasuk dalam harga seluruh produk</span>
+              </div>
+              <span class="calc-included-badge">Termasuk</span>
+            </div> -->
+
+            <!-- Grand Total -->
             <div class="calc-row grand-total-row">
               <div class="grand-total-info">
-                <strong class="grand-total-label">Total Tagihan</strong>
-                <span class="grand-total-sub">Sudah termasuk PPN</span>
+                <strong class="grand-total-label">Total Tagihan Pembayaran</strong>
+                <span class="grand-total-sub">Sudah mencakup semua item, ongkir &amp; biaya penanganan</span>
               </div>
               <strong class="grand-total-val font-display">{{ formatRupiah(grandTotal) }}</strong>
             </div>
           </div>
 
           <!-- Pay Button (Desktop & Tablet) -->
-          <button id="btn-pay-now" @click="handlePayWithMidtrans"
-            :disabled="isProcessing || !selectedAddressId || !selectedExpeditionId" class="btn btn-primary btn-pay-now">
+          <button id="btn-pay-now" @click="handlePayWithMidtrans" :disabled="isPayButtonDisabled"
+            class="btn btn-primary btn-pay-now">
             <span v-if="isProcessing" class="btn-processing-spinner">
               <Icon name="lucide:loader-2" class="w-5 h-5 animate-spin" />
               <span>Menyiapkan Pembayaran...</span>
             </span>
             <span v-else class="btn-pay-content">
               <Icon name="lucide:lock" class="w-5 h-5" />
-              <span>Bayar Sekarang</span>
+              <span>Bayar Sekarang ({{ formatRupiah(grandTotal) }})</span>
             </span>
           </button>
 
-          <!-- Safe Payment Note -->
+          <!-- Safe Payment Note with Midtrans & Payment Badges -->
           <div class="payment-note-box">
             <div class="note-icon">
               <Icon name="lucide:shield-check" class="w-5 h-5 text-emerald" />
             </div>
-            <p class="payment-note">
-              Pembayaran aman terenkripsi via <strong>(Virtual Account)</strong>.
-            </p>
+            <div class="payment-note-content">
+              <p class="payment-note">
+                Pembayaran aman &amp; otomatis terverifikasi via <strong>Virtual Accounts Bank</strong>.
+              </p>
+              <div class="payment-methods-badges">
+                <span class="pay-method-badge">Mandiri</span>
+              </div>
+            </div>
           </div>
         </div>
       </aside>
@@ -429,13 +551,66 @@
 
     <!-- Mobile Fixed Floating Checkout Bar (< 768px) -->
     <div v-if="cartStore.items.length > 0 && authStore.isAuthenticated" class="mobile-sticky-checkout-bar">
+      <!-- Mobile Fee Breakdown Drawer Sheet -->
+      <Transition name="sheet-slide">
+        <div v-if="showMobileFeeDetails" class="mobile-fee-breakdown-sheet cyber-card">
+          <div class="sheet-header">
+            <div class="sheet-title-group">
+              <Icon name="lucide:receipt" class="w-4 h-4 text-bsi" />
+              <h4>Rincian Seluruh Biaya</h4>
+            </div>
+            <button type="button" class="sheet-close-btn" @click="showMobileFeeDetails = false"
+              aria-label="Tutup Rincian">
+              <Icon name="lucide:x" class="w-4 h-4" />
+            </button>
+          </div>
+          <div class="sheet-body">
+            <div class="sheet-row">
+              <span class="sheet-label">Subtotal Produk ({{ cartStore.totalItems }} barang)</span>
+              <span class="sheet-val font-mono">{{ formatRupiah(cartStore.subtotal) }}</span>
+            </div>
+            <div class="sheet-row">
+              <span class="sheet-label">Total Berat Paket</span>
+              <span class="sheet-val font-mono text-muted">{{ formattedWeight }}</span>
+            </div>
+            <div v-if="cartStore.hasEventMaba" class="sheet-row">
+              <span class="sheet-label">Pengiriman Kampus UBSI</span>
+              <span class="sheet-val text-emerald-600 font-bold">Gratis</span>
+            </div>
+            <div v-else class="sheet-row">
+              <span class="sheet-label">Ongkos Kirim ({{ selectedExpedition?.name || 'Kurir' }})</span>
+              <span class="sheet-val font-mono">{{ formatRupiah(shippingCost) }}</span>
+            </div>
+            <div class="sheet-row highlight-sheet-row">
+              <span class="sheet-label font-bold text-bsi">Biaya Penanganan</span>
+              <span class="sheet-val font-mono font-bold text-bsi">{{ formatRupiah(handlingFee) }}</span>
+            </div>
+            <div class="sheet-row">
+              <span class="sheet-label">Biaya Layanan Aplikasi</span>
+              <span class="sheet-val text-emerald-600 font-bold">GRATIS</span>
+            </div>
+            <div class="sheet-divider"></div>
+            <div class="sheet-row sheet-total-row">
+              <strong class="sheet-total-label">Total Pembayaran</strong>
+              <strong class="sheet-total-val font-mono font-display text-bsi">{{ formatRupiah(grandTotal) }}</strong>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
       <div class="mobile-bar-container">
-        <div class="mobile-bar-total">
-          <span class="mobile-bar-label">Total Tagihan</span>
+        <div class="mobile-bar-total" @click="showMobileFeeDetails = !showMobileFeeDetails" style="cursor: pointer;">
+          <div class="mobile-bar-label-group">
+            <span class="mobile-bar-label">Total Tagihan</span>
+            <span class="mobile-detail-toggle">
+              Lihat rincian biaya
+              <Icon :name="showMobileFeeDetails ? 'lucide:chevron-down' : 'lucide:chevron-up'"
+                class="w-3.5 h-3.5 inline ml-0.5" />
+            </span>
+          </div>
           <span class="mobile-bar-amount font-display">{{ formatRupiah(grandTotal) }}</span>
         </div>
-        <button id="btn-pay-mobile" @click="handlePayWithMidtrans"
-          :disabled="isProcessing || !selectedAddressId || !selectedExpeditionId"
+        <button id="btn-pay-mobile" @click="handlePayWithMidtrans" :disabled="isPayButtonDisabled"
           class="btn btn-primary mobile-btn-pay">
           <span v-if="isProcessing">Memproses...</span>
           <span v-else>
@@ -484,7 +659,7 @@
           <div class="checkout-success-card cyber-card" role="dialog" aria-modal="true">
             <!-- Animated Checklist Icon Badge -->
             <div class="success-icon-badge">
-              <Icon name="lucide:check-circle-2" class="w-12 h-12 text-emerald-500 checkmark-pulse-icon" />
+              <Icon name="lucide:check-circle-2" class="w-7 h-7 text-emerald-500 checkmark-pulse-icon" />
             </div>
             <h2 class="success-title">Pembayaran Berhasil!</h2>
             <p class="success-desc">
@@ -506,9 +681,9 @@
                   <h4 class="preview-product-name">{{ primaryPurchasedProduct.name }}</h4>
                   <div class="preview-product-meta">
                     <span v-if="primaryPurchasedProduct.size" class="meta-pill">Ukuran: {{ primaryPurchasedProduct.size
-                    }}</span>
+                      }}</span>
                     <span v-if="primaryPurchasedProduct.color" class="meta-pill">Warna: {{ primaryPurchasedProduct.color
-                    }}</span>
+                      }}</span>
                     <span class="meta-qty">{{ primaryPurchasedProduct.quantity }}x</span>
                   </div>
                   <span class="preview-product-price font-mono">{{ formatRupiah(primaryPurchasedProduct.price) }}</span>
@@ -523,13 +698,41 @@
                 <strong class="box-val font-mono text-bsi">{{ paidSuccessOrder.invoice_number ||
                   `ORD-#${paidSuccessOrder.id}` }}</strong>
               </div>
+              <div class="success-box-divider"></div>
               <div class="success-box-row">
-                <span class="box-label">Total Pembayaran:</span>
-                <strong class="box-val font-mono text-emerald-600 font-bold">{{
+                <span class="box-label">Subtotal Produk:</span>
+                <span class="box-val font-mono">{{ formatRupiah(paidSuccessOrder.subtotal || cartStore.subtotal)
+                  }}</span>
+              </div>
+              <div v-if="isPaidOrderEventMaba" class="success-box-row">
+                <span class="box-label">Pengiriman Kampus UBSI:</span>
+                <span class="box-val text-emerald-600 font-semibold">GRATIS (Ditanggung Kampus)</span>
+              </div>
+              <div v-else class="success-box-row">
+                <span class="box-label">Ongkos Kirim ({{ selectedExpedition?.name || 'Kurir' }}):</span>
+                <span class="box-val font-mono">{{ formatRupiah(paidSuccessOrder.shipping_cost || shippingCost)
+                }}</span>
+              </div>
+              <div class="success-box-row">
+                <span class="box-label">Biaya Penanganan :</span>
+                <span class="box-val font-mono">{{ formatRupiah(handlingFee) }}</span>
+              </div>
+              <div class="success-box-row">
+                <span class="box-label">Biaya Layanan Aplikasi:</span>
+                <span class="box-val text-emerald-600 font-semibold">GRATIS</span>
+              </div>
+              <div class="success-box-divider"></div>
+              <div class="success-box-row success-total-row">
+                <span class="box-label font-bold">Total Pembayaran:</span>
+                <strong class="box-val font-mono text-emerald-600 font-bold font-display" style="font-size: 1.15rem;">{{
                   formatRupiah(paidSuccessOrder.grand_total || grandTotal) }}</strong>
               </div>
               <div class="success-box-row">
-                <span class="box-label">Status:</span>
+                <span class="box-label">Metode Pembayaran:</span>
+                <span class="box-val font-semibold text-slate-800">Virtual Account</span>
+              </div>
+              <div class="success-box-row">
+                <span class="box-label">Status Transaksi:</span>
                 <span class="badge badge-emerald inline-flex items-center gap-1">
                   <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5 text-white" />
                   LUNAS (PAID)
@@ -584,6 +787,10 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Modal Tukar Kampus UBSI untuk Event MABA -->
+    <CampusPickupModal :is-open="isCampusPickupModalOpen" :selected-campus-name="cartStore.mabaCampusLocation"
+      @close="isCampusPickupModalOpen = false" @select="handleSelectMabaCampus" />
   </div>
 </template>
 
@@ -601,6 +808,8 @@ import { useApi } from '~/composables/useApi'
 import { useFormat } from '~/composables/useFormat'
 import { useMidtrans } from '~/composables/useMidtrans'
 import OrderInvoiceModal from '~/components/OrderInvoiceModal.vue'
+import CampusPickupModal from '~/components/CampusPickupModal.vue'
+import { UBSI_CAMPUSES, type UbsiCampus } from '~/utils/ubsi-campuses'
 import {
   getProvinceNames,
   getCitiesForProvince,
@@ -612,15 +821,49 @@ import {
 const router = useRouter()
 const cartStore = useCartStore()
 const authStore = useAuthStore()
+const toast = useToast()
 const { fetchExpeditions, fetchAddresses, createAddress, updateAddress, deleteAddress, checkoutOrder, checkPaymentStatus, getImageUrl } = useApi()
 const { formatRupiah } = useFormat()
 const { pay: payWithMidtrans, loadSnap: loadMidtransScript } = useMidtrans()
+
+// Campus Pickup Modal for Event MABA
+const isCampusPickupModalOpen = ref(false)
+
+const shippingAddressStepTitle = computed(() =>
+  cartStore.hasEventMaba ? 'Lokasi Pengambilan di Kampus UBSI' : 'Alamat Pengiriman'
+)
+const shippingAddressStepDesc = computed(() =>
+  cartStore.hasEventMaba ? 'Titik temu resmi pengambilan perlengkapan Event MABA' : 'Tujuan pengiriman pesanan kamu'
+)
+const shippingMethodStepTitle = computed(() =>
+  cartStore.hasEventMaba ? 'Metode Pengiriman & Pengambilan' : 'Pilihan Kurir & Ekspedisi'
+)
+const shippingMethodStepDesc = computed(() =>
+  cartStore.hasEventMaba ? 'Pengiriman ditanggung Pihak Kampus' : 'Pilih kurir pengiriman terpercaya'
+)
+
+const handleSelectMabaCampus = (campus: UbsiCampus) => {
+  cartStore.setAllMabaCampus(campus.name)
+  toast.success(`Lokasi kampus pengambilan berhasil diubah ke: ${campus.name}`, {
+    title: 'Lokasi Kampus Diperbarui',
+    duration: 3500,
+  })
+}
 
 // Payment Success & Invoice Modal State
 const isSuccessModalOpen = ref(false)
 const isInvoiceModalOpen = ref(false)
 const paidSuccessOrder = ref<any>(null)
 const purchasedItems = ref<any[]>([])
+const wasEventMabaOrder = ref(false)
+
+const isPaidOrderEventMaba = computed(() => {
+  return (
+    wasEventMabaOrder.value ||
+    Boolean(paidSuccessOrder.value?.is_event_maba) ||
+    purchasedItems.value.some((i: any) => i.product?.is_event_maba || i.is_event_maba)
+  )
+})
 
 // Primary purchased product for redirection
 const primaryPurchasedProduct = computed(() => {
@@ -1119,20 +1362,28 @@ const handleCheckoutLocationPicked = async (loc: {
   showAddressToast('Titik koordinat peta berhasil disesuaikan!', 'info')
 }
 
-const loadCheckoutData = async () => {
+const loadExpeditions = async () => {
   isLoadingExpeditions.value = true
   try {
-    const expRes = await fetchExpeditions()
+    const expRes = await fetchExpeditions({
+      address_id: selectedAddressId.value || undefined,
+      quantity: cartStore.totalItems || 1,
+    })
     expeditions.value = expRes?.expeditions || (Array.isArray(expRes) ? expRes : [])
-    if (expeditions.value.length > 0 && !selectedExpeditionId.value) {
-      selectedExpeditionId.value = expeditions.value[0].id
+    if (expeditions.value.length > 0) {
+      const exists = expeditions.value.some((e: any) => e.id === selectedExpeditionId.value)
+      if (!exists) {
+        selectedExpeditionId.value = expeditions.value[0].id
+      }
     }
   } catch (err) {
     console.error('Failed to load expeditions:', err)
   } finally {
     isLoadingExpeditions.value = false
   }
+}
 
+const loadCheckoutData = async () => {
   if (authStore.isAuthenticated) {
     if (!newAddr.value.receiver_name && authStore.user?.name) {
       newAddr.value.receiver_name = authStore.user.name
@@ -1157,6 +1408,8 @@ const loadCheckoutData = async () => {
       showNewAddressForm.value = true
     }
   }
+
+  await loadExpeditions()
 }
 
 onMounted(() => {
@@ -1173,19 +1426,59 @@ watch(
   }
 )
 
+// Re-fetch biaya ongkir saat alamat atau jumlah barang berubah agar selalu sinkron dengan server
+watch(
+  () => [selectedAddressId.value, cartStore.totalItems],
+  ([newAddrId]) => {
+    if (newAddrId) {
+      loadExpeditions()
+    }
+  }
+)
+
 const selectedExpedition = computed(() => {
   return expeditions.value.find((e: any) => e.id === selectedExpeditionId.value)
 })
 
 const shippingCost = computed(() => {
-  return selectedExpedition.value?.base_cost || 14000
+  // Pengiriman via Kampus UBSI untuk MABA: GRATIS (Rp 0)
+  if (cartStore.hasEventMaba) {
+    return 0
+  }
+  if (!selectedExpedition.value) return 14000
+  if (typeof selectedExpedition.value.cost === 'number') {
+    return selectedExpedition.value.cost
+  }
+  const base = Number(selectedExpedition.value.base_cost || 14000)
+  const additionalQtyFee = Math.max(0, (cartStore.totalItems || 1) - 1) * 1000
+  return base + additionalQtyFee
 })
 
-// Biaya tetap per pesanan, sesuai perhitungan checkout di backend.
-const handlingFee = 2000
+// Biaya tetap per pesanan, sesuai perhitungan checkout di backend (Midtrans gateway).
+const handlingFee = 4400
+const appServiceFee = 1000
+
+const formattedWeight = computed(() => {
+  const w = cartStore.totalWeight || 0
+  if (w >= 1000) {
+    return `${(w / 1000).toFixed(1)} kg`
+  }
+  return `${w} gram`
+})
+
+// State toggle rincian biaya pada mobile floating bar
+const showMobileFeeDetails = ref(false)
 
 const grandTotal = computed(() => {
   return cartStore.subtotal + shippingCost.value + handlingFee
+})
+
+const isPayButtonDisabled = computed(() => {
+  if (isProcessing.value) return true
+  if (cartStore.hasEventMaba) {
+    return false
+  }
+  return !selectedAddressId.value || !selectedExpeditionId.value
 })
 
 const handleSaveAddress = async () => {
@@ -1245,7 +1538,7 @@ const handleSaveAddress = async () => {
     if (editingAddressId.value) {
       // MODE UPDATE ALAMAT
       const res = await updateAddress(editingAddressId.value, payload)
-      const updated = res?.address || res?.data || res
+      const updated = res?.address || res || res
 
       const idx = addresses.value.findIndex((a: any) => a.id === editingAddressId.value)
       if (idx !== -1) {
@@ -1306,16 +1599,59 @@ const handleSaveAddress = async () => {
 const handleSaveNewAddress = handleSaveAddress
 
 const handlePayWithMidtrans = async () => {
+  // Jika Event MABA dan belum ada alamat tersimpan, otomatis buatkan alamat kampus UBSI terpilih
+  if (cartStore.hasEventMaba && !selectedAddressId.value) {
+    if (addresses.value.length > 0) {
+      selectedAddressId.value = addresses.value[0].id
+    } else {
+      try {
+        const defaultCampus = UBSI_CAMPUSES[0] || {
+          name: 'Kampus Kramat 98 (Pusat)',
+          address: 'Jl. Kramat Raya No.98, RT.2/RW.9, Kwitang, Kec. Senen',
+          city: 'Jakarta Pusat',
+          province: 'DKI Jakarta',
+          postal_code: '10420',
+          lat: -6.1852,
+          lng: 106.8427,
+        }
+        const campusInfo = UBSI_CAMPUSES.find(c => c.name === cartStore.mabaCampusLocation) || defaultCampus
+        const fallbackAddr = await createAddress({
+          label: 'Kampus UBSI',
+          receiver_name: authStore.user?.name || 'Mahasiswa Baru UBSI',
+          phone: authStore.user?.phone || '081200000000',
+          address: campusInfo.address,
+          city: campusInfo.city,
+          province: campusInfo.province,
+          postal_code: campusInfo.postal_code || '10420',
+          latitude: campusInfo.lat || -6.1852,
+          longitude: campusInfo.lng || 106.8427,
+        })
+        const createdId = fallbackAddr?.address?.id || (fallbackAddr as any)?.data?.id || (fallbackAddr as any)?.id
+        if (createdId) {
+          selectedAddressId.value = createdId
+        }
+      } catch (e) {
+        console.warn('Auto-create campus address fallback failed:', e)
+      }
+    }
+  }
+
   if (!selectedAddressId.value) {
     alert('Silakan pilih atau tambahkan alamat pengiriman terlebih dahulu.')
     return
   }
+
+  // Jika ekspedisi belum terpilih, pilih ekspedisi pertama
   if (!selectedExpeditionId.value) {
-    alert('Silakan pilih kurir pengiriman terlebih dahulu.')
-    return
+    if (expeditions.value.length > 0) {
+      selectedExpeditionId.value = expeditions.value[0].id
+    } else {
+      selectedExpeditionId.value = 1
+    }
   }
 
   isProcessing.value = true
+  wasEventMabaOrder.value = Boolean(cartStore.hasEventMaba)
 
   try {
     // Simpan snapshot cart items sebelum dikosongkan untuk preview & redirect
@@ -1338,10 +1674,14 @@ const handlePayWithMidtrans = async () => {
       nim: item.nim,
     }))
 
+    const finalNote = cartStore.hasEventMaba
+      ? `[Pengambilan Kampus UBSI: ${cartStore.mabaCampusLocation}] ${orderNote.value || ''}`.trim()
+      : orderNote.value
+
     const res = await checkoutOrder({
-      customer_address_id: selectedAddressId.value,
-      expedition_id: selectedExpeditionId.value,
-      note: orderNote.value,
+      customer_address_id: selectedAddressId.value!,
+      expedition_id: selectedExpeditionId.value || 1,
+      note: finalNote,
       items: itemsPayload,
     })
 
@@ -1551,6 +1891,7 @@ useHead({
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  min-width: 0;
 }
 
 /* Step Card */
@@ -1623,6 +1964,7 @@ useHead({
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .address-card:hover {
@@ -1741,11 +2083,141 @@ useHead({
   padding: 0.5rem 0.9rem;
 }
 
+/* Inline Address Actions (Edit & Hapus) */
+.address-actions-inline {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.btn-addr-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.btn-addr-action:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-addr-edit:hover {
+  border-color: #003399;
+  color: #003399;
+  background: #eff6ff;
+}
+
+.btn-addr-delete:hover {
+  border-color: #fca5a5;
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.badge-active-select {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #003399;
+  border: 1px solid #bfdbfe;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* GPS Badge & Map Elements */
+.address-geo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 0.45rem;
+  font-size: 0.75rem;
+  color: #065f46;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.geo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+.link-maps-inline {
+  color: #0284c7;
+  text-decoration: underline;
+  margin-left: 0.25rem;
+  font-weight: 700;
+}
+
+.link-maps-inline:hover {
+  color: #003399;
+}
+
 /* Address Form */
 .new-address-form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+
+.form-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 0.25rem;
+}
+
+.form-header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.btn-close-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-close-form:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 
 .form-grid {
@@ -1775,6 +2247,20 @@ useHead({
   font-size: 0.825rem;
   font-weight: 700;
   color: #334155;
+}
+
+.label-with-hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.text-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
 }
 
 .text-danger {
@@ -1832,16 +2318,290 @@ useHead({
   font-weight: 600;
 }
 
-.badge-active-select {
-  font-size: 0.72rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: #eff6ff;
-  color: #003399;
-  border: 1px solid #bfdbfe;
+/* Custom Select Dropdowns */
+.select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.select-cyber {
+  width: 100%;
+  padding: 0.65rem 2.2rem 0.65rem 0.9rem;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  transition: all 0.2s ease;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.select-cyber:focus {
+  background: #ffffff;
+  border-color: #004aad;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.15);
+}
+
+.select-cyber:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+}
+
+.select-chevron {
+  position: absolute;
+  right: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  color: #64748b;
+  pointer-events: none;
+  transition: transform 0.2s ease;
+}
+
+.select-cyber:focus+.select-chevron {
+  color: #004aad;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+/* Search Location Input & Autocomplete */
+.address-autocomplete-group {
+  position: relative;
+}
+
+.form-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.geosearch-indicator {
   display: inline-flex;
   align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #004aad;
+}
+
+.search-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.search-input-icon {
+  position: absolute;
+  left: 0.85rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.input-search-location {
+  padding-left: 2.5rem !important;
+  padding-right: 2.5rem !important;
+}
+
+.search-clear-btn {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.search-clear-btn:hover {
+  color: #0f172a;
+}
+
+.address-suggestions-box {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #ffffff;
+  border: 1.5px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 10px 25px -5px rgba(0, 51, 153, 0.15);
+  z-index: 50;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.suggestions-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  background: #eff6ff;
+  border-bottom: 1px solid #dbeafe;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #003399;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.suggestion-item {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: #f0fdf4;
+}
+
+.suggestion-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.suggestion-title {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.suggestion-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Event MABA Checkout Styling */
+.maba-checkout-campus-box {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.maba-campus-selected-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  padding: 1.25rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border: 1.5px solid #93c5fd;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 74, 173, 0.08);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.maba-campus-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1.5px solid #bfdbfe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 74, 173, 0.1);
+}
+
+.maba-campus-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.maba-campus-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.maba-campus-name {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #003399;
+  margin: 0;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.maba-campus-desc {
+  font-size: 0.825rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.maba-campus-actions {
+  margin-top: 0.4rem;
+  display: flex;
+}
+
+.btn-swap-campus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.825rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.maba-shipping-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #eff6ff;
+  border: 1.5px solid #004aad;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 74, 173, 0.12);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ==========================================================================
@@ -1956,6 +2716,7 @@ useHead({
   position: sticky;
   top: 90px;
   z-index: 10;
+  min-width: 0;
 }
 
 .summary-card {
@@ -2095,32 +2856,129 @@ useHead({
 .checkout-calc-list {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.75rem;
   border-top: 1px solid #f1f5f9;
   border-bottom: 1px solid #f1f5f9;
-  padding: 0.9rem 0;
+  padding: 1rem 0;
   font-size: 0.875rem;
+}
+
+.calc-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px dashed #e2e8f0;
 }
 
 .calc-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   color: #475569;
+  gap: 0.75rem;
+}
+
+.calc-label-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
 }
 
 .calc-label {
-  font-weight: 500;
+  font-weight: 600;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.calc-sublabel {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.calc-pill-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.badge-courier {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+.badge-midtrans {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #003399;
+}
+
+.highlight-fee-row {
+  background: #f8fafc;
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid #e2e8f0;
+}
+
+.fee-amount {
+  color: #003399;
+  font-weight: 700;
+}
+
+.calc-value-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.calc-value-original {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  text-decoration: line-through;
+}
+
+.calc-free-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #059669;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.calc-included-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 2px 7px;
+  border-radius: 4px;
 }
 
 .calc-value {
   font-weight: 600;
   color: #0f172a;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .grand-total-row {
-  margin-top: 0.35rem;
-  padding-top: 0.75rem;
+  margin-top: 0.4rem;
+  padding-top: 0.85rem;
   border-top: 1.5px dashed #cbd5e1;
   align-items: flex-end;
 }
@@ -2128,6 +2986,7 @@ useHead({
 .grand-total-info {
   display: flex;
   flex-direction: column;
+  gap: 0.15rem;
 }
 
 .grand-total-label {
@@ -2137,8 +2996,8 @@ useHead({
 }
 
 .grand-total-sub {
-  font-size: 0.7rem;
-  color: #94a3b8;
+  font-size: 0.72rem;
+  color: #64748b;
 }
 
 .grand-total-val {
@@ -2147,7 +3006,7 @@ useHead({
   color: #003399;
 }
 
-/* Pay Button */
+/* Pay Button (Desktop & Tablet) */
 .btn-pay-now {
   width: 100%;
   padding: 0.85rem 1.25rem;
@@ -2187,8 +3046,8 @@ useHead({
 .payment-note-box {
   display: flex;
   align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.75rem 0.9rem;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
   background: #f8fafc;
   border: 1px dashed #cbd5e1;
   border-radius: var(--radius-sm);
@@ -2197,13 +3056,44 @@ useHead({
 .note-icon {
   font-size: 1rem;
   line-height: 1.3;
+  margin-top: 1px;
+}
+
+.payment-note-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  flex: 1;
 }
 
 .payment-note {
   font-size: 0.75rem;
-  color: #64748b;
+  color: #475569;
   line-height: 1.45;
   margin: 0;
+}
+
+.payment-methods-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.pay-method-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 4px;
+}
+
+.pay-method-badge.badge-qris {
+  border-color: #fca5a5;
+  color: #dc2626;
+  background: #fef2f2;
 }
 
 /* ==========================================================================
@@ -2215,13 +3105,123 @@ useHead({
   bottom: 0;
   left: 0;
   right: 0;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border-top: 1px solid #e2e8f0;
   padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.12);
   z-index: 95;
+}
+
+.mobile-fee-breakdown-sheet {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-top: 1.5px solid #004aad;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -10px 30px rgba(0, 51, 153, 0.18);
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: 75vh;
+  overflow-y: auto;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.sheet-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.sheet-header h4 {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.sheet-close-btn {
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.825rem;
+}
+
+.sheet-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #475569;
+}
+
+.highlight-sheet-row {
+  background: #f8fafc;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.sheet-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.2rem 0;
+}
+
+.sheet-total-row {
+  padding-top: 0.3rem;
+  font-size: 0.95rem;
+}
+
+/* Transition for sheet */
+.sheet-slide-enter-active,
+.sheet-slide-leave-active {
+  transition: all 0.25s ease-out;
+}
+
+.sheet-slide-enter-from,
+.sheet-slide-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.mobile-bar-label-group {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.mobile-detail-toggle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #004aad;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: underline;
 }
 
 .mobile-bar-container {
@@ -2261,575 +3261,8 @@ useHead({
 }
 
 /* ==========================================================================
-   Responsive Media Queries
+   Modals & Toasts
    ========================================================================== */
-
-/* 1. Large Screen / Desktop (min-width: 1025px) */
-@media (min-width: 1025px) {
-  .checkout-grid {
-    grid-template-columns: 1fr 420px;
-    gap: 2rem;
-  }
-}
-
-/* 2. Tablets & Small Laptops (769px to 1024px) */
-@media (max-width: 1024px) {
-  .checkout-grid {
-    grid-template-columns: 1fr 360px;
-    gap: 1.5rem;
-  }
-
-  .summary-card {
-    padding: 1.25rem;
-  }
-
-  .step-card {
-    padding: 1.25rem;
-  }
-
-  .form-grid-3 {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .form-grid-4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* 3. Mobile Landscape & Tablets Portrait (max-width: 768px) */
-@media (max-width: 768px) {
-  .checkout-page {
-    padding-top: 1rem;
-    padding-bottom: 7rem;
-    /* Extra padding so content isn't covered by mobile floating bar */
-    gap: 1.25rem;
-  }
-
-  .page-title {
-    font-size: 1.5rem;
-  }
-
-  .checkout-grid {
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
-  }
-
-  .checkout-summary-col {
-    position: static;
-  }
-
-  .step-card {
-    padding: 1.15rem;
-    gap: 1rem;
-  }
-
-  .form-grid-2 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .form-grid-3 {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .mobile-sticky-checkout-bar {
-    display: block;
-  }
-}
-
-/* 3b. Mobile Portrait Phones (max-width: 640px) */
-@media (max-width: 640px) {
-
-  .form-grid-2,
-  .form-grid-3,
-  .form-grid-4 {
-    grid-template-columns: 1fr;
-  }
-
-  .form-actions {
-    flex-direction: column-reverse;
-  }
-
-  .btn-save-address,
-  .btn-cancel-address {
-    width: 100%;
-    text-align: center;
-    justify-content: center;
-  }
-}
-
-/* 4. Small Mobile Phones (max-width: 480px) */
-@media (max-width: 480px) {
-  .checkout-page {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-
-  .page-title {
-    font-size: 1.35rem;
-  }
-
-  .step-card {
-    padding: 1rem;
-    border-radius: var(--radius-sm);
-  }
-
-  .step-title {
-    font-size: 1rem;
-  }
-
-  .step-badge {
-    width: 28px;
-    height: 28px;
-    font-size: 0.8rem;
-  }
-
-  .address-card,
-  .expedition-card {
-    padding: 0.8rem 0.85rem;
-  }
-
-  .receiver-name {
-    font-size: 0.9rem;
-  }
-
-  .address-text {
-    font-size: 0.8rem;
-  }
-
-  .summary-card {
-    padding: 1.1rem;
-  }
-
-  .item-title {
-    font-size: 0.82rem;
-  }
-
-  .checkout-item-total {
-    font-size: 0.82rem;
-  }
-
-  .mobile-bar-amount {
-    font-size: 1.05rem;
-  }
-
-  .mobile-btn-pay {
-    padding: 0.6rem 1rem;
-    font-size: 0.85rem;
-  }
-}
-
-/* 5. Extra Small Phones (max-width: 360px) */
-@media (max-width: 360px) {
-  .page-title {
-    font-size: 1.25rem;
-  }
-
-  .mobile-bar-container {
-    gap: 0.5rem;
-  }
-
-  .mobile-bar-amount {
-    font-size: 0.95rem;
-  }
-
-  .mobile-btn-pay {
-    padding: 0.55rem 0.85rem;
-    font-size: 0.8rem;
-  }
-}
-
-/* GPS Badge & Map Elements */
-.address-geo-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.6rem;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  border-radius: 0.45rem;
-  font-size: 0.75rem;
-  color: #065f46;
-  font-weight: 600;
-  margin-top: 0.5rem;
-}
-
-.geo-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 6px #10b981;
-}
-
-.link-maps-inline {
-  color: #0284c7;
-  text-decoration: underline;
-  margin-left: 0.25rem;
-  font-weight: 700;
-}
-
-.link-maps-inline:hover {
-  color: #003399;
-}
-
-.label-with-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.text-hint {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--text-muted);
-}
-
-/* Checkout Payment Success Modal */
-.checkout-success-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(6px);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
-}
-
-.checkout-success-card {
-  background: #ffffff;
-  border-radius: 16px;
-  max-width: 480px;
-  width: 100%;
-  padding: 2.25rem 2rem;
-  text-align: center;
-  box-shadow: 0 20px 50px rgba(0, 51, 153, 0.2);
-  border: 1px solid #e2e8f0;
-}
-
-.success-icon-badge {
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  background: #ecfdf5;
-  border: 3px solid #10b981;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 1.25rem;
-  box-shadow: 0 0 24px rgba(16, 185, 129, 0.35);
-  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-.checkmark-pulse-icon {
-  animation: checkPulse 1.8s ease-in-out infinite;
-}
-
-@keyframes checkPulse {
-
-  0%,
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
-  }
-
-  50% {
-    transform: scale(1.08);
-    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.7));
-  }
-}
-
-@keyframes bounceIn {
-  0% {
-    transform: scale(0.5);
-    opacity: 0;
-  }
-
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.success-title {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 0.4rem;
-}
-
-.success-desc {
-  font-size: 0.85rem;
-  color: #64748b;
-  line-height: 1.5;
-  margin-bottom: 1.25rem;
-}
-
-/* Purchased Product Preview Card */
-.success-product-preview {
-  background: #f0fdf4;
-  border: 1.5px solid #bbf7d0;
-  border-radius: 12px;
-  padding: 0.85rem 1rem;
-  margin-bottom: 1.25rem;
-  text-align: left;
-}
-
-.preview-tag-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #15803d;
-  display: block;
-  margin-bottom: 0.5rem;
-}
-
-.preview-product-card {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.preview-product-thumb {
-  width: 52px;
-  height: 52px;
-  border-radius: 8px;
-  object-fit: cover;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  flex-shrink: 0;
-}
-
-.preview-product-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.preview-product-name {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 0 0 0.2rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.preview-product-meta {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.25rem;
-}
-
-.meta-pill {
-  font-size: 0.68rem;
-  background: #ffffff;
-  border: 1px solid #cbd5e1;
-  color: #475569;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.meta-qty {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.preview-product-price {
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #003399;
-}
-
-.success-order-box {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 0.85rem 1.15rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  margin-bottom: 1.5rem;
-  text-align: left;
-}
-
-.success-box-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
-}
-
-.box-label {
-  color: #64748b;
-}
-
-.box-val {
-  color: #0f172a;
-}
-
-.success-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.btn-success-ok {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #ffffff;
-  font-weight: 700;
-  font-size: 0.95rem;
-  padding: 0.85rem 1.5rem;
-  border-radius: 12px;
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.35);
-  transition: all 0.2s ease;
-  width: 100%;
-}
-
-.btn-success-ok:hover {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
-}
-
-.success-secondary-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.success-secondary-row .btn {
-  flex: 1;
-  padding: 0.6rem 0.85rem;
-  font-size: 0.8rem;
-  justify-content: center;
-}
-
-/* Checkout Success Modal Responsive */
-@media (max-width: 480px) {
-  .checkout-success-backdrop {
-    padding: 0.75rem;
-    align-items: flex-end;
-  }
-
-  .checkout-success-card {
-    border-radius: 16px 16px 8px 8px;
-    padding: 1.75rem 1.25rem;
-  }
-
-  .success-title {
-    font-size: 1.15rem;
-  }
-
-  .success-desc {
-    font-size: 0.825rem;
-  }
-
-  .btn-print-success,
-  .btn-orders-success {
-    padding: 0.75rem 1rem;
-    font-size: 0.875rem;
-  }
-}
-
-/* Inline Address Actions (Edit & Hapus) */
-.address-actions-inline {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.btn-addr-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  border-radius: var(--radius-sm);
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  line-height: 1;
-}
-
-.btn-addr-action:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-.btn-addr-edit:hover {
-  border-color: #003399;
-  color: #003399;
-  background: #eff6ff;
-}
-
-.btn-addr-delete:hover {
-  border-color: #fca5a5;
-  color: #dc2626;
-  background: #fef2f2;
-}
-
-/* Form Header Bar */
-.form-header-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 0.85rem;
-  border-bottom: 1px solid #f1f5f9;
-  margin-bottom: 0.25rem;
-}
-
-.form-header-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.form-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin: 0;
-}
-
-.btn-close-form {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #64748b;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.btn-close-form:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-
 /* Delete Address Confirmation Modal */
 .checkout-delete-modal {
   background: #ffffff;
@@ -2905,9 +3338,254 @@ useHead({
   cursor: not-allowed;
 }
 
-/* ==========================================================================
-   Checkout Floating Toast Notification
-   ========================================================================== */
+/* Checkout Payment Success Modal */
+.checkout-success-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.checkout-success-card {
+  background: #ffffff;
+  border-radius: 16px;
+  max-width: 440px;
+  max-height: min(88vh, 620px);
+  overflow-y: auto;
+  width: 100%;
+  padding: 1.25rem 1.25rem;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0, 51, 153, 0.2);
+  border: 1px solid #e2e8f0;
+  scrollbar-width: thin;
+}
+
+.success-icon-badge {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #ecfdf5;
+  border: 2.5px solid #10b981;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 0.65rem;
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.3);
+  animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.checkmark-pulse-icon {
+  animation: checkPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes checkPulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.4));
+  }
+
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.7));
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.success-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.success-desc {
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin-bottom: 0.75rem;
+}
+
+/* Purchased Product Preview Card */
+.success-product-preview {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.preview-tag-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #15803d;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.preview-product-card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.preview-product-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.preview-product-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview-product-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-product-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.15rem;
+}
+
+.meta-pill {
+  font-size: 0.65rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.meta-qty {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.preview-product-price {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #003399;
+}
+
+.success-order-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.6rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+  text-align: left;
+}
+
+.success-box-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.success-box-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.2rem 0;
+}
+
+.success-total-row {
+  padding: 0.35rem 0;
+}
+
+.box-label {
+  color: #64748b;
+}
+
+.box-val {
+  color: #0f172a;
+}
+
+.success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.btn-success-ok {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.btn-success-ok:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.4);
+}
+
+.success-secondary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.success-secondary-row .btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.78rem;
+  justify-content: center;
+}
+
+/* Checkout Floating Toast Notification */
 .checkout-floating-toast {
   position: fixed;
   top: 1.5rem;
@@ -3004,7 +3682,167 @@ useHead({
   transform: translateY(-15px) scale(0.95);
 }
 
+/* ==========================================================================
+   Comprehensive Responsive Media Queries
+   ========================================================================== */
+
+/* 1. Large Screen / Desktop (min-width: 1025px) */
+@media (min-width: 1025px) {
+  .checkout-grid {
+    grid-template-columns: 1fr 420px;
+    gap: 2rem;
+  }
+}
+
+/* 2. Tablets & Small Laptops (769px to 1024px) */
+@media (max-width: 1024px) {
+  .checkout-grid {
+    grid-template-columns: 1fr 340px;
+    gap: 1.25rem;
+  }
+
+  .summary-card,
+  .step-card {
+    padding: 1.25rem;
+  }
+
+  .form-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .form-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 3. Mobile Landscape & Tablets Portrait (max-width: 768px) */
+@media (max-width: 768px) {
+  .checkout-page {
+    padding-top: 1rem;
+    padding-bottom: 7.5rem;
+    gap: 1.25rem;
+  }
+
+  .page-title {
+    font-size: 1.45rem;
+  }
+
+  .checkout-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .checkout-summary-col {
+    position: static;
+  }
+
+  .step-card {
+    padding: 1.15rem;
+    gap: 1rem;
+  }
+
+  .maba-campus-selected-card {
+    padding: 1.1rem;
+    gap: 0.9rem;
+  }
+
+  .maba-campus-actions {
+    width: 100%;
+  }
+
+  .btn-swap-campus {
+    width: 100%;
+    justify-content: center;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .form-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .form-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mobile-sticky-checkout-bar {
+    display: block;
+  }
+
+  /* Sembunyikan tombol bayar di kartu ringkasan saat mode HP agar tidak double dengan bottom bar */
+  .btn-pay-now {
+    display: none !important;
+  }
+}
+
+/* 4. Mobile Portrait Phones (max-width: 640px) */
 @media (max-width: 640px) {
+  .checkout-page {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+    gap: 1rem;
+  }
+
+  .page-title {
+    font-size: 1.35rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.82rem;
+  }
+
+  .form-grid-2,
+  .form-grid-3,
+  .form-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+  }
+
+  .btn-save-address,
+  .btn-cancel-address {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .maba-campus-selected-card {
+    flex-direction: column;
+    padding: 1rem 0.9rem;
+    gap: 0.75rem;
+  }
+
+  .maba-campus-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .maba-campus-name {
+    font-size: 1rem;
+  }
+
+  .maba-campus-desc {
+    font-size: 0.8rem;
+  }
+
+  .maba-campus-actions {
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .maba-campus-actions .btn,
+  .btn-swap-campus {
+    width: 100%;
+    justify-content: center;
+  }
+
   .checkout-floating-toast {
     top: 1rem;
     left: 1rem;
@@ -3014,193 +3852,284 @@ useHead({
   }
 }
 
-/* Custom Select Dropdowns */
-.select-wrapper {
-  position: relative;
-  width: 100%;
+/* 5. Compact Mobile Phones (max-width: 480px) */
+@media (max-width: 480px) {
+  .checkout-page {
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+    padding-bottom: 7.5rem;
+  }
+
+  .breadcrumb {
+    font-size: 0.75rem;
+    gap: 0.25rem;
+  }
+
+  .page-title {
+    font-size: 1.25rem;
+  }
+
+  .step-card {
+    padding: 0.95rem;
+    border-radius: var(--radius-sm);
+    gap: 0.85rem;
+  }
+
+  .step-badge {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+  }
+
+  .step-title {
+    font-size: 0.98rem;
+  }
+
+  .step-desc {
+    font-size: 0.75rem;
+  }
+
+  /* MABA Campus Card Compact */
+  .maba-campus-selected-card {
+    padding: 0.85rem 0.75rem;
+    border-radius: 12px;
+    gap: 0.65rem;
+  }
+
+  .maba-campus-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .maba-campus-name {
+    font-size: 0.95rem;
+  }
+
+  .maba-campus-desc {
+    font-size: 0.76rem;
+  }
+
+  .maba-campus-badge-row .badge {
+    font-size: 0.68rem;
+    padding: 2px 6px;
+  }
+
+  .btn-swap-campus {
+    font-size: 0.8rem;
+    padding: 0.55rem 0.85rem;
+  }
+
+  /* Address Card Mobile */
+  .address-card {
+    padding: 0.85rem;
+    gap: 0.65rem;
+  }
+
+  .address-top {
+    gap: 0.35rem;
+  }
+
+  .address-actions-inline {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed #f1f5f9;
+  }
+
+  .btn-addr-action {
+    padding: 0.2rem 0.5rem;
+    font-size: 0.72rem;
+  }
+
+  .receiver-name {
+    font-size: 0.88rem;
+  }
+
+  .receiver-phone {
+    font-size: 0.78rem;
+  }
+
+  .address-text {
+    font-size: 0.8rem;
+    line-height: 1.4;
+  }
+
+  .address-geo-badge {
+    font-size: 0.7rem;
+    padding: 0.2rem 0.5rem;
+  }
+
+  /* Expedition Card Mobile */
+  .expedition-card {
+    padding: 0.8rem 0.85rem;
+    gap: 0.65rem;
+  }
+
+  .exp-name {
+    font-size: 0.88rem;
+  }
+
+  .exp-estimate {
+    font-size: 0.72rem;
+  }
+
+  .exp-cost {
+    font-size: 0.88rem;
+  }
+
+  .maba-shipping-card {
+    padding: 0.85rem 1rem;
+    gap: 0.65rem;
+  }
+
+  /* Order Summary Mobile */
+  .summary-card {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .summary-title {
+    font-size: 1.05rem;
+  }
+
+  .checkout-item {
+    gap: 0.6rem;
+  }
+
+  .checkout-item-img {
+    width: 44px;
+    height: 44px;
+  }
+
+  .item-title {
+    font-size: 0.82rem;
+  }
+
+  .item-qty-tag {
+    font-size: 0.72rem;
+  }
+
+  .item-variant-tag {
+    font-size: 0.68rem;
+  }
+
+  .checkout-item-total {
+    font-size: 0.82rem;
+  }
+
+  .calc-row {
+    font-size: 0.825rem;
+    gap: 0.5rem;
+  }
+
+  .calc-label {
+    font-size: 0.825rem;
+  }
+
+  .calc-sublabel {
+    font-size: 0.72rem;
+  }
+
+  .grand-total-val {
+    font-size: 1.2rem;
+  }
+
+  /* Mobile Floating Bar */
+  .mobile-bar-container {
+    gap: 0.65rem;
+  }
+
+  .mobile-bar-amount {
+    font-size: 1.05rem;
+  }
+
+  .mobile-btn-pay {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  /* Modals Mobile */
+  .checkout-success-backdrop {
+    padding: 0.5rem;
+    align-items: center;
+  }
+
+  .checkout-success-card {
+    border-radius: 14px;
+    padding: 1.15rem 1rem;
+    max-height: 92vh;
+    width: 96%;
+  }
+
+  .success-title {
+    font-size: 1.05rem;
+  }
+
+  .success-desc {
+    font-size: 0.75rem;
+  }
+
+  .checkout-delete-modal {
+    padding: 1.5rem 1.15rem;
+    border-radius: 14px;
+    width: 96%;
+  }
+
+  .delete-modal-title {
+    font-size: 1.1rem;
+  }
+
+  .delete-modal-desc {
+    font-size: 0.82rem;
+  }
+
+  .delete-modal-actions .btn {
+    padding: 0.6rem 1rem;
+    font-size: 0.825rem;
+  }
 }
 
-.select-cyber {
-  width: 100%;
-  padding: 0.65rem 2.2rem 0.65rem 0.9rem;
-  background: #f8fafc;
-  border: 1.5px solid #cbd5e1;
-  border-radius: var(--radius-sm);
-  color: #0f172a;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  transition: all 0.2s ease;
-}
+/* 6. Extra Small Phones (max-width: 360px) */
+@media (max-width: 360px) {
+  .page-title {
+    font-size: 1.15rem;
+  }
 
-.select-cyber:focus {
-  background: #ffffff;
-  border-color: #004aad;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.15);
-}
+  .maba-campus-name {
+    font-size: 0.9rem;
+  }
 
-.select-cyber:disabled {
-  background: #f1f5f9;
-  color: #94a3b8;
-  cursor: not-allowed;
-  border-color: #e2e8f0;
-}
+  .maba-campus-desc {
+    font-size: 0.72rem;
+  }
 
-.select-chevron {
-  position: absolute;
-  right: 0.85rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1rem;
-  height: 1rem;
-  color: #64748b;
-  pointer-events: none;
-  transition: transform 0.2s ease;
-}
+  .btn-swap-campus {
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
 
-.select-cyber:focus+.select-chevron {
-  color: #004aad;
-  transform: translateY(-50%) rotate(180deg);
-}
+  .mobile-bar-container {
+    gap: 0.4rem;
+  }
 
-/* Search Location Input */
-.search-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
+  .mobile-bar-label {
+    font-size: 0.68rem;
+  }
 
-.search-input-icon {
-  position: absolute;
-  left: 0.85rem;
-  width: 1.1rem;
-  height: 1.1rem;
-  color: #64748b;
-  pointer-events: none;
-}
+  .mobile-detail-toggle {
+    font-size: 0.68rem;
+  }
 
-.input-search-location {
-  padding-left: 2.5rem !important;
-  padding-right: 2.5rem !important;
-}
+  .mobile-bar-amount {
+    font-size: 0.95rem;
+  }
 
-.search-clear-btn {
-  position: absolute;
-  right: 0.75rem;
-  background: none;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  border-radius: 4px;
-  transition: color 0.15s ease;
-}
-
-.search-clear-btn:hover {
-  color: #0f172a;
-}
-
-/* Autocomplete Suggestions Box */
-.address-autocomplete-group {
-  position: relative;
-}
-
-.form-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-}
-
-.geosearch-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #004aad;
-}
-
-.address-suggestions-box {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin-top: 4px;
-  background: #ffffff;
-  border: 1.5px solid #bfdbfe;
-  border-radius: var(--radius-sm);
-  box-shadow: 0 10px 25px -5px rgba(0, 51, 153, 0.15);
-  z-index: 50;
-  max-height: 220px;
-  overflow-y: auto;
-}
-
-.suggestions-header {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.4rem 0.75rem;
-  background: #eff6ff;
-  border-bottom: 1px solid #dbeafe;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: #003399;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.suggestion-item {
-  width: 100%;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.6rem;
-  padding: 0.6rem 0.85rem;
-  text-align: left;
-  background: none;
-  border: none;
-  border-bottom: 1px solid #f1f5f9;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.suggestion-item:last-child {
-  border-bottom: none;
-}
-
-.suggestion-item:hover {
-  background: #f0fdf4;
-}
-
-.suggestion-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.suggestion-title {
-  font-size: 0.825rem;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.suggestion-desc {
-  font-size: 0.75rem;
-  color: #64748b;
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  .mobile-btn-pay {
+    padding: 0.55rem 0.8rem;
+    font-size: 0.8rem;
+  }
 }
 </style>

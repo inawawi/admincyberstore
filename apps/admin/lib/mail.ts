@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { env } from "@/lib/env";
+import { logger, maskEmail } from "@/lib/logger";
 
 export async function sendOtpEmail(
   email: string,
@@ -9,7 +10,12 @@ export async function sendOtpEmail(
 ) {
   if (!env.mail.host) {
     if (process.env.NODE_ENV !== "production") {
-      console.info(`[mail disabled] OTP ${purpose} for ${email}: ${otp}`);
+      const masked = maskEmail(email);
+      if (process.env.ENABLE_DEV_OTP_LOG === "true") {
+        logger.debug(`[mail disabled] OTP generated for ${masked}`, { purpose, otp });
+      } else {
+        logger.info(`[mail disabled] OTP generated for ${masked} (purpose: ${purpose}, set ENABLE_DEV_OTP_LOG=true to print code in dev)`);
+      }
     }
     return false;
   }

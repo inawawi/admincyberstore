@@ -32,7 +32,6 @@
     <EventMabaSection
       :products="eventMabaProducts"
       :event-title="storeInfoData?.event_maba_title"
-      :event-heading="storeInfoData?.event_maba_heading"
       :event-description="storeInfoData?.event_maba_description"
     />
 
@@ -105,30 +104,40 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useApi } from '~/composables/useApi'
 
-const { fetchProducts, fetchCategories, fetchBanners, fetchStoreInfo } = useApi()
-const { data: storeInfoData } = await useAsyncData('index_store_info', () => fetchStoreInfo())
+const { fetchProducts, fetchCategories, fetchBanners, fetchStoreInfo, clearClientCache } = useApi()
 
+// Function to fetch homepage composite data
+const fetchFreshHomepageData = async (forceFresh = false) => {
+  if (forceFresh) {
+    clearClientCache('products')
+    clearClientCache('categories')
+  }
 
-// Fetch homepage data in parallel with non-blocking lazy transition & payload cache
+  const [banners, categories, eventMaba, products, recommended, storeInfo] = await Promise.all([
+    fetchBanners().catch(() => ({ banners: [] })),
+    fetchCategories(forceFresh).catch(() => ({ categories: [] })),
+    fetchProducts({ is_event_maba: 1, per_page: 4 }, forceFresh).catch(() => ({ data: [] })),
+    fetchProducts({ per_page: 8 }, forceFresh).catch(() => ({ data: [] })),
+    fetchProducts({ is_recommended: 1, per_page: 4 }, forceFresh).catch(() => ({ data: [] })),
+    fetchStoreInfo().catch(() => null),
+  ])
+
+  return { banners, categories, eventMaba, products, recommended, storeInfo }
+}
+
+// Initial fetch on SSR / Client hydration
 const { data: homeData, pending } = await useAsyncData(
   'homepage-composite-data',
-  async () => {
-    const [banners, categories, eventMaba, products, recommended] = await Promise.all([
-      fetchBanners().catch(() => ({ banners: [] })),
-      fetchCategories().catch(() => ({ categories: [] })),
-      fetchProducts({ is_event_maba: 1, per_page: 4 }).catch(() => ({ data: [] })),
-      fetchProducts({ per_page: 8 }).catch(() => ({ data: [] })),
-      fetchProducts({ is_recommended: 1, per_page: 4 }).catch(() => ({ data: [] })),
-    ])
-    return { banners, categories, eventMaba, products, recommended }
-  },
+  () => fetchFreshHomepageData(false),
   {
     lazy: true,
-    getCachedData: (key, nuxtApp) => nuxtApp.payload.data[key],
   }
 )
+
+const storeInfoData = computed(() => homeData.value?.storeInfo || null)
 
 const banners = computed(() => {
   const b = homeData.value?.banners
@@ -164,6 +173,51 @@ const recommendedProducts = computed(() => {
   if (Array.isArray(r)) return r
   if (Array.isArray(r.data)) return r.data
   return []
+})
+
+// Auto-sync / Real-time live updates without refreshing the page
+let autoSyncTimer: any = null
+let isSyncing = false
+
+const syncHomepageData = async () => {
+  if (isSyncing || typeof window === 'undefined') return
+  if (document.visibilityState === 'hidden') return
+
+  isSyncing = true
+  try {
+    const fresh = await fetchFreshHomepageData(true)
+    if (fresh) {
+      homeData.value = fresh
+    }
+  } catch (err) {
+    console.warn('Silent homepage auto-sync warning:', err)
+  } finally {
+    isSyncing = false
+  }
+}
+
+onMounted(() => {
+  // 1. Silent background auto-sync every 4 seconds
+  autoSyncTimer = setInterval(syncHomepageData, 4000)
+
+  // 2. Instant sync when user switches tab or window gets focus (e.g. from admin back to storefront)
+  const handleVisibility = () => {
+    if (document.visibilityState === 'visible') {
+      syncHomepageData()
+    }
+  }
+  const handleFocus = () => {
+    syncHomepageData()
+  }
+
+  document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener('focus', handleFocus)
+
+  onUnmounted(() => {
+    if (autoSyncTimer) clearInterval(autoSyncTimer)
+    document.removeEventListener('visibilitychange', handleVisibility)
+    window.removeEventListener('focus', handleFocus)
+  })
 })
 </script>
 

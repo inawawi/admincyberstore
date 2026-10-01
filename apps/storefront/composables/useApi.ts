@@ -58,6 +58,18 @@ export const useApi = () => {
     return headers
   }
 
+  const handleUnauthorized = (err: any) => {
+    const status = err?.status ?? err?.statusCode ?? err?.response?.status
+    if (status === 401 && import.meta.client) {
+      try {
+        const authStore = useAuthStore()
+        if (authStore.isAuthenticated) {
+          authStore.clearSession()
+        }
+      } catch {}
+    }
+  }
+
   const getImageUrl = (path?: string | null): string => {
     if (!path || typeof path !== 'string' || !path.trim()) {
       return '/placeholder-product.svg'
@@ -121,18 +133,35 @@ export const useApi = () => {
     clientApiCache.set(key, { data, expiresAt: Date.now() + ttlMs })
   }
 
+  const clearClientCache = (pattern?: string) => {
+    if (!pattern) {
+      clientApiCache.clear()
+      return
+    }
+    for (const key of clientApiCache.keys()) {
+      if (key.includes(pattern)) {
+        clientApiCache.delete(key)
+      }
+    }
+  }
+
   // Fetch product list with filters & cache
-  const fetchProducts = async (params: {
-    page?: number
-    per_page?: number
-    category_id?: number | string
-    search?: string
-    is_recommended?: boolean | number
-    is_event_maba?: boolean | number
-  } = {}) => {
+  const fetchProducts = async (
+    params: {
+      page?: number
+      per_page?: number
+      category_id?: number | string
+      search?: string
+      is_recommended?: boolean | number
+      is_event_maba?: boolean | number
+    } = {},
+    forceFresh = false
+  ) => {
     const cacheKey = `products:${JSON.stringify(params)}`
-    const cached = getFromClientCache(cacheKey)
-    if (cached) return cached
+    if (!forceFresh) {
+      const cached = getFromClientCache(cacheKey)
+      if (cached) return cached
+    }
 
     return await $fetch<any>(`${apiBase}/products`, {
       params,
@@ -147,7 +176,7 @@ export const useApi = () => {
   }
 
   // Fetch single product detail dengan sanitasi ketat anti-injeksi & cache
-  const fetchProductDetail = async (id: number | string) => {
+  const fetchProductDetail = async (id: number | string, forceFresh = false) => {
     if (!id) return null
     const rawId = String(id).trim()
 
@@ -159,8 +188,10 @@ export const useApi = () => {
 
     const cleanId = encodeURIComponent(rawId)
     const cacheKey = `product:${cleanId}`
-    const cached = getFromClientCache(cacheKey)
-    if (cached) return cached
+    if (!forceFresh) {
+      const cached = getFromClientCache(cacheKey)
+      if (cached) return cached
+    }
 
     return await $fetch<{ product: any }>(`${apiBase}/products/${cleanId}`, {
       headers: getHeaders(),
@@ -174,10 +205,12 @@ export const useApi = () => {
   }
 
   // Fetch active categories dengan cache
-  const fetchCategories = async () => {
+  const fetchCategories = async (forceFresh = false) => {
     const cacheKey = 'categories'
-    const cached = getFromClientCache(cacheKey)
-    if (cached) return cached
+    if (!forceFresh) {
+      const cached = getFromClientCache(cacheKey)
+      if (cached) return cached
+    }
 
     return await $fetch<{ categories: any[] }>(`${apiBase}/categories`, {
       headers: getHeaders(),
@@ -262,9 +295,10 @@ export const useApi = () => {
   }
 
   // Fetch Expeditions
-  const fetchExpeditions = async () => {
+  const fetchExpeditions = async (params?: { address_id?: number | string; quantity?: number }) => {
     return await $fetch<{ expeditions: any[] }>(`${apiBase}/expeditions`, {
       headers: getHeaders(),
+      params,
     }).catch((err) => {
       console.error('Failed to fetch expeditions:', err)
       return { expeditions: [] }
@@ -379,10 +413,33 @@ export const useApi = () => {
   }
 
   // Cancel Order
-  const cancelOrder = async (orderId: number | string, reason?: string) => {
+  const cancelOrder = async (
+    orderId: number | string,
+    payload?: string | { reason?: string; refund_bank_name?: string; refund_account_number?: string; refund_account_name?: string }
+  ) => {
+    const body = typeof payload === 'string'
+      ? { reason: payload }
+      : {
+          reason: payload?.reason || 'Dibatalkan oleh pembeli',
+          refund_bank_name: payload?.refund_bank_name,
+          refund_account_number: payload?.refund_account_number,
+          refund_account_name: payload?.refund_account_name,
+        }
     return await $fetch<any>(`${apiBase}/orders/${orderId}/cancel`, {
       method: 'POST',
-      body: { reason: reason || 'Dibatalkan oleh pembeli' },
+      body,
+      headers: getHeaders(),
+    })
+  }
+
+  // Update Customer Refund Bank Account
+  const updateRefundBank = async (
+    orderId: number | string,
+    payload: { refund_bank_name: string; refund_account_number: string; refund_account_name: string }
+  ) => {
+    return await $fetch<any>(`${apiBase}/orders/${orderId}/refund-bank`, {
+      method: 'POST',
+      body: payload,
       headers: getHeaders(),
     })
   }
@@ -415,12 +472,13 @@ export const useApi = () => {
       })
       if (!res) return null
       const raw = res?.data ?? res
-      // admincyberstore returns `name`/`logo`; storefront components use
-      // `store_name`/`store_logo`. Keep both response formats compatible.
       const info = {
         ...raw,
-        store_name: raw.store_name ?? raw.name ?? 'BSI Cyber Store',
+        store_name: raw.store_name ?? raw.name ?? 'UBSI Cyber Store',
         store_logo: raw.store_logo ?? raw.logo ?? null,
+        store_address: raw.store_address ?? raw.address ?? 'Jl. Kramat Raya No.98, Senen, Jakarta Pusat',
+        store_phone: raw.store_phone ?? raw.phone ?? '(021) 7867868',
+        store_email: raw.store_email ?? raw.email ?? 'support@bsi.ac.id',
       }
       cached.value = info
       return info
@@ -455,7 +513,10 @@ export const useApi = () => {
     return await $fetch<{ unread_count: number; notifications: any[] }>(`${apiBase}/notifications`, {
       headers: getHeaders(),
     }).catch((err) => {
-      console.warn('Failed to fetch notifications:', err)
+      handleUnauthorized(err)
+      if (err?.status !== 401 && err?.statusCode !== 401) {
+        console.warn('Failed to fetch notifications:', err)
+      }
       return { unread_count: 0, notifications: [] }
     })
   }
@@ -466,7 +527,10 @@ export const useApi = () => {
       method: 'POST',
       headers: getHeaders(),
     }).catch((err) => {
-      console.warn(`Failed to mark notification ${id} as read:`, err)
+      handleUnauthorized(err)
+      if (err?.status !== 401 && err?.statusCode !== 401) {
+        console.warn(`Failed to mark notification ${id} as read:`, err)
+      }
       return null
     })
   }
@@ -477,7 +541,10 @@ export const useApi = () => {
       method: 'POST',
       headers: getHeaders(),
     }).catch((err) => {
-      console.warn('Failed to mark all notifications as read:', err)
+      handleUnauthorized(err)
+      if (err?.status !== 401 && err?.statusCode !== 401) {
+        console.warn('Failed to mark all notifications as read:', err)
+      }
       return null
     })
   }
@@ -524,10 +591,34 @@ export const useApi = () => {
     })
   }
 
+  // Fetch all public announcements with optional filter & pagination
+  const fetchAnnouncements = async (params?: { page?: number; per_page?: number; search?: string; type?: string }) => {
+    const query = new URLSearchParams()
+    if (params?.page) query.append('page', String(params.page))
+    if (params?.per_page) query.append('per_page', String(params.per_page))
+    if (params?.search) query.append('search', params.search)
+    if (params?.type && params.type !== 'all') query.append('type', params.type)
+    const queryString = query.toString() ? `?${query.toString()}` : ''
+
+    return await $fetch<any>(`${apiBase}/announcements${queryString}`).catch((err) => {
+      console.warn('Failed to fetch announcements:', err)
+      return { announcements: [], data: [], total: 0 }
+    })
+  }
+
+  // Fetch single announcement details
+  const fetchAnnouncementDetail = async (id: number | string) => {
+    return await $fetch<{ announcement: any }>(`${apiBase}/announcements/${id}`).catch((err) => {
+      console.warn(`Failed to fetch announcement ${id}:`, err)
+      return null
+    })
+  }
+
   return {
     apiBase,
     storageBase,
     getImageUrl,
+    clearClientCache,
     fetchProducts,
     fetchProductDetail,
     fetchCategories,
@@ -548,6 +639,7 @@ export const useApi = () => {
     trackOrderWaybill,
     completeOrder,
     cancelOrder,
+    updateRefundBank,
     simulateCourierPod,
     fetchStoreInfo,
     fetchHelp,
@@ -558,5 +650,7 @@ export const useApi = () => {
     createChat,
     fetchChatMessages,
     sendChatMessage,
+    fetchAnnouncements,
+    fetchAnnouncementDetail,
   }
 }

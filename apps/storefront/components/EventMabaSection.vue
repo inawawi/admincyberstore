@@ -6,11 +6,10 @@
           <div class="section-title-group">
             <span class="section-subtitle text-gold inline-flex items-center gap-1">
               <Icon name="lucide:graduation-cap" class="w-4 h-4 text-gold" />
-              <span>{{ eventTitle || 'RESMI KEGIATAN MAHASISWA BARU 2026' }}</span>
+              <span>{{ displayTitle }}</span>
             </span>
-            <h2 class="section-title">{{ eventHeading || 'Perlengkapan Ormik & Semot UBSI' }}</h2>
-            <p class="event-subtitle-desc">
-              {{ eventDescription || 'Seragam resmi dan atribut wajib kegiatan Orientasi Akademik & Seminar Motivasi. Warna kaos otomatis disesuaikan dengan digit terakhir NIM Anda (Ganjil: Kaos Putih, Genap: Kaos Biru).' }}
+            <p v-if="displayDescription" class="event-subtitle-desc">
+              {{ displayDescription }}
             </p>
           </div>
           <NuxtLink to="/products?is_event_maba=1" class="view-all-link event-link">
@@ -20,11 +19,7 @@
         </div>
 
         <div class="grid-products">
-          <ProductCard
-            v-for="product in products"
-            :key="product.id"
-            :product="product"
-          />
+          <ProductCard v-for="product in products" :key="product.id" :product="product" />
         </div>
       </div>
     </div>
@@ -32,14 +27,27 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useApi } from '~/composables/useApi'
+
 interface Props {
   products: any[]
   eventTitle?: string
-  eventHeading?: string
   eventDescription?: string
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+
+const { fetchStoreInfo } = useApi()
+const { data: storeInfoData } = await useAsyncData('maba_section_store_info', () => fetchStoreInfo())
+
+const displayTitle = computed(() => {
+  return props.eventTitle || storeInfoData.value?.event_maba_title || 'RESMI KEGIATAN MAHASISWA BARU 2026'
+})
+
+const displayDescription = computed(() => {
+  return props.eventDescription || storeInfoData.value?.event_maba_description || ''
+})
 </script>
 
 <style scoped>
@@ -122,6 +130,7 @@ defineProps<Props>()
   .section-title {
     font-size: 1.35rem;
   }
+
   .event-maba-wrapper {
     padding: 1.5rem 1rem;
   }

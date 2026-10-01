@@ -10,7 +10,7 @@
                 <Icon name="lucide:file-text" class="w-6 h-6 text-bsi" />
               </div>
               <div>
-                <h3 class="toolbar-title">Invoice Pembayaran Resmi</h3>
+                <h3 class="toolbar-title">{{ toolbarTitleText }}</h3>
                 <span class="toolbar-sub font-mono">{{ order.invoice_number || `ORD-#${order.id}` }}</span>
               </div>
             </div>
@@ -35,26 +35,28 @@
                 <div class="inv-logo-row">
                   <img :src="storeLogoUrl" alt="Cyber Store Logo" class="inv-logo-img" @error="onLogoError" />
                   <div>
-                    <h1 class="inv-store-name">{{ storeInfo?.store_name || 'CYBER STORE UBSI' }}</h1>
-                    <p class="inv-store-tagline">Official Merchandise & Apparel Universitas BSI</p>
+                    <h1 class="inv-store-name">{{ storeNameText }}</h1>
+                    <p class="inv-store-tagline">{{ storeTaglineText }}</p>
                   </div>
                 </div>
                 <div class="inv-store-meta">
-                  <!-- <p class="store-official-badge">Toko Resmi Merchandise & Aksesoris Kampus UBSI</p> -->
-                  <span>{{ storeInfo?.store_address || 'Jl. RS Fatmawati Raya No. 24, Pondok Labu, Jakarta Selatan'
-                  }}</span>
+                  <span v-if="isMabaOrder" class="maba-inv-badge">
+                    <Icon name="lucide:sparkles" class="w-3.5 h-3.5 inline mr-1 text-bsi" />
+                    Orientasi Akademik & PMB Universitas BSI
+                  </span>
+                  <span v-else>{{ storeAddressText }}</span>
                 </div>
               </div>
 
               <div class="inv-title-col">
-                <div class="inv-doc-label">INVOICE PEMBAYARAN</div>
+                <div class="inv-doc-label">{{ docLabelText }}</div>
                 <div class="inv-number-code font-mono">{{ order.invoice_number || `ORD-#${order.id}` }}</div>
 
                 <!-- Official Paid Stamp Badge -->
                 <div class="inv-paid-stamp">
                   <div class="stamp-border">
                     <Icon name="lucide:star" class="w-3.5 h-3.5 stamp-star text-emerald" />
-                    <span class="stamp-text">LUNAS / PAID</span>
+                    <span class="stamp-text">{{ paidStampText }}</span>
                     <Icon name="lucide:star" class="w-3.5 h-3.5 stamp-star text-emerald" />
                   </div>
                   <span class="stamp-date">{{ formatSimpleDate(order.payment?.settlement_time || order.updated_at ||
@@ -86,29 +88,69 @@
               </div>
               <div class="inv-meta-item">
                 <span class="meta-label">Status Pesanan</span>
-                <span class="meta-val font-semibold status-pill">{{ getStatusLabel(order.status) }}</span>
+                <span class="meta-val font-semibold status-pill">{{ orderStatusPillText }}</span>
               </div>
             </div>
 
             <!-- 3. Store Info & Shipping 2-Column Section -->
             <div class="inv-parties-grid">
-              <!-- Store Info / Penjual (Sebelah Kiri) -->
+              <!-- Left Card: PENGIRIM -->
               <div class="inv-party-card">
-                <div class="party-card-title">PENGIRIM</div>
-                <div class="party-name">{{ storeInfo?.store_name || 'CYBER STORE UBSI' }}</div>
+                <div class="party-card-title">{{ isMabaOrder ? 'PENGELOLA & PENGIRIM' : 'PENGIRIM' }}</div>
+                <div class="party-name">{{ partySenderName }}</div>
                 <div class="party-line">
                   <Icon name="lucide:phone" class="party-icon text-bsi" />
-                  <span><strong>No. HP / Telp:</strong> {{ storeInfo?.store_phone || '+62 812-3456-7890' }}</span>
+                  <span><strong>No. HP / Telp:</strong> {{ partySenderPhone }}</span>
                 </div>
                 <div class="party-line">
                   <Icon name="lucide:mail" class="party-icon text-bsi" />
-                  <span><strong>Email:</strong> {{ storeInfo?.store_email || 'support@cyberstore.id' }}</span>
+                  <span><strong>Email:</strong> {{ partySenderEmail }}</span>
                 </div>
-
+                <div class="party-line" v-if="!isMabaOrder">
+                  <Icon name="lucide:map-pin" class="party-icon text-bsi" />
+                  <span><strong>Alamat:</strong> {{ storeAddressText }}</span>
+                </div>
+                <div class="party-line party-meta-note" v-if="isMabaOrder">
+                  <Icon name="lucide:info" class="party-icon text-bsi" />
+                  <span>Pusat Distribusi</span>
+                </div>
               </div>
 
-              <!-- Shipping Destination & Courier (Sebelah Kanan) -->
-              <div class="inv-party-card">
+              <!-- Right Card: PENERIMA & TUJUAN -->
+              <!-- KASUS 1: EVENT MABA -->
+              <div v-if="isMabaOrder && mabaCampusInfo" class="inv-party-card party-maba-card">
+                <div class="party-card-title">PENERIMA & LOKASI PENGAMBILAN KAMPUS</div>
+                <div class="party-name">{{ mabaCampusInfo.receiver_name }}</div>
+                <div class="party-line maba-nim-line" v-if="mabaCampusInfo.nim">
+                  <Icon name="lucide:graduation-cap" class="party-icon text-bsi" />
+                  <span><strong>NIM Mahasiswa:</strong> <span class="font-mono font-bold text-bsi">{{ mabaCampusInfo.nim
+                  }}</span></span>
+                </div>
+                <div class="party-line" v-if="mabaCampusInfo.phone">
+                  <Icon name="lucide:phone" class="party-icon text-bsi" />
+                  <span><strong>No. HP:</strong> {{ mabaCampusInfo.phone }}</span>
+                </div>
+                <div class="party-line" v-if="customerEmail">
+                  <Icon name="lucide:mail" class="party-icon text-bsi" />
+                  <span><strong>Email:</strong> {{ customerEmail }}</span>
+                </div>
+                <div class="party-line party-campus-target">
+                  <Icon name="lucide:building-2" class="party-icon text-bsi" />
+                  <span><strong>Kampus Pengambilan:</strong> {{ mabaCampusInfo.name }}</span>
+                </div>
+                <div class="party-line party-city">
+                  <Icon name="lucide:map-pin" class="party-icon text-bsi" />
+                  <span>{{ mabaCampusAddressText }}</span>
+                </div>
+                <div class="party-maba-dist-badge">
+                  <Icon name="lucide:package-check" class="w-4 h-4 text-emerald" />
+                  <strong>Pengambilan Mandiri di Kampus UBSI</strong>
+                  <span class="exp-service">(Bebas Ongkir Ditanggung Admin Kampus)</span>
+                </div>
+              </div>
+
+              <!-- KASUS 2: PESANAN REGULER (BUKAN EVENT MABA) -->
+              <div v-else class="inv-party-card">
                 <div class="party-card-title">PENERIMA & EKSPEDISI</div>
                 <div class="party-name">{{ recipientName }}</div>
                 <div class="party-line" v-if="customerPhone">
@@ -121,7 +163,7 @@
                 </div>
                 <div class="party-line">
                   <Icon name="lucide:map-pin" class="party-icon text-bsi" />
-                  <span><strong>Alamat:</strong> {{ order.address?.address || '-' }}</span>
+                  <span><strong>Alamat Pengiriman:</strong> {{ order.address?.address || '-' }}</span>
                 </div>
                 <div class="party-line party-city" v-if="order.address?.city">
                   {{ order.address?.city }}, {{ order.address?.province || '' }} {{ order.address?.postal_code || '' }}
@@ -163,6 +205,11 @@
                           <Icon name="lucide:graduation-cap" class="w-3.5 h-3.5 inline mr-1 text-sky-600" />
                           NIM: {{ item.nim }}
                         </span>
+                        <span v-if="isMabaOrder && (item.campus_location || mabaCampusInfo?.name)"
+                          class="inv-variant-tag campus-tag">
+                          <Icon name="lucide:building-2" class="w-3.5 h-3.5 inline mr-1 text-bsi" />
+                          Kampus: {{ item.campus_location || mabaCampusInfo?.name }}
+                        </span>
                       </div>
                     </td>
                     <td class="text-right font-mono">{{ formatRupiah(item.price) }}</td>
@@ -178,16 +225,15 @@
             <div class="inv-summary-row">
               <div class="inv-notes-col">
                 <div class="inv-note-box">
-                  <div class="note-heading">Catatan Pembeli:</div>
-                  <p class="note-content">{{ order.note || 'Tidak ada catatan khusus.' }}</p>
+                  <div class="note-heading">{{ partyNoteHeading }}</div>
+                  <p class="note-content">{{ orderNoteText }}</p>
                 </div>
                 <div class="inv-payment-meta">
-
                   <div class="meta-row">
                     <span class="meta-sub">Status Settlement:</span>
                     <span class="meta-ans text-emerald font-semibold inline-flex items-center gap-2">
                       <Icon name="lucide:check-circle-2" class="w-3.5 h-3.5 text-emerald" />
-                      Terverifikasi Lunas
+                      {{ settlementStatusText }}
                     </span>
                   </div>
                 </div>
@@ -195,38 +241,49 @@
 
               <div class="inv-totals-col">
                 <div class="total-line">
-                  <span class="total-label">Subtotal Produk</span>
+                  <span class="total-label">{{ subtotalLabelText }}</span>
                   <span class="total-val font-mono">{{ formatRupiah(order.subtotal) }}</span>
                 </div>
                 <div class="total-line">
-                  <span class="total-label">Biaya Pengiriman ({{ order.expedition?.name || 'Kurir' }})</span>
-                  <span class="total-val font-mono">{{ formatRupiah(order.shipping_cost) }}</span>
+                  <span class="total-label">{{ shippingLabelText }}</span>
+                  <span v-if="isMabaOrder || order.shipping_cost === 0"
+                    class="total-val text-emerald font-semibold">GRATIS</span>
+                  <span v-else class="total-val font-mono">{{ formatRupiah(order.shipping_cost) }}</span>
                 </div>
                 <div class="total-line" v-if="serviceFee > 0">
-                  <span class="total-label">Biaya Layanan</span>
+                  <span class="total-label">Biaya Penanganan</span>
                   <span class="total-val font-mono">{{ formatRupiah(serviceFee) }}</span>
                 </div>
+                <div class="total-line">
+                  <span class="total-label">Biaya Layanan Aplikasi</span>
+                  <span class="total-val text-emerald font-semibold">GRATIS</span>
+                </div>
+
+
                 <div class="total-grand-divider"></div>
                 <div class="total-line grand-total-line">
                   <span class="grand-label">TOTAL DIBAYAR</span>
                   <span class="grand-amount font-mono">{{ formatRupiah(order.grand_total || order.subtotal) }}</span>
                 </div>
-                <!-- <div class="grand-status-text text-emerald inline-flex items-center gap-1 justify-end">
-                  <Icon name="lucide:check-circle" class="w-3.5 h-3.5 text-emerald" />
-                  <span>Lunas dibayarkan via ({{ formatPaymentType(order.payment?.payment_type) }})</span>
-                </div> -->
               </div>
             </div>
 
             <!-- 6. Official Footer & Legal Authenticity -->
             <div class="inv-footer">
               <div class="footer-legal">
-                <p class="legal-title">Syarat & Ketentuan Bukti Pembayaran:</p>
-                <ul class="legal-list">
+                <p class="legal-title">{{ legalTitleText }}</p>
+                <ul v-if="isMabaOrder" class="legal-list">
+                  <li>Tunjukkan invoice resmi ini (digital / cetak PDF) beserta identitas diri (KTP / KTM) saat
+                    pengambilan di kampus tujuan.</li>
+                  <li>Pengambilan paket atribut dilakukan di masing-masing Kampus UBSI yang dipilih sesuai pendaftaran.
+                  </li>
+                  <li>Sesuai ketentuan, pesanan atribut Event MABA yang telah lunas tidak dapat dibatalkan atau
+                    dialihkan ke kampus lain.</li>
+                </ul>
+                <ul v-else class="legal-list">
                   <li>Invoice ini merupakan bukti transaksi yang sah dan diterbitkan secara elektronik oleh sistem Cyber
                     Store.</li>
-                  <li>Simpan dokumen ini untuk keperluan klaim garansi, pengembalian (retur), atau pelacakan barang.
-                  </li>
+                  <li>Simpan dokumen ini untuk keperluan pengambilan produk.</li>
                   <li>Jika membutuhkan bantuan atau pertanyaan seputar pesanan Anda, hubungi layanan pelanggan kami.
                   </li>
                 </ul>
@@ -259,6 +316,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useFormat } from '~/composables/useFormat'
 import { useApi } from '~/composables/useApi'
+import { UBSI_CAMPUSES } from '~/utils/ubsi-campuses'
 
 const props = defineProps<{
   isOpen: boolean
@@ -275,6 +333,153 @@ const { fetchStoreInfo, getImageUrl } = useApi()
 const storeInfo = ref<any>(null)
 const storeLogoUrl = ref('/logo-cyberstore.png')
 const qrCodeDataUrl = ref('')
+
+const isMabaOrder = computed(() => {
+  if (!props.order) return false
+  return Boolean(
+    props.order.is_event_maba ||
+    props.order.campus_location ||
+    (props.order.items || []).some((item: any) =>
+      Boolean(
+        item.is_event_maba ||
+        item.product?.is_event_maba ||
+        item.nim ||
+        item.campus_location ||
+        (item.product_name && /ormik|semot|maba/i.test(item.product_name)) ||
+        (item.product?.name && /ormik|semot|maba/i.test(item.product.name))
+      )
+    ) ||
+    (props.order.note && /pengambilan kampus ubsi|event maba|ormik|semot/i.test(String(props.order.note))) ||
+    (props.order.expedition?.name && /maba|kampus/i.test(String(props.order.expedition.name))) ||
+    (props.order.trackings && props.order.trackings.some((t: any) => /event maba|admin kampus|panitia|kampus ubsi/i.test(String(t.description || ''))))
+  )
+})
+
+const toolbarTitleText = computed(() => {
+  return isMabaOrder.value ? 'INVOICE' : 'Invoice Pembayaran Resmi'
+})
+
+const storeNameText = computed(() => {
+  return storeInfo.value?.store_name || storeInfo.value?.name || 'BSI CYBER STORE'
+})
+
+const storeTaglineText = computed(() => {
+  return isMabaOrder.value
+    ? 'Official Merchandise & Paket Atribut Mahasiswa Baru UBSI'
+    : 'Official Merchandise & Apparel Universitas BSI'
+})
+
+const storeAddressText = computed(() => {
+  return storeInfo.value?.store_address || storeInfo.value?.address || 'Jl. Kramat Raya No.98, Senen, Jakarta Pusat'
+})
+
+const docLabelText = computed(() => {
+  return isMabaOrder.value ? 'INVOICE EVENT MABA' : 'INVOICE PEMBAYARAN'
+})
+
+const paidStampText = computed(() => {
+  return isMabaOrder.value ? 'LUNAS / VERIFIED' : 'LUNAS / PAID'
+})
+
+const orderStatusPillText = computed(() => {
+  if (isMabaOrder.value && props.order?.status === 'paid') {
+    return 'Lunas'
+  }
+  return getStatusLabel(props.order?.status)
+})
+
+const partySenderName = computed(() => {
+  return isMabaOrder.value ? 'Admin Kampus & Cyber Store UBSI' : (storeInfo.value?.store_name || storeInfo.value?.name || 'CYBER STORE UBSI')
+})
+
+const partySenderPhone = computed(() => {
+  return storeInfo.value?.store_phone || storeInfo.value?.phone || storeInfo.value?.whatsapp || '+62 812-3456-7890'
+})
+
+const partySenderEmail = computed(() => {
+  return isMabaOrder.value
+    ? (storeInfo.value?.store_email || storeInfo.value?.email || 'pmb@bsi.ac.id')
+    : (storeInfo.value?.store_email || storeInfo.value?.email || 'support@cyberstore.id')
+})
+
+const partyNoteHeading = computed(() => {
+  return isMabaOrder.value ? 'Catatan & Lokasi Pengambilan:' : 'Catatan Pembeli:'
+})
+
+const orderNoteText = computed(() => {
+  if (props.order?.note) return props.order.note
+  return isMabaOrder.value
+    ? 'Pengambilan Mandiri di Kampus UBSI saat Event MABA'
+    : 'Tidak ada catatan khusus.'
+})
+
+const settlementStatusText = computed(() => {
+  return isMabaOrder.value ? 'Terverifikasi Lunas' : 'Terverifikasi Lunas'
+})
+
+const subtotalLabelText = computed(() => {
+  return isMabaOrder.value ? 'Subtotal Paket Atribut' : 'Subtotal Produk'
+})
+
+const shippingLabelText = computed(() => {
+  if (isMabaOrder.value) return 'Pengiriman Kampus UBSI'
+  return `Biaya Pengiriman (${props.order?.expedition?.name || 'Kurir'})`
+})
+
+const legalTitleText = computed(() => {
+  return isMabaOrder.value
+    ? 'Syarat & Ketentuan Pengambilan Paket Atribut MABA:'
+    : 'Syarat & Ketentuan Bukti Pembayaran:'
+})
+
+const mabaCampusInfo = computed(() => {
+  if (!props.order) return null
+
+  // 1. Cari dari campus_location langsung di item atau order
+  const explicitCampusName =
+    props.order.campus_location ||
+    (props.order.items || []).find((i: any) => i.campus_location)?.campus_location
+
+  const targetCampusName = explicitCampusName || props.order.address?.city || ''
+
+  // 3. Cocokkan dengan database UBSI_CAMPUSES
+  const matched = UBSI_CAMPUSES.find(c =>
+    targetCampusName && (
+      c.name.toLowerCase().includes(targetCampusName.toLowerCase()) ||
+      targetCampusName.toLowerCase().includes(c.name.toLowerCase()) ||
+      c.city.toLowerCase().includes(targetCampusName.toLowerCase())
+    )
+  )
+
+  const defaultCampus = UBSI_CAMPUSES[0] || {
+    name: 'UBSI Kampus Kramat 98 (Pusat)',
+    address: 'Jl. Kramat Raya No. 98, Senen',
+    city: 'Jakarta Pusat',
+    province: 'DKI Jakarta',
+    postal_code: '10420',
+  }
+  const resolved = matched || defaultCampus
+
+  // Ambil NIM jika ada di item
+  const nim = (props.order.items || []).find((i: any) => i.nim)?.nim || null
+
+  return {
+    name: matched?.name || targetCampusName || defaultCampus.name,
+    address: resolved.address,
+    city: resolved.city,
+    province: resolved.province,
+    postal_code: resolved.postal_code || '10420',
+    receiver_name: props.order.address?.receiver_name || props.order.address?.recipient_name || props.order.user?.name || 'Mahasiswa Baru UBSI',
+    phone: props.order.address?.phone || props.order.user?.phone || '-',
+    nim,
+  }
+})
+
+const mabaCampusAddressText = computed(() => {
+  if (!mabaCampusInfo.value) return ''
+  const c = mabaCampusInfo.value
+  return `${c.address}, ${c.city}, ${c.province} ${c.postal_code}`
+})
 
 const generateQrCode = async () => {
   if (!props.order) return
@@ -303,9 +508,24 @@ watch(() => props.order, () => {
   generateQrCode()
 }, { immediate: true })
 
+const loadStoreData = async () => {
+  try {
+    const data = await fetchStoreInfo()
+    if (data) {
+      storeInfo.value = data
+      if (data.store_logo) {
+        storeLogoUrl.value = getImageUrl(data.store_logo)
+      }
+    }
+  } catch {
+    // Fallback logo already set
+  }
+}
+
 watch(() => props.isOpen, (newVal) => {
   if (newVal) {
     generateQrCode()
+    loadStoreData()
     if (typeof document !== 'undefined') {
       document.body.classList.add('invoice-modal-open')
     }
@@ -325,17 +545,7 @@ onUnmounted(() => {
 
 onMounted(async () => {
   generateQrCode()
-  try {
-    const data = await fetchStoreInfo()
-    if (data) {
-      storeInfo.value = data
-      if (data.store_logo) {
-        storeLogoUrl.value = getImageUrl(data.store_logo)
-      }
-    }
-  } catch {
-    // Fallback logo already set
-  }
+  await loadStoreData()
 })
 
 const onLogoError = () => {
@@ -802,6 +1012,66 @@ const handlePrint = () => {
   gap: 0.4rem;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+.maba-inv-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #004aad;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+.party-maba-card {
+  border-color: #bfdbfe;
+  background: #fafcff;
+}
+
+.maba-nim-line {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.party-campus-target {
+  color: #003399;
+  font-weight: 700;
+}
+
+.party-meta-note {
+  font-size: 0.75rem;
+  color: #0284c7;
+  font-style: italic;
+  margin-top: 0.35rem;
+}
+
+.party-maba-dist-badge {
+  margin-top: 0.6rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  color: #004aad;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.campus-tag {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #004aad;
+  font-weight: 600;
 }
 
 .exp-resi {

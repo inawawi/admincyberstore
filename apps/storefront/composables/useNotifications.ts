@@ -1,13 +1,15 @@
 import { ref, computed } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
+import { useToast } from '~/composables/useToast'
+import { useCustomerService } from '~/composables/useCustomerService'
 
 export interface AppNotification {
   id: string | number
   announcement_id?: number | null
   title: string
   content: string
-  type: 'announcement' | 'chat' | 'transaction' | 'info' | 'promo'
+  type: 'announcement' | 'chat' | 'transaction' | 'info'
   action_url?: string | null
   is_read: boolean
   read_at?: string | null
@@ -19,79 +21,86 @@ const notifications = ref<AppNotification[]>([])
 const unreadCount = ref<number>(0)
 const isLoading = ref<boolean>(false)
 const hasLoaded = ref<boolean>(false)
+let lastAuthState: boolean | null = null
+let pollTimer: any = null
+const knownChatIds = new Set<string | number>()
+
+const getStoredReadIds = (): Set<string> => {
+  if (!import.meta.client) return new Set()
+  try {
+    const raw = localStorage.getItem('cyberstore_read_notif_ids')
+    if (raw) {
+      const arr = JSON.parse(raw)
+      if (Array.isArray(arr)) return new Set(arr.map(String))
+    }
+  } catch {}
+  return new Set()
+}
+
+const saveStoredReadIds = (set: Set<string>) => {
+  if (!import.meta.client) return
+  try {
+    const arr = Array.from(set).slice(-300)
+    localStorage.setItem('cyberstore_read_notif_ids', JSON.stringify(arr))
+  } catch {}
+}
 
 export const useNotifications = () => {
   const authStore = useAuthStore()
-  const { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead, fetchStoreInfo, fetchOrders, fetchChats } = useApi()
+  const { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead } = useApi()
 
   const loadNotifications = async (force = false) => {
+    if (lastAuthState !== authStore.isAuthenticated) {
+      force = true
+      lastAuthState = authStore.isAuthenticated
+    }
+
     if (hasLoaded.value && !force) return
-    isLoading.value = true
+    if (!hasLoaded.value) {
+      isLoading.value = true
+    }
 
     try {
       if (authStore.isAuthenticated) {
-        // 1. Ambil notifikasi dari endpoint utama /api/v1/notifications
+        // Ambil notifikasi resmi dari database / admin panel
         const notifRes = await fetchNotifications()
-        let items: AppNotification[] = (notifRes?.notifications || []).map((n: any) => ({
-          id: n.id,
-          announcement_id: n.announcement_id,
-          title: n.title || 'Pemberitahuan',
-          content: n.content || '',
-          type: normalizeType(n.type),
-          action_url: n.action_url || null,
-          is_read: !!n.is_read,
-          read_at: n.read_at,
-          created_at: n.created_at || new Date().toISOString(),
-        }))
-
-        // 2. Sinkronkan dengan update riwayat transaksi pembayaran terbaru
-        try {
-          const ordersRes = await fetchOrders({ page: 1 })
-          const orders = ordersRes?.data || []
-          orders.slice(0, 5).forEach((order: any) => {
-            const orderNotifId = `order-${order.id}-${order.status}`
-            // Jika belum ada notifikasi untuk status order ini di list
-            if (!items.some((it) => it.id === orderNotifId)) {
-              items.push({
-                id: orderNotifId,
-                title: getOrderNotifTitle(order.status),
-                content: `Pesanan #${order.order_number || order.id} (${order.status_label || order.status}) senilai Rp ${Number(order.total_amount || 0).toLocaleString('id-ID')}`,
-                type: 'transaction',
-                action_url: `/account/orders?id=${order.id}`,
-                is_read: order.status === 'completed' || order.status === 'cancelled',
-                created_at: order.updated_at || order.created_at,
-                metadata: { orderId: order.id, status: order.status },
-              })
-            }
-          })
-        } catch (e) {
-          // Ignore order sync error
+        if (!authStore.isAuthenticated) {
+          notifications.value = []
+          unreadCount.value = 0
+          hasLoaded.value = true
+          return
         }
+        const rawList = (notifRes as any)?.notifications || (notifRes as any)?.data || []
+        const storedReadIds = getStoredReadIds()
 
-        // 3. Sinkronkan dengan chat admin jika ada pesan belum terbaca
-        try {
-          const chatsRes = await fetchChats()
-          const chats = chatsRes?.chats || []
-          chats.forEach((chat: any) => {
-            if (chat.unread_count > 0) {
-              const chatNotifId = `chat-${chat.id}-${chat.last_message_at}`
-              if (!items.some((it) => it.id === chatNotifId)) {
-                items.unshift({
-                  id: chatNotifId,
-                  title: 'Pesan Baru dari Admin CS',
-                  content: chat.last_message || `Admin membalas percakapan "${chat.subject}"`,
-                  type: 'chat',
-                  action_url: 'cs:chat',
-                  is_read: false,
-                  created_at: chat.last_message_at || chat.created_at,
-                  metadata: { chatId: chat.id },
-                })
-              }
+        const items: AppNotification[] = (Array.isArray(rawList) ? rawList : []).map((n: any) => {
+          const type = normalizeType(n.type, n.title, n.content)
+          let action_url = n.action_url || null
+          if (type === 'transaction' && (!action_url || action_url.includes('announcement'))) {
+            const invMatch = (n.title || '').match(/#?(INV-[\w-]+)/i) || (n.content || '').match(/#?(INV-[\w-]+)/i)
+            const isCancel = (n.title || '').includes('Dibatalkan') || (n.content || '').includes('dibatalkan')
+            if (isCancel) {
+              action_url = invMatch ? `/account/orders?status=cancelled&search=${encodeURIComponent(invMatch[1])}` : '/account/orders?status=cancelled'
+            } else {
+              action_url = invMatch ? `/account/orders?search=${encodeURIComponent(invMatch[1])}` : '/account/orders'
             }
-          })
-        } catch (e) {
-          // Ignore chat sync error
-        }
+          }
+
+          const isLocallyRead = storedReadIds.has(String(n.id))
+
+          return {
+            id: n.id,
+            announcement_id: n.announcement_id,
+            title: n.title || (type === 'chat' ? 'Pesan Baru dari Admin' : type === 'transaction' ? 'Status Transaksi' : 'Pemberitahuan'),
+            content: n.content || '',
+            type,
+            action_url,
+            is_read: isLocallyRead || !!n.read_at || !!n.is_read,
+            read_at: n.read_at,
+            created_at: n.created_at || new Date().toISOString(),
+            metadata: n.metadata,
+          }
+        })
 
         // Urutkan notifikasi terbaru di paling atas
         items.sort((a, b) => {
@@ -100,58 +109,117 @@ export const useNotifications = () => {
           return dateB - dateA
         })
 
+        // Deteksi chat baru yang belum pernah diberitahukan
+        if (import.meta.client) {
+          const unreadChats = items.filter((it) => it.type === 'chat' && !it.is_read)
+
+          if (hasLoaded.value) {
+            // Bukan initial load: jika ada chat unread baru yang belum di-notif, tampilkan Floating Toast
+            for (const chat of unreadChats) {
+              if (!knownChatIds.has(chat.id)) {
+                knownChatIds.add(chat.id)
+                try {
+                  const toast = useToast()
+                  const { openCustomerService } = useCustomerService()
+                  toast.info(chat.content, {
+                    title: chat.title || '💬 Pesan Baru dari Admin',
+                    tag: 'CHAT ADMIN',
+                    duration: 6000,
+                    action: {
+                      label: 'Buka Chat',
+                      onClick: () => {
+                        markRead(chat.id)
+                        if (chat.action_url && chat.action_url !== 'cs:chat') {
+                          const router = useRouter()
+                          router.push(chat.action_url)
+                        } else if (chat.metadata?.product_id) {
+                          const router = useRouter()
+                          router.push(`/chat/${chat.metadata.product_id}`)
+                        } else {
+                          openCustomerService({ tab: 'chat' })
+                        }
+                      },
+                    },
+                  })
+                } catch (e) {
+                  console.warn('Toast trigger error:', e)
+                }
+              }
+            }
+          } else {
+            // Initial load: simpan ID chat yang sudah ada agar tidak spam notifikasi awal
+            for (const chat of unreadChats) {
+              knownChatIds.add(chat.id)
+            }
+          }
+        }
+
         notifications.value = items
         unreadCount.value = items.filter((it) => !it.is_read).length
       } else {
-        // Tamu / Belum Login: Tampilkan pengumuman toko publik
-        const storeInfo = await fetchStoreInfo()
-        if (storeInfo?.announcement?.text) {
-          notifications.value = [
-            {
-              id: 'public-announcement',
-              title: storeInfo.announcement.badge || 'Pengumuman Resmi BSI Cyber Store',
-              content: storeInfo.announcement.text.replace(/<[^>]*>?/gm, ''),
-              type: 'announcement',
-              action_url: storeInfo.announcement.link || '/products',
-              is_read: false,
-              created_at: new Date().toISOString(),
-            },
-          ]
-          unreadCount.value = 1
-        } else {
-          notifications.value = []
-          unreadCount.value = 0
-        }
+        // Tamu / Belum Login: Kosongkan
+        notifications.value = []
+        unreadCount.value = 0
+        knownChatIds.clear()
       }
       hasLoaded.value = true
     } catch (err) {
       console.warn('Gagal memuat notifikasi:', err)
+      notifications.value = []
+      unreadCount.value = 0
     } finally {
       isLoading.value = false
     }
   }
 
   const markRead = async (id: string | number) => {
-    const item = notifications.value.find((n) => n.id === id)
-    if (item && !item.is_read) {
+    const item = notifications.value.find((n) => String(n.id) === String(id))
+    if (item) {
       item.is_read = true
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
+    }
+    const stored = getStoredReadIds()
+    stored.add(String(id))
+    saveStoredReadIds(stored)
 
-      // Jika ID angka (dari database UserNotification), panggil endpoint backend
-      if (typeof id === 'number' || (!String(id).includes('order-') && !String(id).includes('chat-') && !String(id).includes('public-'))) {
+    unreadCount.value = notifications.value.filter((it) => !it.is_read).length
+
+    if (authStore.isAuthenticated) {
+      try {
         await markNotificationAsRead(id)
-      }
+      } catch {}
     }
   }
 
   const markAllRead = async () => {
+    const stored = getStoredReadIds()
     notifications.value.forEach((item) => {
       item.is_read = true
+      stored.add(String(item.id))
     })
+    saveStoredReadIds(stored)
     unreadCount.value = 0
 
     if (authStore.isAuthenticated) {
-      await markAllNotificationsAsRead()
+      try {
+        await markAllNotificationsAsRead()
+      } catch {}
+    }
+  }
+
+  const startPolling = (intervalMs = 10000) => {
+    if (!import.meta.client) return
+    if (pollTimer) clearInterval(pollTimer)
+    pollTimer = setInterval(() => {
+      if (authStore.isAuthenticated && typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
+        loadNotifications(true)
+      }
+    }, intervalMs)
+  }
+
+  const stopPolling = () => {
+    if (pollTimer) {
+      clearInterval(pollTimer)
+      pollTimer = null
     }
   }
 
@@ -162,36 +230,47 @@ export const useNotifications = () => {
     loadNotifications,
     markRead,
     markAllRead,
+    startPolling,
+    stopPolling,
   }
 }
 
-function normalizeType(type?: string): 'announcement' | 'chat' | 'transaction' | 'info' | 'promo' {
-  if (!type) return 'announcement'
-  const t = type.toLowerCase()
-  if (t.includes('chat') || t.includes('pesan')) return 'chat'
-  if (t.includes('order') || t.includes('transaksi') || t.includes('payment') || t.includes('bayar')) return 'transaction'
-  if (t.includes('promo') || t.includes('diskon')) return 'promo'
+function normalizeType(type?: string, title?: string, content?: string): 'announcement' | 'chat' | 'transaction' | 'info' {
+  const t = (type || '').toLowerCase()
+  const fullText = `${t} ${(title || '')} ${(content || '')}`.toLowerCase()
+
+  // 1. Kategori Pesanan / Transaksi (Prioritas Utama jika terkait order/invoice/pembayaran)
+  if (
+    t === 'transaction' ||
+    t === 'order' ||
+    t.includes('transaksi') ||
+    t.includes('payment') ||
+    t.includes('bayar') ||
+    fullText.includes('pesanan') ||
+    fullText.includes('invoice') ||
+    fullText.includes('inv-') ||
+    fullText.includes('pembatalan') ||
+    fullText.includes('refund') ||
+    fullText.includes('dikemas') ||
+    fullText.includes('dikirim') ||
+    fullText.includes('resi')
+  ) {
+    return 'transaction'
+  }
+
+  // 2. Kategori Chat Admin / Customer Service
+  if (
+    t === 'chat' ||
+    t.includes('chat') ||
+    fullText.includes('cs:chat') ||
+    fullText.includes('customer service') ||
+    fullText.includes('obrolan') ||
+    (t.includes('pesan') && !fullText.includes('pesanan'))
+  ) {
+    return 'chat'
+  }
+
+  // 3. Kategori Pengumuman / Info
   if (t.includes('announcement') || t.includes('pengumuman')) return 'announcement'
-  return 'info'
-}
-
-function getOrderNotifTitle(status: string): string {
-  switch (status?.toLowerCase()) {
-    case 'pending':
-      return 'Menunggu Pembayaran'
-    case 'paid':
-      return 'Pembayaran Berhasil Diverifikasi'
-    case 'processing':
-      return 'Pesanan Sedang Dikemas'
-    case 'shipped':
-      return 'Pesanan Sedang Dalam Pengiriman'
-    case 'delivered':
-      return 'Paket Telah Tiba di Alamat Tujuan'
-    case 'completed':
-      return 'Transaksi Pembayaran Selesai'
-    case 'cancelled':
-      return 'Pesanan Telah Dibatalkan'
-    default:
-      return 'Pembaruan Status Transaksi'
-  }
+  return 'announcement'
 }

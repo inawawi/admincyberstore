@@ -94,6 +94,7 @@ const props = defineProps<{
 const { formatRupiah, calculateDiscount } = useFormat()
 const { getImageUrl } = useApi()
 const cartStore = useCartStore()
+const authStore = useAuthStore()
 const toast = useToast()
 
 // State loading gambar
@@ -128,6 +129,17 @@ const productUrl = computed(() => {
 
 const handleQuickAdd = () => {
   if (props.product.stock <= 0) return
+
+  if (!authStore.isAuthenticated) {
+    toast.warning('Silakan masuk ke akun Anda terlebih dahulu untuk menambahkan produk ke keranjang.', {
+      title: 'Perlu Masuk Akun',
+      tag: 'AUTENTIKASI',
+      duration: 3500,
+    })
+    navigateTo('/auth/login')
+    return
+  }
+
   // Produk event maba wajib input NIM di detail page
   if (props.product.is_event_maba) {
     navigateTo(productUrl.value)
@@ -136,16 +148,18 @@ const handleQuickAdd = () => {
   // If product has sizes or colors, take the first option by default
   const defaultSize = props.product.sizes?.length ? props.product.sizes[0] : null
   const defaultColor = props.product.colors?.length ? props.product.colors[0] : null
-  cartStore.addToCart(props.product, 1, defaultSize, defaultColor)
+  const added = cartStore.addToCart(props.product, 1, defaultSize, defaultColor)
 
-  toast.success(`"${props.product.name}" berhasil ditambahkan ke keranjang belanja.`, {
-    title: 'Keranjang Belanja',
-    tag: 'DITAMBAHKAN',
-    action: {
-      label: 'Buka Keranjang',
-      onClick: () => cartStore.toggleCart()
-    }
-  })
+  if (added !== false) {
+    toast.success(`"${props.product.name}" berhasil ditambahkan ke keranjang belanja.`, {
+      title: 'Keranjang Belanja',
+      tag: 'DITAMBAHKAN',
+      action: {
+        label: 'Buka Keranjang',
+        onClick: () => cartStore.toggleCart()
+      }
+    })
+  }
 }
 </script>
 

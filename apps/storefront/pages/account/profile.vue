@@ -44,51 +44,47 @@
       <section class="profile-hero-card cyber-card">
         <div class="hero-backdrop-glow"></div>
         <div class="hero-inner-row">
-          <!-- Avatar Showcase with Upload Trigger -->
+          <!-- Avatar Showcase with Upload Trigger & Fullscreen View -->
           <div class="avatar-column">
-            <div class="avatar-wrapper" @click="triggerFileInput">
-              <img
-                v-if="avatarPreviewUrl || authStore.user?.photo"
+            <div class="avatar-wrapper" :class="{
+              'has-photo': Boolean(avatarPreviewUrl || (authStore.user?.photo && !avatarHasError)),
+              'has-new-selection': Boolean(selectedFile)
+            }" @click="handleAvatarClick"
+              :title="Boolean(avatarPreviewUrl || authStore.user?.photo) ? 'Klik untuk melihat foto profil penuh' : 'Klik untuk mengunggah foto profil'">
+              <img v-if="(avatarPreviewUrl || authStore.user?.photo) && !avatarHasError"
+                :key="avatarPreviewUrl || authStore.user?.photo || 'hero-avatar'"
                 :src="avatarPreviewUrl || getImageUrl(authStore.user?.photo)"
-                :alt="authStore.user?.name || 'Foto Profil'"
-                class="user-avatar-img"
-                @error="handleAvatarError"
-              />
+                :alt="authStore.user?.name || 'Foto Profil'" class="user-avatar-img" @error="handleAvatarError"
+                @load="handleAvatarLoad" />
               <div v-else class="user-avatar-initials">
                 {{ userInitials }}
               </div>
 
-              <!-- Hover Overlay with Camera Icon -->
-              <div class="avatar-hover-overlay" title="Klik untuk mengganti foto profil">
-                <Icon name="lucide:camera" class="w-6 h-6 text-white" />
-                <span class="overlay-text">Ganti Foto</span>
+              <!-- Hover Overlay with Zoom/Camera Icon -->
+              <div class="avatar-hover-overlay"
+                :title="Boolean(avatarPreviewUrl || authStore.user?.photo) ? 'Klik untuk melihat foto profil penuh' : 'Klik untuk mengunggah foto profil'">
+                <Icon :name="Boolean(avatarPreviewUrl || authStore.user?.photo) ? 'lucide:maximize-2' : 'lucide:camera'"
+                  class="w-6 h-6 text-white" />
+
               </div>
 
-              <!-- Upload Badge Icon (Mobile Visible) -->
-              <button
-                type="button"
-                class="avatar-camera-badge"
-                aria-label="Unggah foto profil baru"
-                @click.stop="triggerFileInput"
-              >
+              <!-- Upload Badge Icon (Mobile / Quick Action) -->
+              <button type="button" class="avatar-camera-badge" title="Ganti foto profil"
+                aria-label="Unggah foto profil baru" @click.stop="triggerFileInput">
                 <Icon name="lucide:camera" class="w-4 h-4 text-white" />
               </button>
 
               <!-- Hidden File Input -->
-              <input
-                ref="fileInputRef"
-                type="file"
-                accept="image/png,image/jpeg,image/jpg,image/webp"
-                class="sr-only"
-                @change="handleFileSelected"
-              />
+              <input ref="fileInputRef" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" class="sr-only"
+                @change="handleFileSelected" />
             </div>
 
             <!-- Temporary Preview Banner -->
             <div v-if="selectedFile" class="avatar-preview-badge">
               <span class="preview-dot"></span>
-              <span>Foto baru terpilih</span>
-              <button type="button" @click="cancelSelectedFile" class="btn-cancel-avatar" title="Batalkan foto">✕</button>
+              <span>Foto baru siap disimpan</span>
+              <button type="button" @click="cancelSelectedFile" class="btn-cancel-avatar"
+                title="Batalkan foto">✕</button>
             </div>
           </div>
 
@@ -131,32 +127,41 @@
         </div>
       </section>
 
+      <!-- Himbauan / Notice Box Ketika Foto Baru Dipilih Tapi Belum Disimpan -->
+      <transition name="toast-fade">
+        <div v-if="selectedFile" class="avatar-save-notice-banner">
+          <div class="notice-icon-box">
+            <Icon name="lucide:alert-circle" class="w-6 h-6 text-amber-500" />
+          </div>
+          <div class="notice-text-box">
+            <strong class="notice-title">Foto Profil Baru Berhasil Dipilih (Pratinjau)</strong>
+
+          </div>
+          <button type="button" class="btn-notice-save" @click="scrollToSaveProfile">
+            <Icon name="lucide:check" class="w-4 h-4" />
+            <span>Simpan Sekarang</span>
+          </button>
+        </div>
+      </transition>
+
       <!-- Navigation Tabs -->
       <div class="profile-tabs-wrapper">
-        <button
-          type="button"
-          :class="['profile-tab-btn', { active: activeTab === 'biodata' }]"
-          @click="activeTab = 'biodata'"
-        >
+        <button type="button" :class="['profile-tab-btn', { active: activeTab === 'biodata' }]"
+          @click="activeTab = 'biodata'">
           <Icon name="lucide:user" class="w-4 h-4" />
-          <span>Biodata Diri & Foto</span>
+          <span>Biodata Diri & Kontak</span>
+          <span v-if="selectedFile" class="tab-unsaved-dot" title="Ada foto baru yang belum disimpan"></span>
         </button>
 
-        <button
-          type="button"
-          :class="['profile-tab-btn', { active: activeTab === 'address' }]"
-          @click="activeTab = 'address'"
-        >
+        <button type="button" :class="['profile-tab-btn', { active: activeTab === 'address' }]"
+          @click="activeTab = 'address'">
           <Icon name="lucide:map-pin" class="w-4 h-4" />
           <span>Buku Alamat Pengiriman</span>
           <span v-if="addresses.length > 0" class="tab-counter">{{ addresses.length }}</span>
         </button>
 
-        <button
-          type="button"
-          :class="['profile-tab-btn', { active: activeTab === 'security' }]"
-          @click="activeTab = 'security'"
-        >
+        <button type="button" :class="['profile-tab-btn', { active: activeTab === 'security' }]"
+          @click="activeTab = 'security'">
           <Icon name="lucide:lock" class="w-4 h-4" />
           <span>Keamanan & Sandi</span>
         </button>
@@ -167,49 +172,11 @@
         <div class="pane-header">
           <div>
             <h2 class="pane-title">Informasi Pribadi & Kontak</h2>
-            <p class="pane-desc">Perbarui foto profil, nomor handphone, serta alamat domisili utama Anda.</p>
+            <p class="pane-desc">Perbarui nama lengkap, nomor handphone, serta alamat domisili utama Anda.</p>
           </div>
         </div>
 
         <form @submit.prevent="handleSaveProfile" class="profile-form">
-          <!-- Profile Photo Selector Card -->
-          <div class="photo-uploader-box">
-            <div class="uploader-avatar-col">
-              <img
-                v-if="avatarPreviewUrl || authStore.user?.photo"
-                :src="avatarPreviewUrl || getImageUrl(authStore.user?.photo)"
-                :alt="form.name"
-                class="uploader-avatar-img"
-                @error="handleAvatarError"
-              />
-              <div v-else class="uploader-avatar-initials">
-                {{ userInitials }}
-              </div>
-            </div>
-            <div class="uploader-info-col">
-              <h3 class="uploader-title">Foto Profil Akun</h3>
-              <p class="uploader-desc">Format yang didukung: JPG, JPEG, PNG, atau WEBP. Ukuran maksimal 2 MB.</p>
-              <div class="uploader-actions">
-                <button
-                  type="button"
-                  @click="triggerFileInput"
-                  class="btn btn-secondary btn-sm"
-                >
-                  <Icon name="lucide:upload" class="w-4 h-4" />
-                  <span>{{ selectedFile ? 'Ganti Pilihan Foto' : 'Pilih Foto Baru' }}</span>
-                </button>
-                <button
-                  v-if="selectedFile"
-                  type="button"
-                  @click="cancelSelectedFile"
-                  class="btn-cancel-text"
-                >
-                  Batal
-                </button>
-              </div>
-            </div>
-          </div>
-
           <!-- Form Fields Grid -->
           <div class="form-grid form-grid-2">
             <!-- Nama Lengkap -->
@@ -219,13 +186,8 @@
                 <span class="input-left-icon">
                   <Icon name="lucide:user" class="w-4 h-4 text-bsi" />
                 </span>
-                <input
-                  v-model="form.name"
-                  type="text"
-                  required
-                  placeholder="Nama Lengkap Anda"
-                  class="input-cyber input-has-icon"
-                />
+                <input v-model="form.name" type="text" required placeholder="Nama Lengkap Anda"
+                  class="input-cyber input-has-icon" />
               </div>
             </div>
 
@@ -236,13 +198,8 @@
                 <span class="input-left-icon">
                   <Icon name="lucide:mail" class="w-4 h-4 text-bsi" />
                 </span>
-                <input
-                  v-model="form.email"
-                  type="email"
-                  required
-                  placeholder="nama@email.com"
-                  class="input-cyber input-has-icon"
-                />
+                <input v-model="form.email" type="email" required placeholder="nama@email.com"
+                  class="input-cyber input-has-icon" />
               </div>
               <span class="form-hint">Email digunakan untuk verifikasi login dan notifikasi pesanan.</span>
             </div>
@@ -256,13 +213,8 @@
                 <span class="input-left-icon">
                   <Icon name="lucide:phone" class="w-4 h-4 text-bsi" />
                 </span>
-                <input
-                  v-model="form.phone"
-                  type="tel"
-                  placeholder="Contoh: 081234567890"
-                  class="input-cyber input-has-icon"
-                  @input="handlePhoneInput"
-                />
+                <input v-model="form.phone" type="tel" placeholder="Contoh: 081234567890"
+                  class="input-cyber input-has-icon" @input="handlePhoneInput" />
               </div>
               <span class="form-hint">Gunakan format Indonesia (08xx atau 628xx), 10 - 15 digit.</span>
             </div>
@@ -281,23 +233,29 @@
 
           <!-- Alamat Utama / Domisili -->
           <div class="form-group">
-            <label class="form-label">Alamat Utama / Domisili</label>
-            <textarea
-              v-model="form.address"
-              rows="3"
-              placeholder="Masukkan alamat rumah atau tempat tinggal domisili Anda..."
-              class="input-cyber textarea-cyber"
-            ></textarea>
-            <span class="form-hint">Alamat ini menjadi referensi tempat tinggal utama profil Anda.</span>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="form-label mb-0">Alamat Utama / Domisili</label>
+              <span v-if="addresses.length > 0" class="badge-status-address">
+                <Icon name="lucide:check-circle" class="w-3.5 h-3.5 text-emerald-500 inline mr-1" />
+                Tersinkronisasi dari Alamat Utama
+              </span>
+            </div>
+            <textarea v-model="form.address" rows="3" placeholder="Belum ada alamat utama yang diatur..."
+              class="input-cyber textarea-cyber"></textarea>
+            <span class="form-hint">
+              {{ addresses.length > 0 ? 'Alamat utama ini terhubung otomatis dengan alamat pengiriman aktif Anda.' :
+                'Alamat ini akan otomatis terisi ketika Anda mengatur alamat pengiriman saat memesan produk.' }}
+            </span>
           </div>
 
           <!-- Submit Button -->
-          <div class="form-actions-row">
-            <button
-              type="submit"
-              :disabled="isSubmittingProfile"
-              class="btn btn-primary btn-save"
-            >
+          <div class="form-actions-row" ref="saveProfileRowRef">
+            <div v-if="selectedFile" class="save-reminder-chip">
+              <span class="pulse-dot-amber"></span>
+              <span>Foto baru siap disimpan</span>
+            </div>
+            <button type="submit" :disabled="isSubmittingProfile" class="btn btn-primary btn-save"
+              :class="{ 'btn-save-highlight': Boolean(selectedFile) }">
               <span v-if="isSubmittingProfile" class="btn-spinner-wrap">
                 <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
                 <span>Menyimpan Perubahan...</span>
@@ -318,11 +276,7 @@
             <h2 class="pane-title">Buku Alamat Pengiriman</h2>
             <p class="pane-desc">Kelola alamat tujuan untuk mempermudah saat proses checkout barang pesanan Anda.</p>
           </div>
-          <button
-            type="button"
-            @click="openAddAddressModal"
-            class="btn btn-primary btn-sm"
-          >
+          <button type="button" @click="openAddAddressModal" class="btn btn-primary btn-sm">
             <Icon name="lucide:plus" class="w-4 h-4" />
             <span>Tambah Alamat Baru</span>
           </button>
@@ -351,11 +305,8 @@
 
         <!-- Address Cards Grid -->
         <div v-else class="address-grid">
-          <div
-            v-for="addr in addresses"
-            :key="addr.id"
-            :class="['saved-address-card', { 'is-default': addr.is_default }]"
-          >
+          <div v-for="addr in addresses" :key="addr.id"
+            :class="['saved-address-card', { 'is-default': addr.is_default }]">
             <!-- Card Header -->
             <div class="card-top-row">
               <div class="labels-wrap">
@@ -366,20 +317,11 @@
                 </span>
               </div>
               <div class="card-quick-actions">
-                <button
-                  type="button"
-                  @click="openEditAddressModal(addr)"
-                  class="btn-icon-action"
-                  title="Edit Alamat"
-                >
+                <button type="button" @click="openEditAddressModal(addr)" class="btn-icon-action" title="Edit Alamat">
                   <Icon name="lucide:edit" class="w-4 h-4 text-bsi" />
                 </button>
-                <button
-                  type="button"
-                  @click="confirmDeleteAddress(addr)"
-                  class="btn-icon-action text-danger"
-                  title="Hapus Alamat"
-                >
+                <button type="button" @click="confirmDeleteAddress(addr)" class="btn-icon-action text-danger"
+                  title="Hapus Alamat">
                   <Icon name="lucide:trash-2" class="w-4 h-4" />
                 </button>
               </div>
@@ -406,25 +348,16 @@
             <div v-if="addr.latitude && addr.longitude" class="address-geo-badge">
               <span class="geo-dot"></span>
               <span>Titik Presisi GPS Terpasang</span>
-              <a
-                :href="`https://www.google.com/maps?q=${addr.latitude},${addr.longitude}`"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="link-maps-inline"
-                @click.stop
-              >
+              <a :href="`https://www.google.com/maps?q=${addr.latitude},${addr.longitude}`" target="_blank"
+                rel="noopener noreferrer" class="link-maps-inline" @click.stop>
                 Google Maps ↗
               </a>
             </div>
 
             <!-- Bottom Button -->
             <div class="card-bottom-actions">
-              <button
-                v-if="!addr.is_default"
-                type="button"
-                @click="handleSetDefaultAddress(addr)"
-                class="btn-set-default"
-              >
+              <button v-if="!addr.is_default" type="button" @click="handleSetDefaultAddress(addr)"
+                class="btn-set-default">
                 Jadikan Alamat Utama
               </button>
               <span v-else class="text-default-info">
@@ -444,6 +377,36 @@
           </div>
         </div>
 
+        <!-- Alert Sukses Ubah Kata Sandi (Dengan Ikon Ceklis Hijau Kecil) -->
+        <transition name="fade">
+          <div v-if="passwordSuccessMessage" class="security-success-alert" role="alert">
+            <span class="alert-check-icon">
+              <Icon name="lucide:check-circle-2" class="w-4 h-4 text-emerald-500" />
+            </span>
+            <div class="alert-text-wrap">
+              <strong>Berhasil!</strong> {{ passwordSuccessMessage }}
+            </div>
+            <button type="button" class="alert-close-btn" @click="passwordSuccessMessage = ''" aria-label="Tutup">
+              <Icon name="lucide:x" class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </transition>
+
+        <!-- Alert Error Ubah Kata Sandi -->
+        <transition name="fade">
+          <div v-if="passwordErrorMessage" class="security-error-alert" role="alert">
+            <span class="alert-check-icon">
+              <Icon name="lucide:alert-circle" class="w-4 h-4 text-coral" />
+            </span>
+            <div class="alert-text-wrap">
+              {{ passwordErrorMessage }}
+            </div>
+            <button type="button" class="alert-close-btn" @click="passwordErrorMessage = ''" aria-label="Tutup">
+              <Icon name="lucide:x" class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </transition>
+
         <form @submit.prevent="handleSavePassword" class="password-form">
           <div class="form-group max-w-md">
             <label class="form-label">Kata Sandi Saat Ini <span class="text-danger">*</span></label>
@@ -451,19 +414,10 @@
               <span class="input-left-icon">
                 <Icon name="lucide:lock" class="w-4 h-4 text-bsi" />
               </span>
-              <input
-                v-model="passwordForm.current_password"
-                :type="showOldPassword ? 'text' : 'password'"
-                required
-                placeholder="Masukkan kata sandi saat ini"
-                class="input-cyber input-has-icon input-password"
-              />
-              <button
-                type="button"
-                class="password-toggle-btn"
-                @click="showOldPassword = !showOldPassword"
-                tabindex="-1"
-              >
+              <input v-model="passwordForm.current_password" :type="showOldPassword ? 'text' : 'password'" required
+                placeholder="Masukkan kata sandi saat ini" class="input-cyber input-has-icon input-password" />
+              <button type="button" class="password-toggle-btn" @click="showOldPassword = !showOldPassword"
+                tabindex="-1">
                 <Icon v-if="showOldPassword" name="lucide:eye" class="eye-icon w-4 h-4" />
                 <Icon v-else name="lucide:eye-off" class="eye-icon w-4 h-4" />
               </button>
@@ -478,20 +432,10 @@
                 <span class="input-left-icon">
                   <Icon name="lucide:lock" class="w-4 h-4 text-bsi" />
                 </span>
-                <input
-                  v-model="passwordForm.password"
-                  :type="showNewPassword ? 'text' : 'password'"
-                  required
-                  minlength="8"
-                  placeholder="Minimal 8 karakter"
-                  class="input-cyber input-has-icon input-password"
-                />
-                <button
-                  type="button"
-                  class="password-toggle-btn"
-                  @click="showNewPassword = !showNewPassword"
-                  tabindex="-1"
-                >
+                <input v-model="passwordForm.password" :type="showNewPassword ? 'text' : 'password'" required
+                  minlength="8" placeholder="Minimal 8 karakter" class="input-cyber input-has-icon input-password" />
+                <button type="button" class="password-toggle-btn" @click="showNewPassword = !showNewPassword"
+                  tabindex="-1">
                   <Icon v-if="showNewPassword" name="lucide:eye" class="eye-icon w-4 h-4" />
                   <Icon v-else name="lucide:eye-off" class="eye-icon w-4 h-4" />
                 </button>
@@ -505,24 +449,15 @@
                 <span class="input-left-icon">
                   <Icon name="lucide:shield-check" class="w-4 h-4 text-bsi" />
                 </span>
-                <input
-                  v-model="passwordForm.password_confirmation"
-                  :type="showNewPassword ? 'text' : 'password'"
-                  required
-                  minlength="8"
-                  placeholder="Ulangi kata sandi baru"
-                  class="input-cyber input-has-icon input-password"
-                />
+                <input v-model="passwordForm.password_confirmation" :type="showNewPassword ? 'text' : 'password'"
+                  required minlength="8" placeholder="Ulangi kata sandi baru"
+                  class="input-cyber input-has-icon input-password" />
               </div>
             </div>
           </div>
 
           <div class="form-actions-row">
-            <button
-              type="submit"
-              :disabled="isSubmittingPassword"
-              class="btn btn-primary btn-save"
-            >
+            <button type="submit" :disabled="isSubmittingPassword" class="btn btn-primary btn-save">
               <span v-if="isSubmittingPassword" class="btn-spinner-wrap">
                 <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
                 <span>Mengubah Kata Sandi...</span>
@@ -551,68 +486,39 @@
             <div class="form-grid form-grid-2">
               <div class="form-group">
                 <label class="form-label">Label Alamat <span class="text-danger">*</span></label>
-                <input
-                  v-model="addressModalForm.label"
-                  type="text"
-                  required
-                  placeholder="Misal: Rumah, Kos Kampus, Kantor"
-                  class="input-cyber"
-                />
+                <input v-model="addressModalForm.label" type="text" required
+                  placeholder="Misal: Rumah, Kos Kampus, Kantor" class="input-cyber" />
               </div>
               <div class="form-group">
                 <label class="form-label">Nama Penerima <span class="text-danger">*</span></label>
-                <input
-                  v-model="addressModalForm.receiver_name"
-                  type="text"
-                  required
-                  placeholder="Nama Lengkap Penerima"
-                  class="input-cyber"
-                />
+                <input v-model="addressModalForm.receiver_name" type="text" required placeholder="Nama Lengkap Penerima"
+                  class="input-cyber" />
               </div>
             </div>
 
             <div class="form-grid form-grid-2">
               <div class="form-group">
                 <label class="form-label">Nomor Handphone / WA <span class="text-danger">*</span></label>
-                <input
-                  v-model="addressModalForm.phone"
-                  type="tel"
-                  required
-                  placeholder="Contoh: 081234567890"
-                  class="input-cyber"
-                />
+                <input v-model="addressModalForm.phone" type="tel" required placeholder="Contoh: 081234567890"
+                  class="input-cyber" />
               </div>
               <div class="form-group">
                 <label class="form-label">Provinsi <span class="text-danger">*</span></label>
-                <input
-                  v-model="addressModalForm.province"
-                  type="text"
-                  required
-                  placeholder="Contoh: DKI Jakarta, Jawa Barat"
-                  class="input-cyber"
-                />
+                <input v-model="addressModalForm.province" type="text" required
+                  placeholder="Contoh: DKI Jakarta, Jawa Barat" class="input-cyber" />
               </div>
             </div>
 
             <div class="form-grid form-grid-2">
               <div class="form-group">
                 <label class="form-label">Kota / Kabupaten <span class="text-danger">*</span></label>
-                <input
-                  v-model="addressModalForm.city"
-                  type="text"
-                  required
-                  placeholder="Contoh: Jakarta Timur, Bogor"
-                  class="input-cyber"
-                />
+                <input v-model="addressModalForm.city" type="text" required placeholder="Contoh: Jakarta Timur, Bogor"
+                  class="input-cyber" />
               </div>
               <div class="form-group">
                 <label class="form-label">Kode Pos (Opsional)</label>
-                <input
-                  v-model="addressModalForm.postal_code"
-                  type="text"
-                  placeholder="Contoh: 13210"
-                  class="input-cyber"
-                />
+                <input v-model="addressModalForm.postal_code" type="text" placeholder="Contoh: 13210"
+                  class="input-cyber" />
               </div>
             </div>
 
@@ -623,43 +529,28 @@
                 <span class="text-hint">Memudahkan kurir ekspedisi mengantar paket dengan akurat</span>
               </label>
               <ClientOnly>
-                <LocationPicker
-                  :key="editingAddressId ? `edit-${editingAddressId}` : 'new-address'"
-                  :initial-lat="addressModalForm.latitude"
-                  :initial-lng="addressModalForm.longitude"
-                  @update:location="handleLocationPicked"
-                />
+                <LocationPicker :key="editingAddressId ? `edit-${editingAddressId}` : 'new-address'"
+                  :initial-lat="addressModalForm.latitude" :initial-lng="addressModalForm.longitude"
+                  @update:location="handleLocationPicked" />
               </ClientOnly>
             </div>
 
             <div class="form-group">
               <label class="form-label">Alamat Lengkap <span class="text-danger">*</span></label>
-              <textarea
-                v-model="addressModalForm.address"
-                rows="3"
-                required
+              <textarea v-model="addressModalForm.address" rows="3" required
                 placeholder="Nama jalan, nomor rumah, RT/RW, kelurahan, patokan lokasi..."
-                class="input-cyber textarea-cyber"
-              ></textarea>
+                class="input-cyber textarea-cyber"></textarea>
             </div>
 
             <div class="form-group">
               <label class="form-label">Catatan Pengiriman (Opsional)</label>
-              <input
-                v-model="addressModalForm.notes"
-                type="text"
-                placeholder="Misal: Titipkan di satpam, pagar warna hitam"
-                class="input-cyber"
-              />
+              <input v-model="addressModalForm.notes" type="text"
+                placeholder="Misal: Titipkan di satpam, pagar warna hitam" class="input-cyber" />
             </div>
 
             <div class="form-group checkbox-group">
               <label class="checkbox-label">
-                <input
-                  v-model="addressModalForm.is_default"
-                  type="checkbox"
-                  class="checkbox-cyber"
-                />
+                <input v-model="addressModalForm.is_default" type="checkbox" class="checkbox-cyber" />
                 <span>Jadikan sebagai alamat utama pengiriman</span>
               </label>
             </div>
@@ -676,12 +567,73 @@
         </div>
       </div>
     </transition>
+
+    <!-- MODAL SUKSES GANTI KATA SANDI -->
+    <transition name="modal-fade">
+      <div v-if="showPasswordSuccessModal" class="modal-backdrop" @click.self="showPasswordSuccessModal = false">
+        <div class="modal-dialog modal-success-dialog cyber-card text-center">
+          <div class="modal-success-icon-wrap">
+            <div class="success-icon-pulse"></div>
+            <div class="success-icon-badge">
+              <Icon name="lucide:check-circle-2" class="w-14 h-14 text-emerald-500 animate-success-check" />
+            </div>
+          </div>
+          <h3 class="modal-success-title">Kata Sandi Berhasil Diperbarui</h3>
+          <p class="modal-success-desc">
+            Mohon untuk mengingat kata sandi baru anda.
+          </p>
+          <div class="modal-success-footer flex justify-center items-center">
+            <button type="button" @click="$router.push('/account/profile'); showPasswordSuccessModal = false"
+              class="btn btn-primary btn-success-dismiss">
+              <span>Oke</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+    <!-- MODAL LIHAT FOTO PROFIL FULL -->
+    <transition name="modal-fade">
+      <div v-if="showAvatarModal && (avatarPreviewUrl || authStore.user?.photo)" class="avatar-lightbox-backdrop"
+        @click.self="showAvatarModal = false">
+        <div class="avatar-lightbox-dialog cyber-card">
+          <!-- Lightbox Header -->
+          <div class="avatar-lightbox-header">
+            <div class="avatar-lightbox-info">
+              <span class="avatar-lightbox-badge">Foto Profil Akun</span>
+              <h3 class="avatar-lightbox-title">{{ authStore.user?.name || 'Profil Pengguna' }}</h3>
+            </div>
+            <button type="button" class="avatar-lightbox-close" @click="showAvatarModal = false" title="Tutup (Esc)"
+              aria-label="Tutup">
+              <Icon name="lucide:x" class="w-5 h-5" />
+            </button>
+          </div>
+
+          <!-- Lightbox Photo Frame -->
+          <div class="avatar-lightbox-body">
+            <div class="avatar-lightbox-frame">
+              <img :src="avatarPreviewUrl || getImageUrl(authStore.user?.photo)"
+                :alt="authStore.user?.name || 'Foto Profil Penuh'" class="avatar-lightbox-image" />
+            </div>
+          </div>
+
+          <!-- Lightbox Actions Footer -->
+          <div class="avatar-lightbox-footer">
+            <button type="button" class="btn btn-secondary btn-lightbox-change" @click="triggerFileInputFromModal"
+              title="Ganti dengan foto lain">
+              <Icon name="lucide:camera" class="w-4 h-4" />
+              <span>Ganti Foto</span>
+            </button>
+
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useHead } from '#imports'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
 
@@ -714,19 +666,45 @@ const userInitials = computed(() => {
   return name.charAt(0).toUpperCase()
 })
 
-// Avatar File Upload State
+// Avatar File Upload & Fullscreen Modal State
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const saveProfileRowRef = ref<HTMLElement | null>(null)
 const selectedFile = ref<File | null>(null)
 const avatarPreviewUrl = ref<string>('')
+const avatarHasError = ref(false)
+const showAvatarModal = ref(false)
+
+const handleAvatarClick = () => {
+  if (avatarPreviewUrl.value || authStore.user?.photo) {
+    showAvatarModal.value = true
+  } else {
+    triggerFileInput()
+  }
+}
 
 const triggerFileInput = () => {
   fileInputRef.value?.click()
+}
+
+const triggerFileInputFromModal = () => {
+  showAvatarModal.value = false
+  triggerFileInput()
+}
+
+const scrollToSaveProfile = () => {
+  activeTab.value = 'biodata'
+  setTimeout(() => {
+    saveProfileRowRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, 100)
 }
 
 const handleFileSelected = (event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (!file) return
+
+  // Otomatis tutup modal lightbox jika sedang terbuka
+  showAvatarModal.value = false
 
   // Validasi Ukuran (Max 2MB)
   if (file.size > 2 * 1024 * 1024) {
@@ -742,22 +720,41 @@ const handleFileSelected = (event: Event) => {
     return
   }
 
+  avatarHasError.value = false
   selectedFile.value = file
+
+  // Revoke old blob url if any
+  if (avatarPreviewUrl.value && avatarPreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(avatarPreviewUrl.value)
+  }
   avatarPreviewUrl.value = URL.createObjectURL(file)
-  showToast('Foto baru berhasil dipilih. Klik "Simpan Perubahan Profil" untuk menerapkan.', 'success')
+
+  showToast('Foto baru berhasil dipilih & tampil di lingkaran avatar! Klik tombol "Simpan Perubahan Profil" di bawah untuk menerapkan secara permanen.', 'success')
 }
 
 const cancelSelectedFile = () => {
+  if (avatarPreviewUrl.value && avatarPreviewUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(avatarPreviewUrl.value)
+  }
   selectedFile.value = null
   avatarPreviewUrl.value = ''
+  avatarHasError.value = false
   if (fileInputRef.value) {
     fileInputRef.value.value = ''
   }
 }
 
-const handleAvatarError = (e: Event) => {
+const handleAvatarError = () => {
+  // Hanya sembunyikan jika memang tidak ada foto preview lokal
+  if (!avatarPreviewUrl.value) {
+    avatarHasError.value = true
+  }
+}
+
+const handleAvatarLoad = (e: Event) => {
   const target = e.target as HTMLImageElement
-  target.style.display = 'none'
+  target.style.display = 'block'
+  avatarHasError.value = false
 }
 
 // TAB 1: Biodata Form
@@ -769,12 +766,41 @@ const form = ref({
 })
 const isSubmittingProfile = ref(false)
 
+const formatAddressDisplay = (addr: any) => {
+  if (!addr) return ''
+  const parts = [
+    addr.address,
+    addr.district ? `Kec. ${addr.district}` : null,
+    addr.city,
+    addr.province,
+    addr.postal_code ? addr.postal_code : null,
+  ].filter(Boolean)
+  return parts.join(', ') || addr.address || ''
+}
+
+const syncDefaultAddressToForm = () => {
+  if (addresses.value && addresses.value.length > 0) {
+    const defaultAddr = addresses.value.find((a: any) => a.is_default) || addresses.value[0]
+    if (defaultAddr) {
+      form.value.address = formatAddressDisplay(defaultAddr)
+      return
+    }
+  }
+
+  if ((authStore.user as any)?.default_address) {
+    form.value.address = formatAddressDisplay((authStore.user as any).default_address)
+    return
+  }
+
+  form.value.address = authStore.user?.address || ''
+}
+
 const initFormData = () => {
   if (authStore.user) {
     form.value.name = authStore.user.name || ''
     form.value.email = authStore.user.email || ''
     form.value.phone = authStore.user.phone || ''
-    form.value.address = authStore.user.address || ''
+    syncDefaultAddressToForm()
   }
 }
 
@@ -807,8 +833,12 @@ const handleSaveProfile = async () => {
     if (result.success) {
       showToast(result.message || 'Profil dan foto berhasil diperbarui!', 'success')
       // Reset temporary selected file
+      if (avatarPreviewUrl.value && avatarPreviewUrl.value.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreviewUrl.value)
+      }
       selectedFile.value = null
       avatarPreviewUrl.value = ''
+      avatarHasError.value = false
       if (fileInputRef.value) fileInputRef.value.value = ''
       initFormData()
     } else {
@@ -874,6 +904,7 @@ const loadAddresses = async () => {
   try {
     const res = await fetchAddresses()
     addresses.value = res?.addresses || (Array.isArray(res) ? res : [])
+    syncDefaultAddressToForm()
   } catch (err) {
     console.error('Failed to fetch addresses:', err)
   } finally {
@@ -972,9 +1003,22 @@ const passwordForm = ref({
 const showOldPassword = ref(false)
 const showNewPassword = ref(false)
 const isSubmittingPassword = ref(false)
+const passwordSuccessMessage = ref('')
+const passwordErrorMessage = ref('')
+const showPasswordSuccessModal = ref(false)
 
 const handleSavePassword = async () => {
+  passwordSuccessMessage.value = ''
+  passwordErrorMessage.value = ''
+
+  if (passwordForm.value.password.length < 8) {
+    passwordErrorMessage.value = 'Kata sandi baru minimal harus 8 karakter.'
+    showToast('Kata sandi baru minimal 8 karakter.', 'error')
+    return
+  }
+
   if (passwordForm.value.password !== passwordForm.value.password_confirmation) {
+    passwordErrorMessage.value = 'Konfirmasi kata sandi baru tidak cocok.'
     showToast('Konfirmasi kata sandi baru tidak cocok.', 'error')
     return
   }
@@ -991,6 +1035,8 @@ const handleSavePassword = async () => {
     const result = await authStore.updateProfile(formData)
 
     if (result.success) {
+      passwordSuccessMessage.value = 'Kata sandi berhasil diperbarui dan tersimpan dengan aman!'
+      showPasswordSuccessModal.value = true
       showToast('Kata sandi berhasil diperbarui!', 'success')
       passwordForm.value = {
         current_password: '',
@@ -998,12 +1044,20 @@ const handleSavePassword = async () => {
         password_confirmation: '',
       }
     } else {
+      passwordErrorMessage.value = result.message || 'Gagal mengubah kata sandi. Pastikan kata sandi saat ini benar.'
       showToast(result.message || 'Gagal mengubah kata sandi.', 'error')
     }
   } catch (err: any) {
+    passwordErrorMessage.value = err.message || 'Terjadi kesalahan sistem saat memperbarui kata sandi.'
     showToast(err.message || 'Terjadi kesalahan sistem.', 'error')
   } finally {
     isSubmittingPassword.value = false
+  }
+}
+
+const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.key === 'Escape' && showAvatarModal.value) {
+    showAvatarModal.value = false
   }
 }
 
@@ -1014,6 +1068,15 @@ onMounted(async () => {
   if (authStore.isAuthenticated) {
     initFormData()
     loadAddresses()
+  }
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', handleKeyDown)
+  }
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', handleKeyDown)
   }
 })
 </script>
@@ -1060,31 +1123,35 @@ onMounted(async () => {
   font-weight: 600;
 }
 
-/* Global Toast */
+/* Global Toast - Floating Fixed at Viewport Top Right */
 .profile-toast {
-  position: sticky;
-  top: 1.5rem;
-  z-index: 100;
-  margin-bottom: 1.5rem;
+  position: fixed;
+  top: 1.75rem;
+  right: 1.75rem;
+  z-index: 999999;
   display: flex;
   align-items: center;
   gap: 0.875rem;
-  padding: 1rem 1.25rem;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(8px);
+  padding: 1.1rem 1.35rem;
+  border-radius: 14px;
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.28), 0 0 1px 1px rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  max-width: 440px;
+  width: calc(100vw - 3.5rem);
+  pointer-events: auto;
 }
 
 .toast-success {
-  background: #f0fdf4;
-  border: 1px solid #86efac;
-  color: #166534;
+  background: rgba(240, 253, 244, 0.96);
+  border: 1.5px solid #4ade80;
+  color: #14532d;
 }
 
 .toast-error {
-  background: #fef2f2;
-  border: 1px solid #fca5a5;
-  color: #991b1b;
+  background: rgba(254, 242, 242, 0.96);
+  border: 1.5px solid #f87171;
+  color: #7f1d1d;
 }
 
 .toast-icon-wrap {
@@ -1097,7 +1164,8 @@ onMounted(async () => {
 
 .toast-text {
   font-size: 0.925rem;
-  font-weight: 500;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .toast-close-btn {
@@ -1107,6 +1175,10 @@ onMounted(async () => {
   cursor: pointer;
   opacity: 0.7;
   transition: opacity 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
 }
 
 .toast-close-btn:hover {
@@ -1605,6 +1677,18 @@ onMounted(async () => {
   margin-top: 0.35rem;
 }
 
+.badge-status-address {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #059669;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+}
+
 .input-cyber {
   width: 100%;
   padding: 0.75rem 1rem;
@@ -1960,6 +2044,7 @@ onMounted(async () => {
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -1984,8 +2069,13 @@ onMounted(async () => {
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 /* Transitions */
@@ -2210,5 +2300,683 @@ onMounted(async () => {
   font-size: 0.75rem;
   font-weight: 400;
   color: var(--text-muted);
+}
+
+/* Security Tab Success & Error Alerts with Small Checkmark Icon */
+.security-success-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+  font-size: 0.84rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+}
+
+.security-error-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.84rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
+}
+
+.alert-check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.alert-text-wrap {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.alert-close-btn {
+  background: transparent;
+  border: none;
+  color: currentColor;
+  opacity: 0.65;
+  cursor: pointer;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: opacity 0.15s ease;
+}
+
+.alert-close-btn:hover {
+  opacity: 1;
+}
+
+/* Modal Sukses Ganti Password */
+.modal-success-dialog {
+  max-width: 440px;
+  padding: 2.5rem 2.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 24px;
+  background: #ffffff;
+}
+
+.modal-success-icon-wrap {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.12);
+  border: 2px solid rgba(16, 185, 129, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 0 28px rgba(16, 185, 129, 0.22);
+  animation: iconContainerInOut 3s infinite ease-in-out;
+}
+
+.success-icon-pulse {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(16, 185, 129, 0.45);
+  animation: successRippleInOut 2.4s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.success-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: badgeInOut 2.4s infinite ease-in-out;
+}
+
+.animate-success-check {
+  animation: checkmarkInOut 2.4s infinite ease-in-out;
+  filter: drop-shadow(0 4px 10px rgba(16, 185, 129, 0.4));
+}
+
+@keyframes iconContainerInOut {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  }
+
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 35px rgba(16, 185, 129, 0.38);
+  }
+}
+
+@keyframes successRippleInOut {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+
+  50% {
+    transform: scale(1.28);
+    opacity: 0.35;
+  }
+
+  100% {
+    transform: scale(1.48);
+    opacity: 0;
+  }
+}
+
+@keyframes badgeInOut {
+
+  0%,
+  100% {
+    transform: scale(0.95);
+  }
+
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes checkmarkInOut {
+
+  0%,
+  100% {
+    transform: scale(0.95);
+  }
+
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.modal-success-title {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text-primary, #0f172a);
+  margin-bottom: 0.5rem;
+}
+
+.modal-success-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary, #475569);
+  line-height: 1.55;
+  margin-bottom: 1.5rem;
+}
+
+.modal-success-footer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.btn-success-dismiss {
+  min-width: 200px;
+  height: 48px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 0 auto;
+}
+
+/* Responsive Breakpoints for Mobile & Tablet */
+@media (max-width: 640px) {
+  .modal-success-dialog {
+    max-width: 90vw;
+    padding: 2.25rem 1.5rem;
+    border-radius: 20px;
+  }
+
+  .modal-success-icon-wrap {
+    width: 78px;
+    height: 78px;
+    margin-bottom: 1.1rem;
+  }
+
+  .modal-success-icon-wrap .w-14 {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .modal-success-title {
+    font-size: 1.25rem;
+  }
+
+  .modal-success-desc {
+    font-size: 0.84rem;
+    margin-bottom: 1.35rem;
+  }
+
+  .btn-success-dismiss {
+    width: 100%;
+    min-width: 100%;
+    height: 46px;
+  }
+
+  .security-success-alert,
+  .security-error-alert {
+    font-size: 0.8rem;
+    padding: 0.65rem 0.85rem;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .modal-success-dialog {
+    padding: 1.75rem 1.25rem;
+    border-radius: 16px;
+  }
+
+  .modal-success-icon-wrap {
+    width: 70px;
+    height: 70px;
+    margin-bottom: 0.9rem;
+  }
+
+  .modal-success-icon-wrap .w-14 {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .modal-success-title {
+    font-size: 1.125rem;
+  }
+
+  .modal-success-desc {
+    font-size: 0.78rem;
+    margin-bottom: 1.15rem;
+  }
+
+  .btn-success-dismiss {
+    height: 44px;
+    font-size: 0.85rem;
+  }
+}
+
+/* ==========================================================================
+   AVATAR FULLSCREEN LIGHTBOX MODAL
+   ========================================================================== */
+.avatar-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(4, 11, 28, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  animation: lightboxFadeIn 0.25s ease-out;
+}
+
+.avatar-lightbox-dialog {
+  background: linear-gradient(145deg, #0b1e3d 0%, #07152b 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 24px;
+  width: 100%;
+  max-width: 440px;
+  overflow: hidden;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7),
+    0 0 35px rgba(2, 132, 199, 0.25);
+  display: flex;
+  flex-direction: column;
+  animation: lightboxZoomIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.avatar-lightbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.avatar-lightbox-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.avatar-lightbox-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #38bdf8;
+}
+
+.avatar-lightbox-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.avatar-lightbox-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.avatar-lightbox-close:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+  transform: rotate(90deg);
+}
+
+.avatar-lightbox-body {
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(2, 132, 199, 0.12) 0%, transparent 70%);
+}
+
+.avatar-lightbox-frame {
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 2px solid rgba(56, 189, 248, 0.4);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.5),
+    0 0 25px rgba(2, 132, 199, 0.3);
+  background: #020617;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-lightbox-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+.avatar-lightbox-image:hover {
+  transform: scale(1.03);
+}
+
+.avatar-lightbox-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.btn-lightbox-change {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.btn-lightbox-dismiss {
+  min-width: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+@keyframes lightboxFadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes lightboxZoomIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 480px) {
+  .avatar-lightbox-dialog {
+    max-width: 100%;
+    border-radius: 20px;
+  }
+
+  .avatar-lightbox-body {
+    padding: 1rem;
+  }
+
+  .avatar-lightbox-frame {
+    max-width: 280px;
+    border-radius: 16px;
+  }
+
+  .avatar-lightbox-footer {
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+    padding: 1rem 1.25rem;
+  }
+
+  .btn-lightbox-change,
+  .btn-lightbox-dismiss {
+    width: 100%;
+  }
+}
+
+/* ==========================================================================
+   NEW AVATAR SELECTION NOTICE & UNSAVED REMINDERS
+   ========================================================================== */
+.avatar-wrapper.has-new-selection {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  animation: avatarPulseRing 2s infinite ease-in-out;
+}
+
+@keyframes avatarPulseRing {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.2), 0 12px 28px rgba(245, 158, 11, 0.4);
+  }
+}
+
+.avatar-save-notice-banner {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1rem 1.35rem;
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1.5px solid #fcd34d;
+  border-radius: 16px;
+  margin-bottom: 1.75rem;
+  box-shadow: 0 10px 25px -5px rgba(245, 158, 11, 0.15);
+  position: sticky;
+  top: 1.5rem;
+  z-index: 90;
+  backdrop-filter: blur(8px);
+}
+
+.notice-icon-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notice-text-box {
+  flex: 1;
+}
+
+.notice-title {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #92400e;
+  margin-bottom: 0.2rem;
+}
+
+.notice-desc {
+  font-size: 0.84rem;
+  color: #78350f;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.btn-notice-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.25rem;
+  background: #d97706;
+  color: #ffffff;
+  border: 1px solid #b45309;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-notice-save:hover {
+  background: #b45309;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.4);
+}
+
+.tab-unsaved-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  animation: pulseDotUnsaved 1.5s infinite;
+}
+
+@keyframes pulseDotUnsaved {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scale(1.3);
+  }
+}
+
+.badge-new-photo-tag {
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+
+.photo-uploader-box.has-new-file {
+  background: #fffdf5;
+  border: 1.5px solid #fcd34d;
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.1);
+}
+
+.save-reminder-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #92400e;
+  margin-right: 0.75rem;
+}
+
+.pulse-dot-amber {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  animation: pulseDotUnsaved 1.5s infinite;
+}
+
+.btn-save-highlight {
+  background: linear-gradient(135deg, #003399 0%, #0284c7 100%) !important;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.35), 0 8px 20px rgba(0, 51, 153, 0.3) !important;
+  animation: btnSavePulse 2s infinite ease-in-out;
+}
+
+@keyframes btnSavePulse {
+
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.35), 0 8px 20px rgba(0, 51, 153, 0.3);
+  }
+
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 0 6px rgba(2, 132, 199, 0.2), 0 10px 24px rgba(2, 132, 199, 0.45);
+  }
+}
+
+@media (max-width: 640px) {
+  .avatar-save-notice-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.85rem;
+    padding: 1rem;
+  }
+
+  .btn-notice-save {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .form-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .save-reminder-chip {
+    margin-right: 0;
+    justify-content: center;
+  }
+
+  .profile-toast {
+    top: 1rem;
+    left: 1rem;
+    right: 1rem;
+    width: auto;
+    max-width: none;
+    padding: 0.9rem 1.15rem;
+  }
 }
 </style>

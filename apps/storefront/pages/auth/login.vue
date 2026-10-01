@@ -15,20 +15,12 @@
             <!-- Brand Badge -->
             <div class="showcase-brand">
               <div class="showcase-logo-box">
-                <img
-                  v-if="storeLogo"
-                  :src="storeLogo"
-                  :alt="storeName || 'BSI Cyber Store'"
-                  class="showcase-logo-img"
-                  @error="handleLogoError"
-                />
+                <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="showcase-logo-img"
+                  @error="handleLogoError" />
               </div>
               <div class="showcase-brand-text">
                 <span class="brand-title">
-                  <span class="text-gold">BSI</span> CYBER<span
-                    class="text-white"
-                    >STORE</span
-                  >
+                  <span class="text-gold">BSI</span> CYBER<span class="text-white">STORE</span>
                 </span>
                 <span class="brand-tag">Official Tech Gear & Merchandise</span>
               </div>
@@ -87,15 +79,10 @@
             <div class="showcase-footer">
               <div class="rating-stars">
                 <span v-for="s in 5" :key="s">
-                  <Icon
-                    name="lucide:star"
-                    class="w-3.5 h-3.5 fill-amber-400 text-amber-400 inline"
-                  />
+                  <Icon name="lucide:star" class="w-3.5 h-3.5 fill-amber-400 text-amber-400 inline" />
                 </span>
               </div>
-              <span class="trust-note"
-                >Platform E-Commerce Terpercaya Civitas UBSI</span
-              >
+              <span class="trust-note">Platform E-Commerce Terpercaya Civitas UBSI</span>
             </div>
           </div>
         </div>
@@ -106,18 +93,11 @@
             <!-- Mobile Brand Logo (Visible on mobile only) -->
             <div class="mobile-brand-header">
               <div class="mobile-logo-box">
-                <img
-                  v-if="storeLogo"
-                  :src="storeLogo"
-                  :alt="storeName || 'BSI Cyber Store'"
-                  class="logo-img"
-                  @error="handleLogoError"
-                />
+                <img v-if="storeLogo" :src="storeLogo" :alt="storeName || 'BSI Cyber Store'" class="logo-img"
+                  @error="handleLogoError" />
               </div>
               <span class="mobile-brand-name">
-                <span class="text-gold">BSI</span> CYBER<span class="text-ubsi"
-                  >STORE</span
-                >
+                <span class="text-gold">BSI</span> CYBER<span class="text-ubsi">STORE</span>
               </span>
             </div>
 
@@ -136,28 +116,18 @@
 
             <!-- Error Alert -->
             <div v-if="errorMessage" class="error-box" role="alert">
-              <Icon
-                name="lucide:alert-circle"
-                class="alert-icon w-5 h-5 text-coral"
-              />
+              <Icon name="lucide:alert-circle" class="alert-icon w-5 h-5 text-coral" />
               <span>{{ errorMessage }}</span>
             </div>
 
             <!-- Success Alert -->
             <div v-if="successMessage" class="success-box" role="status">
-              <Icon
-                name="lucide:check-circle"
-                class="alert-icon w-5 h-5 text-emerald"
-              />
+              <Icon name="lucide:check-circle" class="alert-icon w-5 h-5 text-emerald" />
               <span>{{ successMessage }}</span>
             </div>
 
             <!-- OTP Step -->
-            <form
-              v-if="step === 'otp'"
-              @submit.prevent="handleVerifyOtp"
-              class="auth-form"
-            >
+            <form v-if="step === 'otp'" @submit.prevent="handleVerifyOtp" class="auth-form">
               <div class="otp-notice-box">
                 <div class="otp-icon-wrap">
                   <Icon name="lucide:mail" class="w-6 h-6 text-bsi" />
@@ -174,31 +144,15 @@
               <div class="form-group">
                 <label class="form-label">Kode Verifikasi OTP</label>
                 <div class="otp-input-wrapper">
-                  <input
-                    v-model="otpCode"
-                    type="text"
-                    maxlength="6"
-                    placeholder="• • • • • •"
-                    required
-                    class="input-cyber input-otp font-mono tracking-widest text-center"
-                    autofocus
-                  />
+                  <input v-model="otpCode" type="text" maxlength="6" placeholder="• • • • • •" required
+                    class="input-cyber input-otp font-mono tracking-widest text-center" autofocus />
                 </div>
-                <span class="helper-text"
-                  >Periksa kotak masuk atau folder spam email Anda.</span
-                >
+                <span class="helper-text">Periksa kotak masuk atau folder spam email Anda.</span>
               </div>
 
-              <button
-                type="submit"
-                :disabled="authStore.isLoading"
-                class="btn btn-primary btn-submit"
-              >
+              <button type="submit" :disabled="authStore.isLoading" class="btn btn-primary btn-submit">
                 <span v-if="authStore.isLoading" class="btn-spinner-wrap">
-                  <Icon
-                    name="lucide:loader-2"
-                    class="spinner-icon w-4 h-4 animate-spin"
-                  />
+                  <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
                   <span>Memverifikasi...</span>
                 </span>
                 <span v-else class="btn-content-wrap">
@@ -211,25 +165,15 @@
               <div class="otp-actions-wrapper">
                 <p class="resend-desc">
                   Belum menerima kode OTP?
-                  <button
-                    type="button"
-                    :disabled="isResendingOtp || resendCooldown > 0"
-                    @click="handleResendOtp"
-                    class="btn-resend-link"
-                  >
+                  <button type="button" :disabled="isResendingOtp || resendCooldown > 0" @click="handleResendOtp"
+                    class="btn-resend-link">
                     <span v-if="isResendingOtp">Mengirim ulang...</span>
-                    <span v-else-if="resendCooldown > 0"
-                      >Kirim ulang ({{ resendCooldown }}s)</span
-                    >
+                    <span v-else-if="resendCooldown > 0">Kirim ulang ({{ resendCooldown }}s)</span>
                     <span v-else>Kirim Ulang Kode</span>
                   </button>
                 </p>
 
-                <button
-                  type="button"
-                  @click="handleBackToLogin"
-                  class="btn-back-link"
-                >
+                <button type="button" @click="handleBackToLogin" class="btn-back-link">
                   ← Kembali ke Form Login
                 </button>
               </div>
@@ -238,35 +182,20 @@
             <!-- Standard Login Step -->
             <div v-else class="auth-body">
               <!-- Google Login Button -->
-              <button
-                type="button"
-                @click="handleGoogleLogin"
-                :disabled="authStore.isLoading || isGoogleLoading"
-                class="btn-google"
-              >
+              <button type="button" @click="handleGoogleLogin" :disabled="authStore.isLoading || isGoogleLoading || loginLockoutCooldown > 0"
+                class="btn-google">
                 <svg class="google-icon" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
+                  <path fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                  <path fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
                 <span v-if="isGoogleLoading" class="btn-spinner-wrap">
-                  <Icon
-                    name="lucide:loader-2"
-                    class="spinner-icon w-4 h-4 animate-spin"
-                  />
+                  <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
                   <span>Mengarahkan ke Google...</span>
                 </span>
                 <span v-else>Masuk dengan Akun Google</span>
@@ -285,13 +214,9 @@
                     <span class="input-left-icon">
                       <Icon name="lucide:mail" class="w-4 h-4 text-bsi" />
                     </span>
-                    <input
-                      v-model="email"
-                      type="email"
-                      placeholder="nama@email.com"
-                      required
-                      class="input-cyber input-has-icon"
-                    />
+                    <input v-model="email" type="email" placeholder="nama@email.com" required
+                      :disabled="authStore.isLoading || loginLockoutCooldown > 0"
+                      class="input-cyber input-has-icon" />
                   </div>
                 </div>
 
@@ -304,40 +229,18 @@
                     <span class="input-left-icon">
                       <Icon name="lucide:lock" class="w-4 h-4 text-bsi" />
                     </span>
-                    <input
-                      ref="passwordInputRef"
-                      v-model="password"
-                      :type="showPassword ? 'text' : 'password'"
-                      placeholder="Masukkan kata sandi akun"
-                      required
-                      class="input-cyber input-has-icon input-password"
-                    />
-                    <button
-                      type="button"
-                      class="password-toggle-btn"
-                      @click="showPassword = !showPassword"
-                      :title="
-                        showPassword ? 'Sembunyikan password' : 'Lihat password'
-                      "
-                      tabindex="-1"
-                    >
-                      <Icon
-                        v-if="showPassword"
-                        name="lucide:eye"
-                        class="eye-icon w-4 h-4"
-                      />
-                      <Icon
-                        v-else
-                        name="lucide:eye-off"
-                        class="eye-icon w-4 h-4"
-                      />
+                    <input ref="passwordInputRef" v-model="password" :type="showPassword ? 'text' : 'password'"
+                      placeholder="Masukkan kata sandi akun" required
+                      :disabled="authStore.isLoading || loginLockoutCooldown > 0"
+                      class="input-cyber input-has-icon input-password" />
+                    <button type="button" class="password-toggle-btn" @click="showPassword = !showPassword" :title="showPassword ? 'Sembunyikan password' : 'Lihat password'
+                      " tabindex="-1" :disabled="loginLockoutCooldown > 0">
+                      <Icon v-if="showPassword" name="lucide:eye" class="eye-icon w-4 h-4" />
+                      <Icon v-else name="lucide:eye-off" class="eye-icon w-4 h-4" />
                     </button>
                   </div>
                   <div class="flex justify-end mt-1">
-                    <NuxtLink
-                      to="/auth/forgot-password"
-                      class="forgot-password-link"
-                    >
+                    <NuxtLink to="/auth/forgot-password" class="forgot-password-link">
                       Lupa Password?
                     </NuxtLink>
                   </div>
@@ -346,41 +249,29 @@
                 <!-- Submit Button with Gradient & Hover Lift -->
                 <!-- Captcha/Calculation Field -->
                 <div class="form-group">
-                  <label class="form-label"
-                    >Verifikasi Keamanan: {{ num1 }} + {{ num2 }} = ?</label
-                  >
+                  <label class="form-label">Verifikasi Keamanan: {{ num1 }} + {{ num2 }} = ?</label>
                   <div class="input-icon-wrapper">
                     <span class="input-left-icon">
                       <Icon name="lucide:calculator" class="w-4 h-4 text-bsi" />
                     </span>
-                    <input
-                      v-model.number="captchaAnswer"
-                      type="string"
-                      placeholder="Masukkan hasil"
-                      required
-                      class="input-cyber input-has-icon"
-                    />
+                    <input v-model.number="captchaAnswer" type="number" placeholder="Masukkan hasil" required
+                      :disabled="authStore.isLoading || loginLockoutCooldown > 0"
+                      class="input-cyber input-has-icon" />
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  :disabled="authStore.isLoading"
-                  class="btn btn-primary btn-submit"
-                >
+                <button type="submit" :disabled="authStore.isLoading || loginLockoutCooldown > 0" class="btn btn-primary btn-submit">
                   <span v-if="authStore.isLoading" class="btn-spinner-wrap">
-                    <Icon
-                      name="lucide:loader-2"
-                      class="spinner-icon w-4 h-4 animate-spin"
-                    />
+                    <Icon name="lucide:loader-2" class="spinner-icon w-4 h-4 animate-spin" />
                     <span>Memproses Masuk...</span>
+                  </span>
+                  <span v-else-if="loginLockoutCooldown > 0" class="btn-content-wrap">
+                    <Icon name="lucide:clock" class="w-4 h-4 text-amber-300 animate-pulse" />
+                    <span>Tunggu ({{ loginLockoutCooldown }}s)</span>
                   </span>
                   <span v-else class="btn-content-wrap">
                     <span>Masuk Sekarang</span>
-                    <Icon
-                      name="lucide:arrow-right"
-                      class="w-4 h-4 arrow-hover"
-                    />
+                    <Icon name="lucide:arrow-right" class="w-4 h-4 arrow-hover" />
                   </span>
                 </button>
               </form>
@@ -419,6 +310,12 @@ const num1 = ref(Math.floor(Math.random() * 10) + 1)
 const num2 = ref(Math.floor(Math.random() * 10) + 1)
 const captchaAnswer = ref<number | null>(null)
 
+const refreshCaptcha = () => {
+  num1.value = Math.floor(Math.random() * 10) + 1
+  num2.value = Math.floor(Math.random() * 10) + 1
+  captchaAnswer.value = null
+}
+
 const passwordInputRef = ref<HTMLInputElement | null>(null)
 
 const handleLogoError = () => {
@@ -438,6 +335,99 @@ const isResendingOtp = ref(false)
 const resendCooldown = ref(0)
 let cooldownTimer: any = null
 
+// Login Limiter & Lockout State
+const MAX_LOGIN_ATTEMPTS = 5
+const LOCKOUT_SECONDS = 60
+const failedAttempts = ref(0)
+const loginLockoutCooldown = ref(0)
+let loginLockoutTimer: any = null
+
+const checkAndRestoreLockout = () => {
+  if (import.meta.client) {
+    try {
+      const storedLockoutUntil = localStorage.getItem('cyber_login_lockout_until')
+      if (storedLockoutUntil) {
+        const remainingMs = parseInt(storedLockoutUntil, 10) - Date.now()
+        if (remainingMs > 0) {
+          const remainingSecs = Math.ceil(remainingMs / 1000)
+          startLoginLockout(remainingSecs, false)
+          return
+        } else {
+          localStorage.removeItem('cyber_login_lockout_until')
+          localStorage.removeItem('cyber_login_failed_attempts')
+        }
+      }
+      const storedAttempts = localStorage.getItem('cyber_login_failed_attempts')
+      if (storedAttempts) {
+        failedAttempts.value = parseInt(storedAttempts, 10) || 0
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }
+}
+
+const startLoginLockout = (seconds = LOCKOUT_SECONDS, updateStorage = true) => {
+  loginLockoutCooldown.value = seconds
+  errorMessage.value = `Terlalu banyak percobaan masuk yang gagal. Silakan tunggu ${seconds} detik sebelum mencoba kembali.`
+
+  if (import.meta.client && updateStorage) {
+    try {
+      const lockoutUntil = Date.now() + seconds * 1000
+      localStorage.setItem('cyber_login_lockout_until', lockoutUntil.toString())
+    } catch {}
+  }
+
+  if (loginLockoutTimer) clearInterval(loginLockoutTimer)
+  loginLockoutTimer = setInterval(() => {
+    if (loginLockoutCooldown.value > 0) {
+      loginLockoutCooldown.value--
+      if (loginLockoutCooldown.value > 0) {
+        errorMessage.value = `Terlalu banyak percobaan masuk yang gagal. Silakan tunggu ${loginLockoutCooldown.value} detik sebelum mencoba kembali.`
+      }
+    } else {
+      clearInterval(loginLockoutTimer)
+      loginLockoutTimer = null
+      failedAttempts.value = 0
+      errorMessage.value = ''
+      if (import.meta.client) {
+        try {
+          localStorage.removeItem('cyber_login_lockout_until')
+          localStorage.removeItem('cyber_login_failed_attempts')
+        } catch {}
+      }
+      refreshCaptcha()
+    }
+  }, 1000)
+}
+
+const recordFailedAttempt = (customMessage?: string) => {
+  failedAttempts.value++
+  if (import.meta.client) {
+    try {
+      localStorage.setItem('cyber_login_failed_attempts', failedAttempts.value.toString())
+    } catch {}
+  }
+
+  if (failedAttempts.value >= MAX_LOGIN_ATTEMPTS) {
+    startLoginLockout(LOCKOUT_SECONDS)
+  } else {
+    const remaining = MAX_LOGIN_ATTEMPTS - failedAttempts.value
+    errorMessage.value = `${customMessage || 'Email atau kata sandi salah.'} (Sisa percobaan: ${remaining})`
+  }
+  refreshCaptcha()
+}
+
+const clearLoginAttempts = () => {
+  failedAttempts.value = 0
+  if (import.meta.client) {
+    try {
+      localStorage.removeItem('cyber_login_lockout_until')
+      localStorage.removeItem('cyber_login_failed_attempts')
+    } catch {}
+  }
+}
+
 const startCooldownTimer = (seconds = 60) => {
   resendCooldown.value = seconds
   if (cooldownTimer) clearInterval(cooldownTimer)
@@ -453,6 +443,7 @@ const startCooldownTimer = (seconds = 60) => {
 
 onUnmounted(() => {
   if (cooldownTimer) clearInterval(cooldownTimer)
+  if (loginLockoutTimer) clearInterval(loginLockoutTimer)
 })
 
 const getSafeRedirect = (target?: string | null): string => {
@@ -469,29 +460,47 @@ const getSafeRedirect = (target?: string | null): string => {
 }
 
 const handleLogin = async () => {
+  if (loginLockoutCooldown.value > 0) {
+    errorMessage.value = `Terlalu banyak percobaan masuk yang gagal. Silakan tunggu ${loginLockoutCooldown.value} detik sebelum mencoba kembali.`
+    return
+  }
+
   errorMessage.value = ''
   successMessage.value = ''
 
   // Validate math captcha
   if (captchaAnswer.value !== num1.value + num2.value) {
-    errorMessage.value = 'Jawaban verifikasi salah. Silakan coba lagi.'
-    // Refresh captcha
-    num1.value = Math.floor(Math.random() * 10) + 1
-    num2.value = Math.floor(Math.random() * 10) + 1
-    captchaAnswer.value = null
+    recordFailedAttempt('Jawaban verifikasi salah. Silakan coba lagi.')
     return
   }
 
-  const result = await authStore.login(email.value, password.value)
+  try {
+    const result = await authStore.login(email.value, password.value)
 
-  if (result.success) {
-    router.push(getSafeRedirect(route.query.redirect as string))
-  } else if (result.requireOtp) {
-    step.value = 'otp'
-    successMessage.value = 'Kode OTP verifikasi telah dikirimkan ke email Anda.'
-    startCooldownTimer(60)
-  } else {
-    errorMessage.value = result.message || 'Email atau password salah.'
+    if (result.success) {
+      clearLoginAttempts()
+      router.push(getSafeRedirect(route.query.redirect as string))
+    } else if (result.requireOtp) {
+      clearLoginAttempts()
+      step.value = 'otp'
+      successMessage.value = 'Kode OTP verifikasi telah dikirimkan ke email Anda.'
+      startCooldownTimer(60)
+    } else {
+      const match = result.message?.match(/(\d+(\.\d+)?)\s*detik/i)
+      if (match && match[1]) {
+        startLoginLockout(Math.ceil(parseFloat(match[1])))
+      } else {
+        recordFailedAttempt(result.message || 'Email atau password salah.')
+      }
+    }
+  } catch (err: any) {
+    const msg = err?.data?.message || err?.message || 'Terjadi kesalahan saat masuk. Silakan coba lagi.'
+    const match = msg.match(/(\d+(\.\d+)?)\s*detik/i)
+    if (match && match[1]) {
+      startLoginLockout(Math.ceil(parseFloat(match[1])))
+    } else {
+      recordFailedAttempt(msg)
+    }
   }
 }
 
@@ -546,6 +555,7 @@ const handleBackToLogin = () => {
   otpCode.value = ''
   errorMessage.value = ''
   successMessage.value = ''
+  refreshCaptcha()
 }
 
 const handleGoogleLogin = () => {
@@ -587,6 +597,8 @@ const handleGoogleLogin = () => {
 }
 
 onMounted(async () => {
+  checkAndRestoreLockout()
+
   // Tangkap query email dan status registrasi setelah verifikasi OTP berhasil
   if (route.query.email && typeof route.query.email === 'string') {
     email.value = route.query.email.trim()
@@ -644,12 +656,10 @@ useHead({
 .orb-1 {
   width: 460px;
   height: 460px;
-  background: radial-gradient(
-    circle,
-    rgba(0, 74, 173, 0.35) 0%,
-    rgba(2, 132, 199, 0.15) 50%,
-    transparent 80%
-  );
+  background: radial-gradient(circle,
+      rgba(0, 74, 173, 0.35) 0%,
+      rgba(2, 132, 199, 0.15) 50%,
+      transparent 80%);
   top: -60px;
   left: -80px;
 }
@@ -657,12 +667,10 @@ useHead({
 .orb-2 {
   width: 480px;
   height: 480px;
-  background: radial-gradient(
-    circle,
-    rgba(245, 158, 11, 0.22) 0%,
-    rgba(0, 51, 153, 0.12) 50%,
-    transparent 80%
-  );
+  background: radial-gradient(circle,
+      rgba(245, 158, 11, 0.22) 0%,
+      rgba(0, 51, 153, 0.12) 50%,
+      transparent 80%);
   bottom: -80px;
   right: -80px;
 }
@@ -690,13 +698,11 @@ useHead({
 
 /* LEFT SHOWCASE PANEL */
 .auth-showcase {
-  background: linear-gradient(
-    150deg,
-    #001845 0%,
-    #002266 40%,
-    #003399 85%,
-    #004aad 100%
-  );
+  background: linear-gradient(150deg,
+      #001845 0%,
+      #002266 40%,
+      #003399 85%,
+      #004aad 100%);
   color: #ffffff;
   padding: 3.25rem 3rem;
   position: relative;
@@ -712,21 +718,17 @@ useHead({
   right: 0;
   width: 320px;
   height: 320px;
-  background: radial-gradient(
-    circle,
-    rgba(0, 212, 255, 0.28) 0%,
-    transparent 70%
-  );
+  background: radial-gradient(circle,
+      rgba(0, 212, 255, 0.28) 0%,
+      transparent 70%);
   pointer-events: none;
 }
 
 .showcase-grid-mesh {
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(
-      rgba(255, 255, 255, 0.04) 1px,
-      transparent 1px
-    ),
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
   background-size: 32px 32px;
   pointer-events: none;
@@ -829,6 +831,7 @@ useHead({
 }
 
 @keyframes pulse {
+
   0%,
   100% {
     opacity: 1;

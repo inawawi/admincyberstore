@@ -1,5 +1,5 @@
 <template>
-  <div class="app-root">
+  <div class="app-root notranslate" translate="no">
     <NuxtLoadingIndicator color="linear-gradient(90deg, #003399, #f59e0b)" :height="3" />
     <Navbar />
     <main class="main-content">
@@ -7,6 +7,7 @@
     </main>
     <CartDrawer />
     <CustomerServiceModal />
+    <FloatingChatButton />
     <ToastContainer />
     <Footer />
   </div>
@@ -14,8 +15,20 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useHead } from '#imports'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
+
+useHead({
+  htmlAttrs: {
+    lang: 'id',
+    translate: 'no',
+    class: 'notranslate',
+  },
+  meta: [
+    { name: 'google', content: 'notranslate' },
+  ],
+})
 
 const cartStore = useCartStore()
 const authStore = useAuthStore()

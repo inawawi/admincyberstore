@@ -278,18 +278,53 @@
                   Tambahkan foto fisik produk yang telah sampai di tangan Anda (unboxing, paket, atau detail barang). Maksimal 3 foto.
                 </p>
 
-                <!-- Upload Drag/Drop Box -->
+                <!-- Hidden Inputs for Gallery & Direct Camera -->
+                <input ref="galleryInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/jpg" multiple
+                  class="hidden-file-input" @change="handleFileChange" :disabled="selectedPhotos.length >= 3" />
+                <input ref="cameraInputRef" type="file" accept="image/*" capture="environment"
+                  class="hidden-file-input" @change="handleFileChange" :disabled="selectedPhotos.length >= 3" />
+
+                <!-- Dual Action Source Buttons (Kamera Langsung & Galeri HP) -->
+                <div class="upload-source-options">
+                  <!-- Button Ambil Foto (Kamera Langsung) -->
+                  <button type="button" class="upload-source-btn source-camera-btn"
+                    :class="{ 'btn-disabled': selectedPhotos.length >= 3 }"
+                    @click="triggerCameraInput" :disabled="selectedPhotos.length >= 3"
+                    title="Ambil foto langsung menggunakan kamera HP">
+                    <div class="source-icon-wrap camera-icon-wrap">
+                      <Icon name="lucide:camera" class="w-5 h-5 text-bsi" />
+                    </div>
+                    <div class="source-text-wrap">
+                      <span class="source-title">Ambil Foto Langsung</span>
+                      <span class="source-sub">Buka kamera HP</span>
+                    </div>
+                  </button>
+
+                  <!-- Button Pilih dari Galeri HP -->
+                  <button type="button" class="upload-source-btn source-gallery-btn"
+                    :class="{ 'btn-disabled': selectedPhotos.length >= 3 }"
+                    @click="triggerGalleryInput" :disabled="selectedPhotos.length >= 3"
+                    title="Pilih foto yang tersimpan di galeri atau file HP">
+                    <div class="source-icon-wrap gallery-icon-wrap">
+                      <Icon name="lucide:images" class="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div class="source-text-wrap">
+                      <span class="source-title">Pilih dari Galeri HP</span>
+                      <span class="source-sub">Dari album / file HP</span>
+                    </div>
+                  </button>
+                </div>
+
+                <!-- Upload Drag/Drop Box (or Fallback Browse) -->
                 <div class="upload-dropzone" :class="{ 'dropzone-disabled': selectedPhotos.length >= 3 }"
-                  @click="triggerFileInput">
-                  <input ref="fileInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/jpg" multiple
-                    class="hidden-file-input" @change="handleFileChange" :disabled="selectedPhotos.length >= 3" />
+                  @click="triggerGalleryInput">
                   <div class="dropzone-content">
                     <div class="dropzone-icon">
-                      <Icon :name="selectedPhotos.length >= 3 ? 'lucide:check-circle-2' : 'lucide:image-plus'"
-                        class="w-6 h-6" :class="selectedPhotos.length >= 3 ? 'text-emerald-500' : 'text-bsi-blue'" />
+                      <Icon :name="selectedPhotos.length >= 3 ? 'lucide:check-circle-2' : 'lucide:upload-cloud'"
+                        class="w-5 h-5" :class="selectedPhotos.length >= 3 ? 'text-emerald-500' : 'text-bsi'" />
                     </div>
                     <span class="dropzone-text">
-                      {{ selectedPhotos.length >= 3 ? 'Maksimal 3 Foto Terpenuhi' : 'Pilih Foto atau Tarik ke Sini' }}
+                      {{ selectedPhotos.length >= 3 ? 'Maksimal 3 Foto Terpenuhi' : 'Atau Tarik & Lepas Foto ke Sini' }}
                     </span>
                     <span class="dropzone-sub">JPG, PNG, atau WebP (Maks. 3 foto, @2MB)</span>
                   </div>
@@ -550,7 +585,8 @@ const formRating = ref(5)
 const hoverRating = ref(0)
 const formComment = ref('')
 const selectedPhotos = ref<Array<{ file: File; previewUrl: string }>>([])
-const fileInputRef = ref<HTMLInputElement | null>(null)
+const galleryInputRef = ref<HTMLInputElement | null>(null)
+const cameraInputRef = ref<HTMLInputElement | null>(null)
 const uploadError = ref('')
 const submitError = ref('')
 const isSubmitting = ref(false)
@@ -620,15 +656,27 @@ const closeReviewModal = (force?: boolean | Event) => {
   isReviewModalOpen.value = false
 }
 
-const triggerFileInput = () => {
+const triggerGalleryInput = () => {
   if (selectedPhotos.value.length >= 3) {
     uploadError.value = 'Maksimal 3 foto bukti telah tercapai. Hapus salah satu foto jika ingin mengganti.'
     return
   }
-  if (fileInputRef.value) {
-    fileInputRef.value.click()
+  if (galleryInputRef.value) {
+    galleryInputRef.value.click()
   }
 }
+
+const triggerCameraInput = () => {
+  if (selectedPhotos.value.length >= 3) {
+    uploadError.value = 'Maksimal 3 foto bukti telah tercapai. Hapus salah satu foto jika ingin mengganti.'
+    return
+  }
+  if (cameraInputRef.value) {
+    cameraInputRef.value.click()
+  }
+}
+
+const triggerFileInput = triggerGalleryInput
 
 const handleFileChange = (e: Event) => {
   uploadError.value = ''
@@ -1551,13 +1599,89 @@ useHead({
   font-size: 0.75rem;
   color: #64748b;
   line-height: 1.4;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Upload Source Dual Action Buttons (Kamera vs Galeri) */
+.upload-source-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.upload-source-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 2px 6px rgba(0, 51, 153, 0.04);
+}
+
+.upload-source-btn:hover:not(:disabled) {
+  border-color: #003399;
+  background: #eff6ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 51, 153, 0.1);
+}
+
+.upload-source-btn.btn-disabled,
+.upload-source-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  transform: none;
+}
+
+.source-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.camera-icon-wrap {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.gallery-icon-wrap {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+}
+
+.source-text-wrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.source-title {
+  font-size: 0.825rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.source-sub {
+  font-size: 0.7rem;
+  color: #64748b;
 }
 
 .upload-dropzone {
   border: 2px dashed #cbd5e1;
   border-radius: 8px;
-  padding: 1.25rem 1rem;
+  padding: 1rem 0.75rem;
   background: #f8fafc;
   cursor: pointer;
   text-align: center;
@@ -2042,6 +2166,11 @@ useHead({
 
   .review-modal-body {
     padding: 1rem;
+  }
+
+  .upload-source-options {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
   }
 }
 </style>

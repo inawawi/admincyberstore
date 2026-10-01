@@ -220,8 +220,8 @@
           </button>
 
           <!-- Cart Button with Counter -->
-          <button @click="cartStore.toggleCart()" class="cart-trigger-btn"
-            :class="{ 'has-items': cartStore.totalItems > 0 }" aria-label="Buka Keranjang">
+          <button @click="handleCartClick" class="cart-trigger-btn" :class="{ 'has-items': cartStore.totalItems > 0 }"
+            aria-label="Buka Keranjang">
             <div class="cart-icon-wrapper" :class="{ 'cart-bounce-anim': cartStore.cartBounce }">
               <Icon name="lucide:shopping-cart" class="w-5 h-5" />
               <Transition name="badge-pop">
@@ -445,6 +445,12 @@
                     <Icon name="lucide:flame" class="w-4 h-4 text-coral" />
                   </span>
                   <span>Cyber Picks Rekomendasi</span>
+                </NuxtLink>
+                <NuxtLink to="/announcements" class="drawer-nav-item" active-class="is-active" @click="closeMobileMenu">
+                  <span class="drawer-icon">
+                    <Icon name="lucide:megaphone" class="w-4 h-4" />
+                  </span>
+                  <span>Pengumuman & Info</span>
                 </NuxtLink>
                 <button @click="openCartFromDrawer" class="drawer-nav-item drawer-cart-item">
                   <span class="drawer-icon">
@@ -1024,8 +1030,30 @@ const handleMobileSearch = () => {
   }
 }
 
+const handleCartClick = () => {
+  if (!authStore.isAuthenticated) {
+    toast.warning('Silakan masuk ke akun Anda terlebih dahulu untuk melihat keranjang belanja.', {
+      title: 'Perlu Masuk Akun',
+      tag: 'AUTENTIKASI',
+      duration: 3500,
+    })
+    router.push('/auth/login')
+    return
+  }
+  cartStore.toggleCart()
+}
+
 const openCartFromDrawer = () => {
   closeMobileMenu()
+  if (!authStore.isAuthenticated) {
+    toast.warning('Silakan masuk ke akun Anda terlebih dahulu untuk melihat keranjang belanja.', {
+      title: 'Perlu Masuk Akun',
+      tag: 'AUTENTIKASI',
+      duration: 3500,
+    })
+    router.push('/auth/login')
+    return
+  }
   cartStore.toggleCart()
 }
 
@@ -1062,10 +1090,8 @@ const confirmLogout = async () => {
       duration: 4500,
     })
 
-    // Redirect ke beranda jika sedang di halaman akun
-    if (router.currentRoute.value.path !== '/') {
-      await router.push('/')
-    }
+    // Redirect otomatis ke halaman login setelah logout
+    await router.push('/auth/login')
   } catch (error) {
     console.error('Logout error:', error)
     isLogoutModalOpen.value = false
@@ -1075,9 +1101,7 @@ const confirmLogout = async () => {
       footerNote: 'Sesi belanja Anda telah diamankan',
       duration: 4500,
     })
-    if (router.currentRoute.value.path !== '/') {
-      await router.push('/')
-    }
+    await router.push('/auth/login')
   } finally {
     isLoggingOut.value = false
   }

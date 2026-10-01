@@ -58,7 +58,9 @@ export default async function LoginPage() {
           </div>
           <div className="floating-preview" aria-hidden="true"><div className="preview-head"><span /><span /><span /></div><div className="preview-content"><div className="preview-sidebar" /><div className="preview-main"><span /><div><i /><i /><i /></div><b /><b /></div></div></div>
         </div>
-        <div className="login-panel"><div className="login-window-controls" aria-hidden="true"><span>&mdash;</span><span>&#9633;</span><span>&times;</span></div><LoginForm storeName={store.name} /></div>
+        <div className="login-panel">
+          <LoginForm storeName={store.name} />
+        </div>
       </section>
       <p className="login-footnote">
         &copy; Powered by BTI-BSI {year} {store.name} &middot; 

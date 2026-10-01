@@ -8,6 +8,8 @@ out/
 !.env.example
 coverage/
 *.log
+logs/
+apps/*/logs/
 apps/admin/public/storage/*
 !apps/admin/public/storage/.gitkeep
 
